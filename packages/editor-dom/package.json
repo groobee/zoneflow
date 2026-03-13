@@ -1,0 +1,16 @@
+{
+  "name": "@zoneflow/editor-dom",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "dependencies": {
+    "@zoneflow/core": "workspace:*",
+    "@zoneflow/renderer-dom": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  }
+}

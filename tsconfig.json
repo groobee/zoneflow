@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/renderer-dom" },
+    { "path": "./packages/react-renderer"},
+    { "path": "./packages/react-editor"},
+    { "path": "./packages/editor-dom" },
+    { "path": "./apps/playground" }
+  ]
+}
