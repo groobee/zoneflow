@@ -8,8 +8,7 @@ export default defineConfig({
     alias: {
       "@zoneflow/core": path.resolve(__dirname, "../../packages/core/src"),
       "@zoneflow/renderer-dom": path.resolve(__dirname, "../../packages/renderer-dom/src"),
-      "@zoneflow/react-renderer": path.resolve(__dirname, "../../packages/react-renderer/src"),
-      "@zoneflow/react-editor": path.resolve(__dirname, "../../packages/react-editor/src"),
+      "@zoneflow/react": path.resolve(__dirname, "../../packages/react/src"),
     }
   }
 });

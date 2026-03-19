@@ -1,4 +1,4 @@
-import { UniverseCanvas } from "@zoneflow/react-renderer";
+import { UniverseCanvas } from "@zoneflow/react";
 import { sampleLargeUniverse, sampleLargeUniverseLayout } from "./mock/sampleLargeUniverse";
 import {sampleUniverse, sampleUniverseLayout} from "./mock/sampleUniverse";
 
@@ -106,7 +106,10 @@ export default function App() {
         <UniverseCanvas
           model={sampleUniverse}
           layoutModel={sampleUniverseLayout}
-          textScale={"md"}
+          debug={{
+            enabled: true,
+            mode: "graph-layout",
+          }}
         />
       </main>
 

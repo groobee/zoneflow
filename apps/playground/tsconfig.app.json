@@ -8,6 +8,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../packages/react-renderer" }
+    { "path": "../../packages/react" }
   ]
 }

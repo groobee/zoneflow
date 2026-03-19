@@ -215,6 +215,8 @@ export type RendererInput = {
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
   interactionHandlers?: RendererInteractionHandlers;
+
+  debug?: RendererDebugOptions;
 };
 
 export type ZoneflowRenderer = {
@@ -253,4 +255,13 @@ export type ComponentLayoutEngine = {
 
 export type DrawEngine = {
   draw(input: RendererDrawInput): void;
+};
+
+export type RendererDebugOptions = {
+  enabled?: boolean;
+  mode?:
+    | "graph-layout"
+    | "density"
+    | "visibility"
+    | "component-layout";
 };

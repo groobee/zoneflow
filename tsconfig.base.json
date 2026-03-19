@@ -15,8 +15,7 @@
       "@zoneflow/core": ["packages/core/src"],
       "@zoneflow/renderer-dom": ["packages/renderer-dom/src"],
       "@zoneflow/editor-dom": ["packages/editor-dom/src"],
-      "@zoneflow/react-renderer": ["packages/react-renderer/src"],
-      "@zoneflow/react-editor": ["packages/react-editor/src"]
+      "@zoneflow/react": ["packages/react/src"]
     }
   }
 }

@@ -1,4 +1,9 @@
-import type { CameraState, RendererInput, ViewportRect, ZoneflowRenderer } from "./types";
+import type {
+  CameraState,
+  RendererInput,
+  ViewportRect,
+  ZoneflowRenderer,
+} from "./types";
 import { resolveTheme } from "./themes/defaultTheme";
 import { runRenderPipeline } from "./pipeline";
 
@@ -7,6 +12,7 @@ import { defaultDensityEngine } from "./engines/densityEngine";
 import { defaultVisibilityEngine } from "./engines/visibilityEngine";
 import { defaultComponentLayoutEngine } from "./engines/componentLayoutEngine";
 import { domDrawEngine } from "./engines/drawEngine";
+import { debugDrawEngine } from "./engines/debugDrawEngine";
 
 const DEFAULT_CAMERA: CameraState = {
   x: 0,
@@ -28,6 +34,15 @@ function getViewport(host: HTMLElement): ViewportRect {
   };
 }
 
+export type RendererDebugOptions = {
+  enabled?: boolean;
+  mode?:
+    | "graph-layout"
+    | "density"
+    | "visibility"
+    | "component-layout";
+};
+
 export function createRenderer(): ZoneflowRenderer {
   let host: HTMLElement | null = null;
 
@@ -37,7 +52,7 @@ export function createRenderer(): ZoneflowRenderer {
       ensureHostBaseStyle(host);
     },
 
-    update(input) {
+    update(input: RendererInput & { debug?: RendererDebugOptions }) {
       if (!host) return;
 
       const {
@@ -56,9 +71,11 @@ export function createRenderer(): ZoneflowRenderer {
         zoneComponentRenderers,
         pathComponentRenderers,
         interactionHandlers,
+
+        debug,
       } = input;
 
-      const mergedTheme = resolveTheme(input.theme);
+      const mergedTheme = resolveTheme(theme);
       const viewport = getViewport(host);
 
       const pipeline = runRenderPipeline(
@@ -78,6 +95,22 @@ export function createRenderer(): ZoneflowRenderer {
         }
       );
 
+      if (debug?.enabled) {
+        debugDrawEngine.draw({
+          host,
+          model,
+          layoutModel,
+          camera,
+          viewport,
+          theme: mergedTheme,
+          textScale,
+          pipeline,
+          mode: debug.mode ?? "graph-layout",
+        });
+        return;
+      }
+
+      // 일반 렌더링
       drawEngine.draw({
         host,
         model,

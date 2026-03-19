@@ -1,5 +1,5 @@
 {
-  "name": "@zoneflow/react-editor",
+  "name": "@zoneflow/react",
   "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@zoneflow/core": "workspace:*",
-    "@zoneflow/react-renderer": "workspace:*"
+    "@zoneflow/renderer-dom": "workspace:*",
+    "@zoneflow/editor-dom": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
