@@ -1,5 +1,5 @@
 import type { Point } from "@zoneflow/core";
-import type { RendererDrawInput } from "../types";
+import type { CameraState, RendererDrawInput } from "../types";
 
 export type DebugLayer =
   | "graph-layout"
@@ -13,7 +13,11 @@ export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
 };
 
-type DrawFn = (root: HTMLElement, pipeline: any) => void;
+type DrawFn = (
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) => void;
 
 const ANCHOR_SIZE = 8;
 
@@ -51,16 +55,21 @@ export const debugDrawEngine = {
     host.appendChild(root);
 
     layers.forEach((layer) => {
-      drawLayerMap[layer]?.(root, pipeline);
+      drawLayerMap[layer]?.(root, pipeline, camera);
     });
   },
 };
+
+function getDebugFontSize(camera: CameraState): number {
+  return Math.min(24, Math.max(12, 18 / camera.zoom));
+}
 
 function drawBox(
   root: HTMLElement,
   rect: { x: number; y: number; width: number; height: number },
   color: string,
-  label?: string
+  label: string | undefined,
+  camera: CameraState
 ) {
   const el = document.createElement("div");
 
@@ -75,13 +84,19 @@ function drawBox(
 
   if (label) {
     const text = document.createElement("div");
+    const fontSize = getDebugFontSize(camera);
+
     text.textContent = String(label);
-    text.style.fontSize = "10px";
+    text.style.fontSize = `${fontSize}px`;
     text.style.color = color;
     text.style.position = "absolute";
     text.style.left = "2px";
     text.style.top = "2px";
     text.style.pointerEvents = "none";
+    text.style.background = "rgba(0,0,0,0.6)";
+    text.style.padding = "1px 3px";
+    text.style.borderRadius = "3px";
+
     el.appendChild(text);
   }
 
@@ -92,7 +107,8 @@ function drawAnchor(
   root: HTMLElement,
   point: Point,
   color: string,
-  label?: string
+  label: string | undefined,
+  camera: CameraState
 ) {
   const dot = document.createElement("div");
   dot.style.position = "absolute";
@@ -108,84 +124,122 @@ function drawAnchor(
 
   if (label) {
     const text = document.createElement("div");
+    const fontSize = getDebugFontSize(camera);
+
     text.textContent = label;
     text.style.position = "absolute";
     text.style.left = `${point.x + 6}px`;
     text.style.top = `${point.y - 6}px`;
-    text.style.fontSize = "10px";
+    text.style.fontSize = `${fontSize}px`;
     text.style.color = color;
     text.style.whiteSpace = "nowrap";
     text.style.pointerEvents = "none";
+    text.style.background = "rgba(0,0,0,0.6)";
+    text.style.padding = "1px 3px";
+    text.style.borderRadius = "3px";
+
     root.appendChild(text);
   }
 
   root.appendChild(dot);
 }
 
-function drawGraphLayout(root: HTMLElement, pipeline: any) {
+function drawGraphLayout(
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) {
   const { graphLayout } = pipeline;
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
-    drawBox(root, zone.rect, "blue", zone.zone.name);
+    drawBox(root, zone.rect, "blue", zone.zone.name, camera);
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
     if (path.rect) {
-      drawBox(root, path.rect, "green", path.path.name);
+      drawBox(root, path.rect, "green", path.path.name, camera);
     }
   });
 }
 
-function drawDensity(root: HTMLElement, pipeline: any) {
+function drawDensity(
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) {
   const { graphLayout, density } = pipeline;
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     const level = density.zoneDensityById[zone.zoneId];
-    drawBox(root, zone.rect, "purple", level);
+    drawBox(root, zone.rect, "purple", level, camera);
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
     if (!path.rect) return;
     const level = density.pathDensityById[path.pathId];
-    drawBox(root, path.rect, "magenta", level);
+    drawBox(root, path.rect, "magenta", level, camera);
   });
 }
 
-function drawVisibility(root: HTMLElement, pipeline: any) {
+function drawVisibility(
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) {
   const { graphLayout, visibility } = pipeline;
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     const v = visibility.zoneVisibilityById[zone.zoneId];
     if (!v?.isVisible) return;
 
-    drawBox(root, zone.rect, "orange", v.isPartial ? "partial" : "visible");
+    drawBox(
+      root,
+      zone.rect,
+      "orange",
+      v.isPartial ? "partial" : "visible",
+      camera
+    );
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
     const v = visibility.pathVisibilityById[path.pathId];
     if (!v?.isVisible || !path.rect) return;
 
-    drawBox(root, path.rect, "goldenrod", v.shouldRenderNode ? "node" : "hidden");
+    drawBox(
+      root,
+      path.rect,
+      "goldenrod",
+      v.shouldRenderNode ? "node" : "hidden",
+      camera
+    );
   });
 }
 
-function drawComponentLayout(root: HTMLElement, pipeline: any) {
+function drawComponentLayout(
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) {
   const { componentLayout } = pipeline;
 
   Object.values(componentLayout.zonesById).forEach((zone: any) => {
     Object.entries(zone.slots).forEach(([name, rect]: any) => {
-      drawBox(root, rect, "red", name);
+      drawBox(root, rect, "red", name, camera);
     });
   });
 
   Object.values(componentLayout.pathsById ?? {}).forEach((path: any) => {
     Object.entries(path.slots).forEach(([name, rect]: any) => {
-      drawBox(root, rect, "brown", `path:${name}`);
+      drawBox(root, rect, "brown", `path:${name}`, camera);
     });
   });
 }
 
-function drawEdges(root: HTMLElement, pipeline: any) {
+function drawEdges(
+  root: HTMLElement,
+  pipeline: any,
+  _camera: CameraState
+) {
   const { edgesByPathId } = pipeline.graphLayout;
 
   Object.values(edgesByPathId).forEach((edge: any) => {
@@ -210,24 +264,28 @@ function drawEdges(root: HTMLElement, pipeline: any) {
   });
 }
 
-function drawAnchors(root: HTMLElement, pipeline: any) {
+function drawAnchors(
+  root: HTMLElement,
+  pipeline: any,
+  camera: CameraState
+) {
   const { graphLayout } = pipeline;
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     if (zone.inlet) {
-      drawAnchor(root, zone.inlet, "#2563eb", `${zone.zoneId}:in`);
+      drawAnchor(root, zone.inlet, "#2563eb", `${zone.zoneId}:in`, camera);
     }
     if (zone.outlet) {
-      drawAnchor(root, zone.outlet, "#dc2626", `${zone.zoneId}:out`);
+      drawAnchor(root, zone.outlet, "#dc2626", `${zone.zoneId}:out`, camera);
     }
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
     if (path.inlet) {
-      drawAnchor(root, path.inlet, "#16a34a", `${path.pathId}:in`);
+      drawAnchor(root, path.inlet, "#16a34a", `${path.pathId}:in`, camera);
     }
     if (path.outlet) {
-      drawAnchor(root, path.outlet, "#ca8a04", `${path.pathId}:out`);
+      drawAnchor(root, path.outlet, "#ca8a04", `${path.pathId}:out`, camera);
     }
   });
 }
