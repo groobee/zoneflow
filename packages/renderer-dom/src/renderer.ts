@@ -4,15 +4,15 @@ import type {
   ViewportRect,
   ZoneflowRenderer,
 } from "./types";
-import { resolveTheme } from "./themes/defaultTheme";
-import { runRenderPipeline } from "./pipeline";
+import {resolveTheme} from "./themes/defaultTheme";
+import {runRenderPipeline} from "./pipeline";
 
-import { defaultGraphLayoutEngine } from "./engines/graphLayoutEngine";
-import { defaultDensityEngine } from "./engines/densityEngine";
-import { defaultVisibilityEngine } from "./engines/visibilityEngine";
-import { defaultComponentLayoutEngine } from "./engines/componentLayoutEngine";
-import { domDrawEngine } from "./engines/drawEngine";
-import { debugDrawEngine } from "./engines/debugDrawEngine";
+import {defaultGraphLayoutEngine} from "./engines/graphLayoutEngine";
+import {defaultDensityEngine} from "./engines/densityEngine";
+import {defaultVisibilityEngine} from "./engines/visibilityEngine";
+import {defaultComponentLayoutEngine} from "./engines/componentLayoutEngine";
+import {domDrawEngine} from "./engines/drawEngine";
+import {debugDrawEngine} from "./engines/debugDrawEngine";
 
 const DEFAULT_CAMERA: CameraState = {
   x: 0,
@@ -105,7 +105,7 @@ export function createRenderer(): ZoneflowRenderer {
           theme: mergedTheme,
           textScale,
           pipeline,
-          mode: debug.mode ?? "graph-layout",
+          layers: debug.layers ?? ["graph-layout", "edges", "anchors",],
         });
         return;
       }

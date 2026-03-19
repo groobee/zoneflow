@@ -1,23 +1,41 @@
 import type { Point } from "@zoneflow/core";
 import type { RendererDrawInput } from "../types";
 
-export type DebugMode =
+export type DebugLayer =
   | "graph-layout"
   | "density"
   | "visibility"
-  | "component-layout";
+  | "component-layout"
+  | "edges"
+  | "anchors";
 
 export type DebugDrawInput = RendererDrawInput & {
-  mode: DebugMode;
+  layers?: DebugLayer[];
 };
 
 type DrawFn = (root: HTMLElement, pipeline: any) => void;
 
 const ANCHOR_SIZE = 8;
 
+const DEFAULT_DEBUG_LAYERS: DebugLayer[] = [
+  "graph-layout",
+  "edges",
+  "anchors",
+];
+
+const drawLayerMap: Record<DebugLayer, DrawFn> = {
+  "graph-layout": drawGraphLayout,
+  density: drawDensity,
+  visibility: drawVisibility,
+  "component-layout": drawComponentLayout,
+  edges: drawEdges,
+  anchors: drawAnchors,
+};
+
 export const debugDrawEngine = {
   draw(input: DebugDrawInput) {
-    const { host, pipeline, mode, camera } = input;
+    const { host, pipeline, camera } = input;
+    const layers = input.layers ?? DEFAULT_DEBUG_LAYERS;
 
     host.innerHTML = "";
 
@@ -27,23 +45,14 @@ export const debugDrawEngine = {
     root.style.top = "0";
     root.style.width = "100%";
     root.style.height = "100%";
-
-    root.style.transform = `
-      translate(${camera.x}px, ${camera.y}px)
-      scale(${camera.zoom})
-    `;
+    root.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
     root.style.transformOrigin = "0 0";
 
     host.appendChild(root);
 
-    const drawMap: Record<DebugMode, DrawFn[]> = {
-      "graph-layout": [drawGraphLayout, drawEdges, drawAnchors],
-      density: [drawDensity],
-      visibility: [drawVisibility],
-      "component-layout": [drawComponentLayout],
-    };
-
-    drawMap[mode]?.forEach((fn) => fn(root, pipeline));
+    layers.forEach((layer) => {
+      drawLayerMap[layer]?.(root, pipeline);
+    });
   },
 };
 
@@ -134,6 +143,12 @@ function drawDensity(root: HTMLElement, pipeline: any) {
     const level = density.zoneDensityById[zone.zoneId];
     drawBox(root, zone.rect, "purple", level);
   });
+
+  Object.values(graphLayout.pathsById).forEach((path: any) => {
+    if (!path.rect) return;
+    const level = density.pathDensityById[path.pathId];
+    drawBox(root, path.rect, "magenta", level);
+  });
 }
 
 function drawVisibility(root: HTMLElement, pipeline: any) {
@@ -144,6 +159,13 @@ function drawVisibility(root: HTMLElement, pipeline: any) {
     if (!v?.isVisible) return;
 
     drawBox(root, zone.rect, "orange", v.isPartial ? "partial" : "visible");
+  });
+
+  Object.values(graphLayout.pathsById).forEach((path: any) => {
+    const v = visibility.pathVisibilityById[path.pathId];
+    if (!v?.isVisible || !path.rect) return;
+
+    drawBox(root, path.rect, "goldenrod", v.shouldRenderNode ? "node" : "hidden");
   });
 }
 

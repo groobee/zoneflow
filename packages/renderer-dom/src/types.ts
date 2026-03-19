@@ -9,6 +9,7 @@ import type {
   ZoneId,
 } from "@zoneflow/core";
 import type { TextScaleLevel, ZoneflowTheme } from "./theme";
+import type { DebugLayer } from "./engines/debugDrawEngine";
 
 export type CameraState = {
   x: number;
@@ -259,9 +260,5 @@ export type DrawEngine = {
 
 export type RendererDebugOptions = {
   enabled?: boolean;
-  mode?:
-    | "graph-layout"
-    | "density"
-    | "visibility"
-    | "component-layout";
+  layers?: DebugLayer[];
 };

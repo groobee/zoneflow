@@ -18,6 +18,17 @@ export const defaultTheme: ZoneflowTheme = {
   pathEdge: "#98a2b3",
 
   selection: "#2e90fa",
+
+  density: {
+    zone: {
+      detail: 200,
+      simple: 100,
+    },
+    path: {
+      full: 120,
+      chip: 60,
+    },
+  },
 };
 
 /**
@@ -31,5 +42,15 @@ export function resolveTheme(
   return {
     ...defaultTheme,
     ...theme,
+    density: {
+      zone: {
+        ...defaultTheme.density.zone,
+        ...theme.density?.zone,
+      },
+      path: {
+        ...defaultTheme.density.path,
+        ...theme.density?.path,
+      },
+    },
   };
 }

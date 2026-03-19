@@ -1,133 +1,91 @@
-import { UniverseCanvas } from "@zoneflow/react";
-import { sampleLargeUniverse, sampleLargeUniverseLayout } from "./mock/sampleLargeUniverse";
-import {sampleUniverse, sampleUniverseLayout} from "./mock/sampleUniverse";
+import { useDebugState } from "./hooks/useDebugState";
+import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
+import { shellStyle } from "./components/layout/layout.styles";
+import { Topbar } from "./components/layout/Topbar";
+import { LeftPanel } from "./components/layout/LeftPanel";
+import { RightPanel } from "./components/layout/RightPanel";
+import { CanvasHost } from "./components/layout/CanvasHost";
 
-const shellStyle: React.CSSProperties = {
-  width: "100vw",
-  height: "100vh",
-  display: "grid",
-  gridTemplateRows: "56px 1fr",
-  gridTemplateColumns: "240px minmax(0, 1fr) 280px",
-  gridTemplateAreas: `
-    "topbar topbar topbar"
-    "left canvas right"
-  `,
-  background: "#020617",
-};
-
-const topbarStyle: React.CSSProperties = {
-  gridArea: "topbar",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "0 16px",
-  borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
-  background: "#0f172a",
-  color: "#e2e8f0",
-  fontFamily: "sans-serif",
-};
-
-const panelBaseStyle: React.CSSProperties = {
-  background: "#0b1220",
-  color: "#cbd5e1",
-  fontFamily: "sans-serif",
-  padding: 12,
-  boxSizing: "border-box",
-  overflow: "auto",
-};
-
-const leftPanelStyle: React.CSSProperties = {
-  ...panelBaseStyle,
-  gridArea: "left",
-  borderRight: "1px solid rgba(148, 163, 184, 0.2)",
-};
-
-const rightPanelStyle: React.CSSProperties = {
-  ...panelBaseStyle,
-  gridArea: "right",
-  borderLeft: "1px solid rgba(148, 163, 184, 0.2)",
-};
-
-const canvasHostStyle: React.CSSProperties = {
-  gridArea: "canvas",
-  minWidth: 0,
-  minHeight: 0,
-  position: "relative",
-  overflow: "hidden",
-  background: "#020617",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: 0.4,
-  textTransform: "uppercase",
-  color: "#94a3b8",
-  marginBottom: 10,
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid rgba(148, 163, 184, 0.16)",
-  borderRadius: 10,
-  padding: 10,
-  marginBottom: 10,
-  background: "rgba(15, 23, 42, 0.72)",
-};
-
+/**
+ * Zoneflow Playground (Sample App)
+ *
+ * 이 컴포넌트는 zoneflow renderer를 사용하는 기본적인 구조를 보여주는 예제입니다.
+ *
+ * 주요 역할:
+ * - 샘플 데이터 선택 (small / large)
+ * - 디버그 레이어 제어
+ * - 레이아웃 패널 구성 (좌/중앙/우)
+ * - UniverseCanvas 렌더링
+ *
+ * 실제 서비스에서는:
+ * - model / layoutModel을 서버 or 상태에서 받아오고
+ * - debug는 제거하거나 개발 환경에서만 사용합니다.
+ */
 export default function App() {
+  /**
+   * Debug 상태 관리
+   *
+   * - enabled: 디버그 렌더링 여부
+   * - layers: 어떤 디버그 레이어를 표시할지
+   *
+   * 기본값:
+   * - graph-layout: 기본 박스
+   * - edges: 연결선
+   * - anchors: 입출력 포인트
+   */
+  const debug = useDebugState([
+    "graph-layout",
+    "edges",
+    "anchors",
+  ]);
+
+  /**
+   * 샘플 데이터 스위처
+   *
+   * - sampleType: 현재 선택된 샘플 (small | large)
+   * - model: Universe 데이터
+   * - layoutModel: 레이아웃 정보
+   *
+   * Playground에서는 샘플 전환용으로 사용되며,
+   * 실제 서비스에서는 API or 상태 관리로 대체됩니다.
+   */
+  const {
+    sampleType,
+    setSampleType,
+    model,
+    layoutModel,
+  } = useSampleSwitcher("small");
+
   return (
     <div style={shellStyle}>
-      <div style={topbarStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <strong>Zoneflow Playground</strong>
-          <span style={{ color: "#94a3b8", fontSize: 13 }}>
-            viewport / zoom / pan test shell
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 8, fontSize: 13, color: "#cbd5e1" }}>
-          <span>Ctrl/Cmd + Wheel: Zoom</span>
-          <span>•</span>
-          <span>Alt + Drag: Pan</span>
-          <span>•</span>
-          <span>Middle Drag: Pan</span>
-        </div>
-      </div>
+      {/* 상단 툴바
+          - 샘플 선택
+          - (추후) zoom reset / debug toggle 등 확장 가능 */}
+      <Topbar
+        sampleType={sampleType}
+        setSampleType={setSampleType}
+      />
 
-      <aside style={leftPanelStyle}>
-        <div style={sectionTitleStyle}>Palette</div>
-        <div style={cardStyle}>Send Push</div>
-        <div style={cardStyle}>Wait Timer</div>
-        <div style={cardStyle}>Condition Branch</div>
-        <div style={cardStyle}>Coupon Action</div>
-        <div style={cardStyle}>Container Zone</div>
-      </aside>
+      {/* 좌측 패널 (Palette)
+          - 노드 타입 목록
+          - Drag & Drop 영역으로 확장 가능 */}
+      <LeftPanel />
 
-      <main style={canvasHostStyle}>
-        <UniverseCanvas
-          model={sampleUniverse}
-          layoutModel={sampleUniverseLayout}
-          debug={{
-            enabled: true,
-            mode: "graph-layout",
-          }}
-        />
-      </main>
+      {/* 중앙 캔버스 영역
+          - 실제 그래프 렌더링
+          - camera (zoom/pan)는 내부에서 관리됨 */}
+      <CanvasHost
+        model={model}
+        layoutModel={layoutModel}
+        debugEnabled={debug.enabled}
+        debugLayers={debug.layers}
+      />
 
-      <aside style={rightPanelStyle}>
-        <div style={sectionTitleStyle}>Inspector</div>
-        <div style={cardStyle}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Selection</div>
-          <div style={{ fontSize: 14, color: "#94a3b8" }}>Nothing selected</div>
-        </div>
-        <div style={cardStyle}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Viewport Notes</div>
-          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
-            <li>Canvas should stay clipped inside the center panel.</li>
-            <li>Zoom and pan should not push outside this region.</li>
-            <li>Toolbar and side panels should remain fixed.</li>
-          </ul>
-        </div>
-      </aside>
+      {/* 우측 패널 (Inspector)
+          - Debug Layer 제어
+          - Selection 정보
+          - 속성 패널로 확장 가능 */}
+      <RightPanel debug={debug} />
     </div>
   );
 }

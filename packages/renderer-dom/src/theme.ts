@@ -13,6 +13,18 @@ export type ZoneflowTheme = {
   pathEdge: string;
 
   selection: string;
+
+  // 👇 추가
+  density: {
+    zone: {
+      detail: number;
+      simple: number;
+    };
+    path: {
+      full: number;
+      chip: number;
+    };
+  };
 };
 
 export type TextScaleLevel = "sm" | "md" | "lg";
