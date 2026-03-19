@@ -2,18 +2,11 @@ import React from "react";
 import { Card } from "../common/Card";
 import { SectionTitle } from "../common/SectionTitle";
 import { DebugPanel } from "../debug/DebugPanel";
-import type { DebugLayer } from "../../hooks/useDebugState";
+import type { DebugState } from "../../hooks/useDebugState";
 import { rightPanelStyle } from "./layout.styles";
 
 type Props = {
-  debug: {
-    enabled: boolean;
-    setEnabled: (v: boolean) => void;
-    layers: DebugLayer[];
-    toggleLayer: (l: DebugLayer) => void;
-    enableAll: () => void;
-    clearAll: () => void;
-  };
+  debug: DebugState;
 };
 
 export function RightPanel({ debug }: Props) {
@@ -21,7 +14,7 @@ export function RightPanel({ debug }: Props) {
     <aside style={rightPanelStyle}>
       <SectionTitle>Inspector</SectionTitle>
 
-      <DebugPanel {...debug} />
+      <DebugPanel debug={debug} />
 
       <Card>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Selection</div>
@@ -36,6 +29,7 @@ export function RightPanel({ debug }: Props) {
           <li>Canvas should stay clipped inside the center panel.</li>
           <li>Zoom and pan should not push outside this region.</li>
           <li>Toolbar and side panels should remain fixed.</li>
+          <li>Viewport override is for debug rendering only.</li>
         </ul>
       </Card>
     </aside>

@@ -1,5 +1,10 @@
 import type { Point } from "@zoneflow/core";
-import type { CameraState, RendererDrawInput } from "../types";
+import type {
+  CameraState,
+  DebugViewportOverride,
+  RendererDrawInput,
+  ViewportRect,
+} from "../types";
 
 export type DebugLayer =
   | "graph-layout"
@@ -7,16 +12,19 @@ export type DebugLayer =
   | "visibility"
   | "component-layout"
   | "edges"
-  | "anchors";
+  | "anchors"
+  | "viewport";
 
 export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
+  viewportOverride?: DebugViewportOverride;
 };
 
 type DrawFn = (
   root: HTMLElement,
   pipeline: any,
-  camera: CameraState
+  camera: CameraState,
+  viewport: ViewportRect
 ) => void;
 
 const ANCHOR_SIZE = 8;
@@ -34,28 +42,30 @@ const drawLayerMap: Record<DebugLayer, DrawFn> = {
   "component-layout": drawComponentLayout,
   edges: drawEdges,
   anchors: drawAnchors,
+  viewport: drawViewport,
 };
 
 export const debugDrawEngine = {
   draw(input: DebugDrawInput) {
-    const { host, pipeline, camera } = input;
+    const { host, pipeline, camera, viewport } = input;
     const layers = input.layers ?? DEFAULT_DEBUG_LAYERS;
 
     host.innerHTML = "";
 
-    const root = document.createElement("div");
-    root.style.position = "absolute";
-    root.style.left = "0";
-    root.style.top = "0";
-    root.style.width = "100%";
-    root.style.height = "100%";
-    root.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
-    root.style.transformOrigin = "0 0";
+    const worldRoot = document.createElement("div");
+    worldRoot.style.position = "absolute";
+    worldRoot.style.left = "0";
+    worldRoot.style.top = "0";
+    worldRoot.style.width = "100%";
+    worldRoot.style.height = "100%";
+    worldRoot.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
+    worldRoot.style.transformOrigin = "0 0";
+    worldRoot.style.pointerEvents = "none";
 
-    host.appendChild(root);
+    host.appendChild(worldRoot);
 
     layers.forEach((layer) => {
-      drawLayerMap[layer]?.(root, pipeline, camera);
+      drawLayerMap[layer]?.(worldRoot, pipeline, camera, viewport);
     });
   },
 };
@@ -96,6 +106,7 @@ function drawBox(
     text.style.background = "rgba(0,0,0,0.6)";
     text.style.padding = "1px 3px";
     text.style.borderRadius = "3px";
+    text.style.fontWeight = "600";
 
     el.appendChild(text);
   }
@@ -137,6 +148,7 @@ function drawAnchor(
     text.style.background = "rgba(0,0,0,0.6)";
     text.style.padding = "1px 3px";
     text.style.borderRadius = "3px";
+    text.style.fontWeight = "600";
 
     root.appendChild(text);
   }
@@ -190,28 +202,39 @@ function drawVisibility(
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     const v = visibility.zoneVisibilityById[zone.zoneId];
-    if (!v?.isVisible) return;
 
-    drawBox(
-      root,
-      zone.rect,
-      "orange",
-      v.isPartial ? "partial" : "visible",
-      camera
-    );
+    if (!v) return;
+
+    if (v.isVisible) {
+      drawBox(
+        root,
+        zone.rect,
+        v.isPartial ? "#f59e0b" : "#f97316",
+        v.isPartial ? "partial" : "visible",
+        camera
+      );
+    } else {
+      drawBox(root, zone.rect, "rgba(148,163,184,0.45)", "culled", camera);
+    }
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
-    const v = visibility.pathVisibilityById[path.pathId];
-    if (!v?.isVisible || !path.rect) return;
+    if (!path.rect) return;
 
-    drawBox(
-      root,
-      path.rect,
-      "goldenrod",
-      v.shouldRenderNode ? "node" : "hidden",
-      camera
-    );
+    const v = visibility.pathVisibilityById[path.pathId];
+    if (!v) return;
+
+    if (v.isVisible) {
+      drawBox(
+        root,
+        path.rect,
+        "#d97706",
+        v.shouldRenderNode ? "node" : "edge-only",
+        camera
+      );
+    } else {
+      drawBox(root, path.rect, "rgba(100,100,100,0.35)", "culled", camera);
+    }
   });
 }
 
@@ -235,11 +258,7 @@ function drawComponentLayout(
   });
 }
 
-function drawEdges(
-  root: HTMLElement,
-  pipeline: any,
-  _camera: CameraState
-) {
+function drawEdges(root: HTMLElement, pipeline: any) {
   const { edgesByPathId } = pipeline.graphLayout;
 
   Object.values(edgesByPathId).forEach((edge: any) => {
@@ -288,4 +307,20 @@ function drawAnchors(
       drawAnchor(root, path.outlet, "#ca8a04", `${path.pathId}:out`, camera);
     }
   });
+}
+
+function drawViewport(
+  root: HTMLElement,
+  _pipeline: any,
+  camera: CameraState,
+  viewport: ViewportRect
+) {
+  const worldViewport = {
+    x: -camera.x / camera.zoom,
+    y: -camera.y / camera.zoom,
+    width: viewport.width / camera.zoom,
+    height: viewport.height / camera.zoom,
+  };
+
+  drawBox(root, worldViewport, "#22c55e", "viewport", camera);
 }
