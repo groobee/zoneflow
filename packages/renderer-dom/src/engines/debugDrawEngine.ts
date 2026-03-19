@@ -1,9 +1,8 @@
 import type { Point } from "@zoneflow/core";
 import type {
   CameraState,
-  DebugViewportOverride,
   RendererDrawInput,
-  ViewportRect,
+  Rect,
 } from "../types";
 
 export type DebugLayer =
@@ -17,14 +16,13 @@ export type DebugLayer =
 
 export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
-  viewportOverride?: DebugViewportOverride;
 };
 
 type DrawFn = (
   root: HTMLElement,
   pipeline: any,
   camera: CameraState,
-  viewport: ViewportRect
+  viewport: Rect
 ) => void;
 
 const ANCHOR_SIZE = 8;
@@ -47,7 +45,7 @@ const drawLayerMap: Record<DebugLayer, DrawFn> = {
 
 export const debugDrawEngine = {
   draw(input: DebugDrawInput) {
-    const { host, pipeline, camera, viewport } = input;
+    const { host, pipeline, camera } = input;
     const layers = input.layers ?? DEFAULT_DEBUG_LAYERS;
 
     host.innerHTML = "";
@@ -62,11 +60,29 @@ export const debugDrawEngine = {
     worldRoot.style.transformOrigin = "0 0";
     worldRoot.style.pointerEvents = "none";
 
+    const screenRoot = document.createElement("div");
+    screenRoot.style.position = "absolute";
+    screenRoot.style.left = "0";
+    screenRoot.style.top = "0";
+    screenRoot.style.width = "100%";
+    screenRoot.style.height = "100%";
+    screenRoot.style.pointerEvents = "none";
+
     host.appendChild(worldRoot);
+    host.appendChild(screenRoot);
 
     layers.forEach((layer) => {
-      drawLayerMap[layer]?.(worldRoot, pipeline, camera, viewport);
+      drawLayerMap[layer]?.(
+        worldRoot,
+        pipeline,
+        camera,
+        pipeline.viewportInfo.world
+      );
     });
+
+    if (layers.includes("viewport")) {
+      drawHostViewportOverlay(screenRoot, pipeline.viewportInfo);
+    }
   },
 };
 
@@ -202,20 +218,22 @@ function drawVisibility(
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     const v = visibility.zoneVisibilityById[zone.zoneId];
-
     if (!v) return;
 
-    if (v.isVisible) {
-      drawBox(
-        root,
-        zone.rect,
-        v.isPartial ? "#f59e0b" : "#f97316",
-        v.isPartial ? "partial" : "visible",
-        camera
-      );
-    } else {
-      drawBox(root, zone.rect, "rgba(148,163,184,0.45)", "culled", camera);
-    }
+    const color =
+      !v.isVisible
+        ? "rgba(148,163,184,0.45)"
+        : v.isPartial
+          ? "#f59e0b"
+          : "#f97316";
+
+    const label = !v.isVisible
+      ? `culled / ${v.emphasis}`
+      : v.isPartial
+        ? `partial / ${v.emphasis}`
+        : `visible / ${v.emphasis}`;
+
+    drawBox(root, zone.rect, color, label, camera);
   });
 
   Object.values(graphLayout.pathsById).forEach((path: any) => {
@@ -224,17 +242,20 @@ function drawVisibility(
     const v = visibility.pathVisibilityById[path.pathId];
     if (!v) return;
 
-    if (v.isVisible) {
-      drawBox(
-        root,
-        path.rect,
-        "#d97706",
-        v.shouldRenderNode ? "node" : "edge-only",
-        camera
-      );
-    } else {
-      drawBox(root, path.rect, "rgba(100,100,100,0.35)", "culled", camera);
-    }
+    const color =
+      !v.isVisible
+        ? "rgba(100,100,100,0.35)"
+        : v.isPartial
+          ? "#d97706"
+          : "#ca8a04";
+
+    const label = !v.isVisible
+      ? `culled / ${v.emphasis}`
+      : v.shouldRenderNode
+        ? `node / ${v.emphasis}`
+        : `edge-only / ${v.emphasis}`;
+
+    drawBox(root, path.rect, color, label, camera);
   });
 }
 
@@ -313,14 +334,37 @@ function drawViewport(
   root: HTMLElement,
   _pipeline: any,
   camera: CameraState,
-  viewport: ViewportRect
+  viewport: Rect
 ) {
-  const worldViewport = {
-    x: -camera.x / camera.zoom,
-    y: -camera.y / camera.zoom,
-    width: viewport.width / camera.zoom,
-    height: viewport.height / camera.zoom,
-  };
+  drawBox(root, viewport, "#22c55e", "viewport", camera);
+}
 
-  drawBox(root, worldViewport, "#22c55e", "viewport", camera);
+function drawHostViewportOverlay(root: HTMLElement, viewportInfo: any) {
+  const box = document.createElement("div");
+
+  const { effective, host } = viewportInfo;
+
+  // 실제 host viewport 전체
+  const hostBox = document.createElement("div");
+  hostBox.style.position = "absolute";
+  hostBox.style.left = `${host.x}px`;
+  hostBox.style.top = `${host.y}px`;
+  hostBox.style.width = `${host.width}px`;
+  hostBox.style.height = `${host.height}px`;
+  hostBox.style.border = "1px dashed rgba(59,130,246,0.9)";
+  hostBox.style.boxSizing = "border-box";
+  hostBox.style.pointerEvents = "none";
+
+  // effective viewport
+  box.style.position = "absolute";
+  box.style.left = `${effective.x}px`;
+  box.style.top = `${effective.y}px`;
+  box.style.width = `${effective.width}px`;
+  box.style.height = `${effective.height}px`;
+  box.style.border = "2px solid cyan";
+  box.style.boxSizing = "border-box";
+  box.style.pointerEvents = "none";
+
+  root.appendChild(hostBox);
+  root.appendChild(box);
 }

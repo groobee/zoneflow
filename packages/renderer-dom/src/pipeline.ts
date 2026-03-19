@@ -39,6 +39,7 @@ export function runRenderPipeline(
   });
 
   return {
+    viewportInfo: input.viewportInfo,
     graphLayout,
     density,
     visibility,

@@ -54,6 +54,8 @@ export type DebugViewportState = {
   enabled: boolean;
   width: number;
   height: number;
+  offsetX: number;
+  offsetY: number;
   presetKey: ViewportPresetKey;
   label: string;
 };
@@ -73,6 +75,8 @@ export type DebugState = {
   setViewportEnabled: (value: boolean) => void;
   setViewportWidth: (value: number) => void;
   setViewportHeight: (value: number) => void;
+  setViewportOffsetX: (value: number) => void;
+  setViewportOffsetY: (value: number) => void;
   setViewportPreset: (preset: ViewportPresetKey) => void;
   setViewportLabel: (label: string) => void;
   resetViewportOverride: () => void;
@@ -94,6 +98,8 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     enabled: false,
     width: VIEWPORT_PRESETS.desktop.width,
     height: VIEWPORT_PRESETS.desktop.height,
+    offsetX: 0,
+    offsetY: 0,
     presetKey: "desktop",
     label: VIEWPORT_PRESETS.desktop.label,
   });
@@ -139,6 +145,20 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     }));
   };
 
+  const setViewportOffsetX = (value: number) => {
+    setViewport((prev) => ({
+      ...prev,
+      offsetX: Number.isFinite(value) ? value : prev.offsetX,
+    }));
+  };
+
+  const setViewportOffsetY = (value: number) => {
+    setViewport((prev) => ({
+      ...prev,
+      offsetY: Number.isFinite(value) ? value : prev.offsetY,
+    }));
+  };
+
   const setViewportPreset = (preset: ViewportPresetKey) => {
     if (preset === "custom") {
       setViewport((prev) => ({
@@ -172,6 +192,8 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
       enabled: false,
       width: VIEWPORT_PRESETS.desktop.width,
       height: VIEWPORT_PRESETS.desktop.height,
+      offsetX: 0,
+      offsetY: 0,
       presetKey: "desktop",
       label: VIEWPORT_PRESETS.desktop.label,
     });
@@ -182,8 +204,16 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
       enabled: viewport.enabled,
       width: viewport.width,
       height: viewport.height,
+      offsetX: viewport.offsetX,
+      offsetY: viewport.offsetY,
     }),
-    [viewport.enabled, viewport.width, viewport.height]
+    [
+      viewport.enabled,
+      viewport.width,
+      viewport.height,
+      viewport.offsetX,
+      viewport.offsetY,
+    ]
   );
 
   return {
@@ -200,6 +230,8 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     setViewportEnabled,
     setViewportWidth,
     setViewportHeight,
+    setViewportOffsetX,
+    setViewportOffsetY,
     setViewportPreset,
     setViewportLabel,
     resetViewportOverride,

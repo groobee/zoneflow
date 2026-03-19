@@ -1,5 +1,5 @@
 import React from "react";
-import type { DebugLayer } from "../../hooks/useDebugState";
+import type { DebugLayer } from "@zoneflow/renderer-dom";
 import { checkboxLabelStyle } from "./debug.styles";
 
 type Props = {

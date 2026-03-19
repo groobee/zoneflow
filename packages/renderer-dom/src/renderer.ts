@@ -1,7 +1,11 @@
 import type {
   CameraState,
+  DebugViewportOverride,
+  EffectiveViewportRect,
+  HostViewportRect,
   RendererInput,
-  ViewportRect,
+  RenderViewportInfo,
+  WorldViewportRect,
   ZoneflowRenderer,
 } from "./types";
 import { resolveTheme } from "./themes/defaultTheme";
@@ -25,7 +29,7 @@ function ensureHostBaseStyle(host: HTMLElement) {
   host.style.overflow = "hidden";
 }
 
-function getHostViewport(host: HTMLElement): ViewportRect {
+function getHostViewport(host: HTMLElement): HostViewportRect {
   return {
     x: 0,
     y: 0,
@@ -35,17 +39,16 @@ function getHostViewport(host: HTMLElement): ViewportRect {
 }
 
 function getEffectiveViewport(
-  host: HTMLElement,
-  input: RendererInput
-): ViewportRect {
-  const override = input.debug?.viewport;
-
-  console.log("debug viewport override", override);
-
+  hostViewport: HostViewportRect,
+  override?: DebugViewportOverride
+): EffectiveViewportRect {
   if (override?.enabled) {
+    const offsetX = override.offsetX ?? 0;
+    const offsetY = override.offsetY ?? 0;
+
     return {
-      x: 0,
-      y: 0,
+      x: offsetX,
+      y: offsetY,
       width: override.width,
       height: override.height,
     };
@@ -54,8 +57,39 @@ function getEffectiveViewport(
   return {
     x: 0,
     y: 0,
-    width: host.clientWidth,
-    height: host.clientHeight,
+    width: hostViewport.width,
+    height: hostViewport.height,
+  };
+}
+
+function getWorldViewport(
+  camera: CameraState,
+  effectiveViewport: EffectiveViewportRect
+): WorldViewportRect {
+  return {
+    x: (effectiveViewport.x - camera.x) / camera.zoom,
+    y: (effectiveViewport.y - camera.y) / camera.zoom,
+    width: effectiveViewport.width / camera.zoom,
+    height: effectiveViewport.height / camera.zoom,
+  };
+}
+
+function resolveViewportInfo(
+  host: HTMLElement,
+  camera: CameraState,
+  input: RendererInput
+): RenderViewportInfo {
+  const hostViewport = getHostViewport(host);
+  const effectiveViewport = getEffectiveViewport(
+    hostViewport,
+    input.debug?.viewport
+  );
+  const worldViewport = getWorldViewport(camera, effectiveViewport);
+
+  return {
+    host: hostViewport,
+    effective: effectiveViewport,
+    world: worldViewport,
   };
 }
 
@@ -92,14 +126,14 @@ export function createRenderer(): ZoneflowRenderer {
       } = input;
 
       const mergedTheme = resolveTheme(theme);
-      const viewport = getEffectiveViewport(host, input);
+      const viewportInfo = resolveViewportInfo(host, camera, input);
 
       const pipeline = runRenderPipeline(
         {
           model,
           layoutModel,
           camera,
-          viewport,
+          viewportInfo,
           theme: mergedTheme,
           textScale,
         },
@@ -117,12 +151,11 @@ export function createRenderer(): ZoneflowRenderer {
           model,
           layoutModel,
           camera,
-          viewport,
+          viewportInfo,
           theme: mergedTheme,
           textScale,
           pipeline,
           layers: debug.layers ?? ["graph-layout", "edges", "anchors"],
-          viewportOverride: debug.viewport,
         });
         return;
       }
@@ -132,7 +165,7 @@ export function createRenderer(): ZoneflowRenderer {
         model,
         layoutModel,
         camera,
-        viewport,
+        viewportInfo,
         theme: mergedTheme,
         textScale,
         pipeline,

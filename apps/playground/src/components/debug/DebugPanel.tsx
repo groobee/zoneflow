@@ -1,11 +1,11 @@
 import React from "react";
 import { Card } from "../common/Card";
-import { DebugLayerToggle } from "./DebugLayerToggle";
 import {
   ALL_DEBUG_LAYERS,
   VIEWPORT_PRESETS,
   type DebugState,
 } from "../../hooks/useDebugState";
+import { DebugLayerToggle } from "./DebugLayerToggle";
 import {
   buttonStyle,
   checkboxLabelStyle,
@@ -29,10 +29,13 @@ export function DebugPanel({ debug }: Props) {
     toggleLayer,
     enableAll,
     clearAll,
+
     viewport,
     setViewportEnabled,
     setViewportWidth,
     setViewportHeight,
+    setViewportOffsetX,
+    setViewportOffsetY,
     setViewportPreset,
     resetViewportOverride,
   } = debug;
@@ -85,7 +88,7 @@ export function DebugPanel({ debug }: Props) {
         </div>
 
         <div>
-          <div style={subsectionTitleStyle}>Viewport Override</div>
+          <div style={subsectionTitleStyle}>Focus Viewport</div>
 
           <div style={{ ...columnStyle, marginBottom: 10 }}>
             <label style={checkboxLabelStyle}>
@@ -99,12 +102,10 @@ export function DebugPanel({ debug }: Props) {
             </label>
 
             <select
-              value={viewport.preset}
+              value={viewport.presetKey}
               disabled={!enabled}
               onChange={(e) =>
-                setViewportPreset(
-                  e.target.value as keyof typeof VIEWPORT_PRESETS | "custom"
-                )
+                setViewportPreset(e.target.value as keyof typeof VIEWPORT_PRESETS | "custom")
               }
               style={selectStyle}
             >
@@ -137,9 +138,28 @@ export function DebugPanel({ debug }: Props) {
               />
             </div>
 
+            <div style={rowStyle}>
+              <input
+                type="number"
+                value={viewport.offsetX}
+                disabled={!enabled}
+                onChange={(e) => setViewportOffsetX(Number(e.target.value))}
+                style={inputStyle}
+                placeholder="offsetX"
+              />
+              <input
+                type="number"
+                value={viewport.offsetY}
+                disabled={!enabled}
+                onChange={(e) => setViewportOffsetY(Number(e.target.value))}
+                style={inputStyle}
+                placeholder="offsetY"
+              />
+            </div>
+
             <div style={{ fontSize: 12, color: "#94a3b8" }}>
-              Current: {viewport.enabled ? "override on" : "real host size"} /{" "}
-              {viewport.width} × {viewport.height}
+              Current: {viewport.enabled ? viewport.label : "Real host size"} /{" "}
+              {viewport.width} × {viewport.height} @ ({viewport.offsetX}, {viewport.offsetY})
             </div>
           </div>
 

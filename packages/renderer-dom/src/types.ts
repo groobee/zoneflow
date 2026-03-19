@@ -16,13 +16,6 @@ export type CameraState = {
   zoom: number;
 };
 
-export type ViewportRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
 export type Rect = {
   x: number;
   y: number;
@@ -30,9 +23,23 @@ export type Rect = {
   height: number;
 };
 
+export type HostViewportRect = Rect;
+
+export type EffectiveViewportRect = Rect;
+
+export type WorldViewportRect = Rect;
+
+export type RenderViewportInfo = {
+  host: HostViewportRect;
+  effective: EffectiveViewportRect;
+  world: WorldViewportRect;
+};
+
 export type DensityLevel = "far" | "mid" | "near" | "detail";
 
 export type PathVisualMode = "hidden" | "edge-only" | "chip" | "full";
+
+export type VisibilityEmphasis = "strong" | "normal" | "dim" | "hidden";
 
 export type ZoneVisualNode = {
   universeId: UniverseId;
@@ -77,13 +84,16 @@ export type ZoneVisibility = {
   isPartial: boolean;
   shouldRenderBody: boolean;
   shouldRenderContent: boolean;
+  emphasis: VisibilityEmphasis;
 };
 
 export type PathVisibility = {
   isVisible: boolean;
+  isPartial: boolean;
   shouldRenderNode: boolean;
   shouldRenderEdge: boolean;
   shouldRenderLabel: boolean;
+  emphasis: VisibilityEmphasis;
 };
 
 export type VisibilityResult = {
@@ -173,12 +183,13 @@ export type RenderPipelineInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   camera: CameraState;
-  viewport: ViewportRect;
+  viewportInfo: RenderViewportInfo;
   theme: ZoneflowTheme;
   textScale: TextScaleLevel;
 };
 
 export type RenderPipelineResult = {
+  viewportInfo: RenderViewportInfo;
   graphLayout: GraphLayoutResult;
   density: DensityResult;
   visibility: VisibilityResult;
@@ -190,39 +201,13 @@ export type RendererDrawInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   camera: CameraState;
-  viewport: ViewportRect;
+  viewportInfo: RenderViewportInfo;
   theme: ZoneflowTheme;
   textScale: TextScaleLevel;
   pipeline: RenderPipelineResult;
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
   interactionHandlers?: RendererInteractionHandlers;
-};
-
-export type RendererInput = {
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  theme?: Partial<ZoneflowTheme>;
-  textScale?: TextScaleLevel;
-  camera?: CameraState;
-
-  graphLayoutEngine?: GraphLayoutEngine;
-  densityEngine?: DensityEngine;
-  visibilityEngine?: VisibilityEngine;
-  componentLayoutEngine?: ComponentLayoutEngine;
-  drawEngine?: DrawEngine;
-
-  zoneComponentRenderers?: ZoneComponentRendererMap;
-  pathComponentRenderers?: PathComponentRendererMap;
-  interactionHandlers?: RendererInteractionHandlers;
-
-  debug?: RendererDebugOptions;
-};
-
-export type ZoneflowRenderer = {
-  mount(container: HTMLElement): void;
-  update(input: RendererInput): void;
-  destroy(): void;
 };
 
 export type GraphLayoutEngine = {
@@ -270,10 +255,39 @@ export type DebugViewportOverride = {
   enabled: boolean;
   width: number;
   height: number;
+
+  offsetX?: number; // host 기준
+  offsetY?: number;
 };
 
 export type RendererDebugOptions = {
   enabled?: boolean;
   layers?: DebugLayer[];
   viewport?: DebugViewportOverride;
+};
+
+export type RendererInput = {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  theme?: Partial<ZoneflowTheme>;
+  textScale?: TextScaleLevel;
+  camera?: CameraState;
+
+  graphLayoutEngine?: GraphLayoutEngine;
+  densityEngine?: DensityEngine;
+  visibilityEngine?: VisibilityEngine;
+  componentLayoutEngine?: ComponentLayoutEngine;
+  drawEngine?: DrawEngine;
+
+  zoneComponentRenderers?: ZoneComponentRendererMap;
+  pathComponentRenderers?: PathComponentRendererMap;
+  interactionHandlers?: RendererInteractionHandlers;
+
+  debug?: RendererDebugOptions;
+};
+
+export type ZoneflowRenderer = {
+  mount(container: HTMLElement): void;
+  update(input: RendererInput): void;
+  destroy(): void;
 };
