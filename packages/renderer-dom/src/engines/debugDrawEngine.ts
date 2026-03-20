@@ -81,7 +81,7 @@ export const debugDrawEngine = {
     });
 
     if (layers.includes("viewport")) {
-      drawHostViewportOverlay(screenRoot, pipeline.viewportInfo);
+      drawHostViewport(screenRoot, pipeline.viewportInfo);
     }
   },
 };
@@ -339,7 +339,7 @@ function drawViewport(
   drawBox(root, viewport, "#22c55e", "viewport", camera);
 }
 
-function drawHostViewportOverlay(root: HTMLElement, viewportInfo: any) {
+function drawHostViewport(root: HTMLElement, viewportInfo: any) {
   const box = document.createElement("div");
 
   const { effective, host } = viewportInfo;

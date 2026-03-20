@@ -58,6 +58,7 @@ export type DebugViewportState = {
   offsetY: number;
   presetKey: ViewportPresetKey;
   label: string;
+  anchorPreset: ViewportAnchorPreset;
 };
 
 export type DebugState = {
@@ -78,6 +79,8 @@ export type DebugState = {
   setViewportOffsetY: (value: number) => void;
   setViewportPreset: (preset: ViewportPresetKey) => void;
   setViewportLabel: (label: string) => void;
+  setViewportAnchorPreset: (preset: ViewportAnchorPreset, hostWidth: number, hostHeight: number) => void;
+  resetViewportOverride: () => void;
 };
 
 function getPresetLabel(presetKey: ViewportPresetKey): string {
@@ -87,6 +90,55 @@ function getPresetLabel(presetKey: ViewportPresetKey): string {
 
   return VIEWPORT_PRESETS[presetKey].label;
 }
+
+export type ViewportAnchorPreset =
+  | "top-left"
+  | "top"
+  | "top-right"
+  | "left"
+  | "center"
+  | "right"
+  | "bottom-left"
+  | "bottom"
+  | "bottom-right";
+
+
+function resolveViewportOffsetByPreset(params: {
+  preset: ViewportAnchorPreset;
+  hostWidth: number;
+  hostHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}) {
+  const { preset, hostWidth, hostHeight, viewportWidth, viewportHeight } = params;
+
+  const centerX = (hostWidth - viewportWidth) / 2;
+  const centerY = (hostHeight - viewportHeight) / 2;
+  const rightX = hostWidth - viewportWidth;
+  const bottomY = hostHeight - viewportHeight;
+
+  switch (preset) {
+    case "top-left":
+      return { offsetX: 0, offsetY: 0 };
+    case "top":
+      return { offsetX: centerX, offsetY: 0 };
+    case "top-right":
+      return { offsetX: rightX, offsetY: 0 };
+    case "left":
+      return { offsetX: 0, offsetY: centerY };
+    case "center":
+      return { offsetX: centerX, offsetY: centerY };
+    case "right":
+      return { offsetX: rightX, offsetY: centerY };
+    case "bottom-left":
+      return { offsetX: 0, offsetY: bottomY };
+    case "bottom":
+      return { offsetX: centerX, offsetY: bottomY };
+    case "bottom-right":
+      return { offsetX: rightX, offsetY: bottomY };
+  }
+}
+
 
 export function useDebugState(initialLayers: DebugLayer[]): DebugState {
   const [enabled, setEnabled] = useState(true);
@@ -100,6 +152,7 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     offsetY: 0,
     presetKey: "desktop",
     label: VIEWPORT_PRESETS.desktop.label,
+    anchorPreset: "top-left",
   });
 
   const toggleLayer = (layer: DebugLayer) => {
@@ -185,6 +238,42 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     }));
   };
 
+  const setViewportAnchorPreset = (
+    preset: ViewportAnchorPreset,
+    hostWidth: number,
+    hostHeight: number
+  ) => {
+    setViewport((prev) => {
+      const nextOffset = resolveViewportOffsetByPreset({
+        preset,
+        hostWidth,
+        hostHeight,
+        viewportWidth: prev.width,
+        viewportHeight: prev.height,
+      });
+
+      return {
+        ...prev,
+        offsetX: Math.round(nextOffset.offsetX),
+        offsetY: Math.round(nextOffset.offsetY),
+        anchorPreset: preset,
+      };
+    });
+  };
+
+  const resetViewportOverride = () => {
+    setViewport({
+      enabled: false,
+      width: VIEWPORT_PRESETS.desktop.width,
+      height: VIEWPORT_PRESETS.desktop.height,
+      offsetX: 0,
+      offsetY: 0,
+      presetKey: "desktop",
+      label: VIEWPORT_PRESETS.desktop.label,
+      anchorPreset: "top-left",
+    });
+  };
+
   return {
     enabled,
     setEnabled,
@@ -202,5 +291,7 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     setViewportOffsetY,
     setViewportPreset,
     setViewportLabel,
+    setViewportAnchorPreset,
+    resetViewportOverride
   };
 }

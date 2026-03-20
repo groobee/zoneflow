@@ -7,14 +7,20 @@ import { rightPanelStyle } from "./layout.styles";
 
 type Props = {
   debug: DebugState;
+  hostWidth: number;
+  hostHeight: number;
 };
 
-export function RightPanel({ debug }: Props) {
+export function RightPanel({ debug, hostWidth, hostHeight }: Props) {
   return (
     <aside style={rightPanelStyle}>
       <SectionTitle>Inspector</SectionTitle>
 
-      <DebugPanel debug={debug} />
+      <DebugPanel
+        debug={debug}
+        hostWidth={hostWidth}
+        hostHeight={hostHeight}
+      />
 
       <Card>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Selection</div>

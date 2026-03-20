@@ -4,9 +4,12 @@ import {
   ALL_DEBUG_LAYERS,
   VIEWPORT_PRESETS,
   type DebugState,
+  type ViewportAnchorPreset,
 } from "../../hooks/useDebugState";
 import { DebugLayerToggle } from "./DebugLayerToggle";
 import {
+  anchorButtonStyle,
+  anchorGridStyle,
   buttonStyle,
   checkboxLabelStyle,
   columnStyle,
@@ -19,9 +22,29 @@ import {
 
 type Props = {
   debug: DebugState;
+  hostWidth: number;
+  hostHeight: number;
 };
 
-export function DebugPanel({ debug }: Props) {
+const ANCHOR_GRID: Array<Array<{ preset: ViewportAnchorPreset; label: string }>> = [
+  [
+    { preset: "top-left", label: "↖" },
+    { preset: "top", label: "↑" },
+    { preset: "top-right", label: "↗" },
+  ],
+  [
+    { preset: "left", label: "←" },
+    { preset: "center", label: "•" },
+    { preset: "right", label: "→" },
+  ],
+  [
+    { preset: "bottom-left", label: "↙" },
+    { preset: "bottom", label: "↓" },
+    { preset: "bottom-right", label: "↘" },
+  ],
+];
+
+export function DebugPanel({ debug, hostWidth, hostHeight }: Props) {
   const {
     enabled,
     setEnabled,
@@ -37,6 +60,7 @@ export function DebugPanel({ debug }: Props) {
     setViewportOffsetX,
     setViewportOffsetY,
     setViewportPreset,
+    setViewportAnchorPreset,
     resetViewportOverride,
   } = debug;
 
@@ -101,11 +125,17 @@ export function DebugPanel({ debug }: Props) {
               Enable viewport simulation
             </label>
 
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>
+              Host: {hostWidth} × {hostHeight}
+            </div>
+
             <select
               value={viewport.presetKey}
               disabled={!enabled}
               onChange={(e) =>
-                setViewportPreset(e.target.value as keyof typeof VIEWPORT_PRESETS | "custom")
+                setViewportPreset(
+                  e.target.value as keyof typeof VIEWPORT_PRESETS | "custom"
+                )
               }
               style={selectStyle}
             >
@@ -136,6 +166,42 @@ export function DebugPanel({ debug }: Props) {
                 style={inputStyle}
                 placeholder="height"
               />
+            </div>
+
+            <div>
+              <div style={{ ...subsectionTitleStyle, marginBottom: 6 }}>
+                Anchor Preset
+              </div>
+
+              <div style={anchorGridStyle}>
+                {ANCHOR_GRID.flat().map((item) => {
+                  const selected = viewport.anchorPreset === item.preset;
+
+                  return (
+                    <button
+                      key={item.preset}
+                      type="button"
+                      disabled={!enabled}
+                      onClick={() =>
+                        setViewportAnchorPreset(
+                          item.preset,
+                          hostWidth,
+                          hostHeight
+                        )
+                      }
+                      style={{
+                        ...anchorButtonStyle,
+                        borderColor: selected ? "#22c55e" : anchorButtonStyle.borderColor,
+                        color: selected ? "#ffffff" : anchorButtonStyle.color,
+                        background: selected ? "#166534" : anchorButtonStyle.background,
+                      }}
+                      title={item.preset}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={rowStyle}>

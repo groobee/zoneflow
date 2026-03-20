@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useDebugState } from "./hooks/useDebugState";
 import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
 import { shellStyle } from "./components/layout/layout.styles";
@@ -26,15 +27,29 @@ export default function App() {
   const { sampleType, setSampleType, model, layoutModel } =
     useSampleSwitcher("small");
 
+  const [hostSize, setHostSize] = useState({
+    width: 0,
+    height: 0,
+  });
+
   return (
     <div style={shellStyle}>
       <Topbar sampleType={sampleType} setSampleType={setSampleType} />
 
       <LeftPanel />
 
-      <CanvasHost model={model} layoutModel={layoutModel} debug={debug} />
+      <CanvasHost
+        model={model}
+        layoutModel={layoutModel}
+        debug={debug}
+        onResize={setHostSize} // 👈 추가
+      />
 
-      <RightPanel debug={debug} />
+      <RightPanel
+        debug={debug}
+        hostWidth={hostSize.width}
+        hostHeight={hostSize.height}
+      />
     </div>
   );
 }

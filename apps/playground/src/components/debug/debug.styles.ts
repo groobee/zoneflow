@@ -67,3 +67,22 @@ export const columnStyle: React.CSSProperties = {
     display: "grid",
     gap: 8,
 };
+
+export const anchorGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 36px)",
+    gap: 6,
+};
+
+export const anchorButtonStyle: React.CSSProperties = {
+    width: 36,
+    height: 36,
+    background: "#1e293b",
+    color: "#e2e8f0",
+    border: "1px solid rgba(148, 163, 184, 0.25)",
+    borderRadius: 8,
+    cursor: "pointer",
+    fontSize: 16,
+    lineHeight: "16px",
+    padding: 0,
+};
