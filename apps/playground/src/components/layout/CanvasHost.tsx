@@ -16,10 +16,10 @@ export function CanvasHost({ model, layoutModel, debug }: Props) {
       <UniverseCanvas
         model={model}
         layoutModel={layoutModel}
+        viewport={debug.viewport}
         debug={{
           enabled: debug.enabled,
-          layers: debug.layers,
-          viewport: debug.viewportOverride,
+          layers: debug.layers
         }}
       />
     </main>

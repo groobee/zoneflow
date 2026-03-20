@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DebugLayer, DebugViewportOverride } from "@zoneflow/renderer-dom";
+import type { DebugLayer } from "@zoneflow/renderer-dom";
 
 export const ALL_DEBUG_LAYERS: DebugLayer[] = [
   "graph-layout",
@@ -70,7 +70,6 @@ export type DebugState = {
   clearAll: () => void;
 
   viewport: DebugViewportState;
-  viewportOverride: DebugViewportOverride;
 
   setViewportEnabled: (value: boolean) => void;
   setViewportWidth: (value: number) => void;
@@ -79,7 +78,6 @@ export type DebugState = {
   setViewportOffsetY: (value: number) => void;
   setViewportPreset: (preset: ViewportPresetKey) => void;
   setViewportLabel: (label: string) => void;
-  resetViewportOverride: () => void;
 };
 
 function getPresetLabel(presetKey: ViewportPresetKey): string {
@@ -187,35 +185,6 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     }));
   };
 
-  const resetViewportOverride = () => {
-    setViewport({
-      enabled: false,
-      width: VIEWPORT_PRESETS.desktop.width,
-      height: VIEWPORT_PRESETS.desktop.height,
-      offsetX: 0,
-      offsetY: 0,
-      presetKey: "desktop",
-      label: VIEWPORT_PRESETS.desktop.label,
-    });
-  };
-
-  const viewportOverride = useMemo<DebugViewportOverride>(
-    () => ({
-      enabled: viewport.enabled,
-      width: viewport.width,
-      height: viewport.height,
-      offsetX: viewport.offsetX,
-      offsetY: viewport.offsetY,
-    }),
-    [
-      viewport.enabled,
-      viewport.width,
-      viewport.height,
-      viewport.offsetX,
-      viewport.offsetY,
-    ]
-  );
-
   return {
     enabled,
     setEnabled,
@@ -225,7 +194,6 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     clearAll,
 
     viewport,
-    viewportOverride,
 
     setViewportEnabled,
     setViewportWidth,
@@ -234,6 +202,5 @@ export function useDebugState(initialLayers: DebugLayer[]): DebugState {
     setViewportOffsetY,
     setViewportPreset,
     setViewportLabel,
-    resetViewportOverride,
   };
 }

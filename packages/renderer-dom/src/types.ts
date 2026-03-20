@@ -251,19 +251,23 @@ export type DebugLayer =
   | "anchors"
   | "viewport";
 
-export type DebugViewportOverride = {
+export type Viewport = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type ViewportConfig = {
   enabled: boolean;
   width: number;
   height: number;
-
-  offsetX?: number; // host 기준
+  offsetX?: number;
   offsetY?: number;
 };
-
 export type RendererDebugOptions = {
   enabled?: boolean;
   layers?: DebugLayer[];
-  viewport?: DebugViewportOverride;
 };
 
 export type RendererInput = {
@@ -272,6 +276,7 @@ export type RendererInput = {
   theme?: Partial<ZoneflowTheme>;
   textScale?: TextScaleLevel;
   camera?: CameraState;
+  viewport?: ViewportConfig;
 
   graphLayoutEngine?: GraphLayoutEngine;
   densityEngine?: DensityEngine;

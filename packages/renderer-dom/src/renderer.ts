@@ -1,6 +1,6 @@
 import type {
   CameraState,
-  DebugViewportOverride,
+  ViewportConfig,
   EffectiveViewportRect,
   HostViewportRect,
   RendererInput,
@@ -40,17 +40,17 @@ function getHostViewport(host: HTMLElement): HostViewportRect {
 
 function getEffectiveViewport(
   hostViewport: HostViewportRect,
-  override?: DebugViewportOverride
+  viewport?: ViewportConfig
 ): EffectiveViewportRect {
-  if (override?.enabled) {
-    const offsetX = override.offsetX ?? 0;
-    const offsetY = override.offsetY ?? 0;
+  if (viewport?.enabled) {
+    const offsetX = viewport.offsetX ?? 0;
+    const offsetY = viewport.offsetY ?? 0;
 
     return {
       x: offsetX,
       y: offsetY,
-      width: override.width,
-      height: override.height,
+      width: viewport.width,
+      height: viewport.height,
     };
   }
 
@@ -82,7 +82,7 @@ function resolveViewportInfo(
   const hostViewport = getHostViewport(host);
   const effectiveViewport = getEffectiveViewport(
     hostViewport,
-    input.debug?.viewport
+    input.viewport
   );
   const worldViewport = getWorldViewport(camera, effectiveViewport);
 

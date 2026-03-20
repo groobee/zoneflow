@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
+import {useEffect, useRef, useState} from "react";
+import type {UniverseLayoutModel, UniverseModel} from "@zoneflow/core";
 import {
-  createRenderer,
   type CameraState,
   type ComponentLayoutEngine,
+  createRenderer,
   type DensityEngine,
   type DrawEngine,
   type GraphLayoutEngine,
@@ -11,17 +11,19 @@ import {
   type RendererDebugOptions,
   type RendererInteractionHandlers,
   type TextScaleLevel,
+  type ViewportConfig,
   type VisibilityEngine,
   type ZoneComponentRendererMap,
   type ZoneflowTheme,
 } from "@zoneflow/renderer-dom";
-import { useCameraControls } from "../controls/useCameraControls";
+import {useCameraControls} from "../controls/useCameraControls";
 
 export type UniverseCanvasProps = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   theme?: Partial<ZoneflowTheme>;
   textScale?: TextScaleLevel;
+  viewport?: ViewportConfig;
 
   graphLayoutEngine?: GraphLayoutEngine;
   densityEngine?: DensityEngine;
@@ -47,6 +49,7 @@ export function UniverseCanvas({
                                  layoutModel,
                                  theme,
                                  textScale = "md",
+                                 viewport,
 
                                  graphLayoutEngine,
                                  densityEngine,
@@ -86,6 +89,7 @@ export function UniverseCanvas({
       theme,
       textScale,
       camera,
+      viewport,
 
       graphLayoutEngine,
       densityEngine,
@@ -104,6 +108,7 @@ export function UniverseCanvas({
     theme,
     textScale,
     camera,
+    viewport,
     graphLayoutEngine,
     densityEngine,
     visibilityEngine,
