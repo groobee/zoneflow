@@ -1,18 +1,10 @@
 import type { Point } from "@zoneflow/core";
 import type {
   CameraState,
+  DebugLayer,
   RendererDrawInput,
   Rect,
 } from "../types";
-
-export type DebugLayer =
-  | "graph-layout"
-  | "density"
-  | "visibility"
-  | "component-layout"
-  | "edges"
-  | "anchors"
-  | "viewport";
 
 export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
@@ -282,7 +274,9 @@ function drawComponentLayout(
 function drawEdges(root: HTMLElement, pipeline: any) {
   const { edgesByPathId } = pipeline.graphLayout;
 
-  Object.values(edgesByPathId).forEach((edge: any) => {
+  Object.values(edgesByPathId)
+    .flatMap((edges: any) => edges)
+    .forEach((edge: any) => {
     const line = document.createElement("div");
 
     const dx = edge.target.x - edge.source.x;
@@ -295,7 +289,10 @@ function drawEdges(root: HTMLElement, pipeline: any) {
     line.style.top = `${edge.source.y}px`;
     line.style.width = `${length}px`;
     line.style.height = "1px";
-    line.style.background = "red";
+    line.style.background =
+      edge.kind === "zone-to-path"
+        ? "#3b82f6"
+        : "#ef4444";
     line.style.transformOrigin = "0 0";
     line.style.transform = `rotate(${angle}deg)`;
     line.style.pointerEvents = "none";
@@ -312,11 +309,14 @@ function drawAnchors(
   const { graphLayout } = pipeline;
 
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
-    if (zone.inlet) {
-      drawAnchor(root, zone.inlet, "#2563eb", `${zone.zoneId}:in`, camera);
+    const inlet = zone.anchors?.inlet?.point;
+    const outlet = zone.anchors?.outlet?.point;
+
+    if (inlet) {
+      drawAnchor(root, inlet, "#2563eb", `${zone.zoneId}:in`, camera);
     }
-    if (zone.outlet) {
-      drawAnchor(root, zone.outlet, "#dc2626", `${zone.zoneId}:out`, camera);
+    if (outlet) {
+      drawAnchor(root, outlet, "#dc2626", `${zone.zoneId}:out`, camera);
     }
   });
 

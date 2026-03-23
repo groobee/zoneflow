@@ -2,9 +2,9 @@ import type {
   Layout,
   PathId,
   PathLayout,
+  UniverseId,
   UniverseLayoutModel,
   UniverseModel,
-  UniverseId,
   ZoneId,
   ZoneLayout,
 } from "./types";
@@ -17,6 +17,67 @@ export type CreateUniverseLayoutModelInput = {
   meta?: Record<string, unknown>;
 };
 
+function createDefaultAnchors(): ZoneLayout["anchors"] {
+  return {
+    inlet: {
+      point: { x: 0, y: 0 },
+    },
+    outlet: {
+      point: { x: 0, y: 0 },
+    },
+  };
+}
+
+function cloneAnchor(
+  anchor?: ZoneLayout["anchors"]["inlet"]
+): ZoneLayout["anchors"]["inlet"] {
+  return {
+    point: {
+      x: anchor?.point.x ?? 0,
+      y: anchor?.point.y ?? 0,
+    },
+    rect: anchor?.rect ? { ...anchor.rect } : undefined,
+  };
+}
+
+function cloneAnchors(
+  anchors?: ZoneLayout["anchors"]
+): ZoneLayout["anchors"] {
+  return {
+    inlet: cloneAnchor(anchors?.inlet),
+    outlet: cloneAnchor(anchors?.outlet),
+  };
+}
+
+function mergeAnchor(
+  current?: ZoneLayout["anchors"]["inlet"],
+  patch?: Partial<ZoneLayout["anchors"]["inlet"]>
+): ZoneLayout["anchors"]["inlet"] {
+  return {
+    point: {
+      x: patch?.point?.x ?? current?.point.x ?? 0,
+      y: patch?.point?.y ?? current?.point.y ?? 0,
+    },
+    rect:
+      patch?.rect !== undefined
+        ? patch.rect
+          ? { ...patch.rect }
+          : undefined
+        : current?.rect
+          ? { ...current.rect }
+          : undefined,
+  };
+}
+
+function mergeAnchors(
+  current?: ZoneLayout["anchors"],
+  patch?: Partial<ZoneLayout["anchors"]>
+): ZoneLayout["anchors"] {
+  return {
+    inlet: mergeAnchor(current?.inlet, patch?.inlet),
+    outlet: mergeAnchor(current?.outlet, patch?.outlet),
+  };
+}
 
 export function createUniverseLayoutModel(
   input: CreateUniverseLayoutModelInput
@@ -29,7 +90,6 @@ export function createUniverseLayoutModel(
     meta: input.meta ? { ...input.meta } : undefined,
   };
 }
-
 
 export function getZoneLayout(
   layoutModel: UniverseLayoutModel,
@@ -67,19 +127,9 @@ export function updateZoneLayout(
   return setZoneLayout(layoutModel, zoneId, {
     x: patch.x ?? currentLayout?.x ?? 0,
     y: patch.y ?? currentLayout?.y ?? 0,
-    z: patch.z ?? currentLayout?.z,
     width: patch.width ?? currentLayout?.width,
     height: patch.height ?? currentLayout?.height,
-    anchors: {
-      inlet:
-        patch.anchors?.inlet ??
-        currentLayout?.anchors.inlet ??
-        { x: 0, y: 0 },
-      outlet:
-        patch.anchors?.outlet ??
-        currentLayout?.anchors.outlet ??
-        { x: 0, y: 0 },
-    },
+    anchors: mergeAnchors(currentLayout?.anchors, patch.anchors),
   });
 }
 
@@ -178,7 +228,6 @@ export function updatePathComponentLayout(
   return setPathComponentLayout(layoutModel, pathId, componentId, {
     x: patch.x ?? currentLayout?.x ?? 0,
     y: patch.y ?? currentLayout?.y ?? 0,
-    z: patch.z ?? currentLayout?.z,
     width: patch.width ?? currentLayout?.width,
     height: patch.height ?? currentLayout?.height,
   });
@@ -194,8 +243,8 @@ export function removeZoneLayouts(
   const nextZoneLayoutsById: Record<ZoneId, ZoneLayout> = {};
 
   for (const [zoneId, layout] of Object.entries(layoutModel.zoneLayoutsById)) {
-    if (!zoneIdSet.has(zoneId)) {
-      nextZoneLayoutsById[zoneId] = layout;
+    if (!zoneIdSet.has(zoneId as ZoneId)) {
+      nextZoneLayoutsById[zoneId as ZoneId] = layout;
     }
   }
 
@@ -215,8 +264,8 @@ export function removePathLayouts(
   const nextPathLayoutsById: Record<PathId, PathLayout> = {};
 
   for (const [pathId, layout] of Object.entries(layoutModel.pathLayoutsById)) {
-    if (!pathIdSet.has(pathId)) {
-      nextPathLayoutsById[pathId] = layout;
+    if (!pathIdSet.has(pathId as PathId)) {
+      nextPathLayoutsById[pathId as PathId] = layout;
     }
   }
 
@@ -245,14 +294,14 @@ export function pruneLayoutModel(
   const nextZoneLayoutsById: Record<ZoneId, ZoneLayout> = {};
   for (const [zoneId, layout] of Object.entries(layoutModel.zoneLayoutsById)) {
     if (zoneIds.has(zoneId)) {
-      nextZoneLayoutsById[zoneId] = layout;
+      nextZoneLayoutsById[zoneId as ZoneId] = layout;
     }
   }
 
   const nextPathLayoutsById: Record<PathId, PathLayout> = {};
   for (const [pathId, layout] of Object.entries(layoutModel.pathLayoutsById)) {
-    if (pathIds.has(pathId)) {
-      nextPathLayoutsById[pathId] = layout;
+    if (pathIds.has(pathId as PathId)) {
+      nextPathLayoutsById[pathId as PathId] = layout;
     }
   }
 
@@ -302,10 +351,9 @@ export function computeAutoLayoutForZoneTree(
     return {
       x: ownLayout?.x ?? 0,
       y: ownLayout?.y ?? 0,
-      z: ownLayout?.z,
       width: ownWidth,
       height: ownHeight,
-      anchors: ownLayout?.anchors ?? { inlet: { x: 0, y: 0 }, outlet: { x: 0, y: 0 } },
+      anchors: cloneAnchors(ownLayout?.anchors),
     };
   }
 
@@ -318,19 +366,15 @@ export function computeAutoLayoutForZoneTree(
     ...childLayouts.map((layout) => layout.y + (layout.height ?? defaultHeight))
   );
 
-  const width = Math.max(maxChildX - minChildX + paddingX * 2, ownWidth);
-  const height = Math.max(
-    ownHeight + verticalGap + (maxChildY - minChildY) + paddingY * 2,
-    ownHeight
-  );
-
   return {
     x: ownLayout?.x ?? minChildX - paddingX,
     y: ownLayout?.y ?? minChildY - (ownHeight + verticalGap / 2),
-    z: ownLayout?.z,
-    width,
-    height,
-    anchors: ownLayout?.anchors ?? { inlet: { x: 0, y: 0 }, outlet: { x: 0, y: 0 } },
+    width: Math.max(maxChildX - minChildX + paddingX * 2, ownWidth),
+    height: Math.max(
+      ownHeight + verticalGap + (maxChildY - minChildY) + paddingY * 2,
+      ownHeight
+    ),
+    anchors: cloneAnchors(ownLayout?.anchors),
   };
 }
 
@@ -360,24 +404,11 @@ export function computeWrapperLayoutFromChildren(
   const maxX = Math.max(...layouts.map((layout) => layout.x + (layout.width ?? 0)));
   const maxY = Math.max(...layouts.map((layout) => layout.y + (layout.height ?? 0)));
 
-  const zValues = layouts
-    .map((layout) => layout.z)
-    .filter((z): z is number => typeof z === "number");
-
-  const wrapperLayout: ZoneLayout = {
+  return {
     x: minX - padding,
     y: minY - padding,
     width: Math.max(maxX - minX + padding * 2, minWidth),
     height: Math.max(maxY - minY + padding * 2, minHeight),
-    anchors: {
-      inlet: { x: minX - padding, y: minY - padding },
-      outlet: { x: minX - padding, y: minY - padding },
-    },
+    anchors: createDefaultAnchors(),
   };
-
-  if (zValues.length > 0) {
-    wrapperLayout.z = Math.min(...zValues);
-  }
-
-  return wrapperLayout;
 }

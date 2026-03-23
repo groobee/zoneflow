@@ -170,8 +170,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 1400,
       height: 900,
       anchors: {
-        inlet: { x: 0, y: 450 },
-        outlet: { x: 1400, y: 450 },
+        inlet: {
+          point: { x: 0, y: 450 },
+        },
+        outlet: {
+          point: { x: 1400, y: 450 },
+        },
       },
     },
     offsite: {
@@ -180,8 +184,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 520,
       height: 340,
       anchors: {
-        inlet: { x: 0, y: 170 },
-        outlet: { x: 520, y: 170 },
+        inlet: {
+          point: { x: 0, y: 170 },
+        },
+        outlet: {
+          point: { x: 520, y: 170 },
+        },
       },
     },
     sendPush: {
@@ -190,8 +198,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 160,
       height: 100,
       anchors: {
-        inlet: { x: 0, y: 50 },
-        outlet: { x: 160, y: 50 },
+        inlet: {
+          point: { x: 0, y: 50 },
+        },
+        outlet: {
+          point: { x: 160, y: 50 },
+        },
       },
     },
     waitResponse: {
@@ -200,8 +212,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 180,
       height: 100,
       anchors: {
-        inlet: { x: 0, y: 50 },
-        outlet: { x: 180, y: 50 },
+        inlet: {
+          point: { x: 0, y: 50 },
+        },
+        outlet: {
+          point: { x: 180, y: 50 },
+        },
       },
     },
     purchase: {
@@ -210,8 +226,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 220,
       height: 120,
       anchors: {
-        inlet: { x: 0, y: 60 },
-        outlet: { x: 220, y: 60 },
+        inlet: {
+          point: { x: 0, y: 60 },
+        },
+        outlet: {
+          point: { x: 220, y: 60 },
+        },
       },
     },
     fallback: {
@@ -220,8 +240,12 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
       width: 220,
       height: 120,
       anchors: {
-        inlet: { x: 0, y: 60 },
-        outlet: { x: 220, y: 60 },
+        inlet: {
+          point: { x: 0, y: 60 },
+        },
+        outlet: {
+          point: { x: 220, y: 60 },
+        },
       },
     },
   },

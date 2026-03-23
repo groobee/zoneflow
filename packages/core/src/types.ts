@@ -6,7 +6,6 @@ export type ZoneType = "container" | "action" | string;
 export type Layout = {
   x: number;
   y: number;
-  z?: number;
   width?: number;
   height?: number;
 };
@@ -16,17 +15,21 @@ export type Point = {
   y: number;
 };
 
+export type AnchorRect = Layout;
+
+export type AnchorLayout = {
+  point: Point;
+  rect?: AnchorRect;
+};
 export type ZoneLayout = Layout & {
   anchors: {
-    inlet: Point;
-    outlet: Point;
+    inlet: AnchorLayout;
+    outlet: AnchorLayout;
   };
 };
 
 export type PathLayout = {
-  // Route-level offset in world coordinates to separate overlapping paths.
   routeOffset?: Point;
-  // External renderer/editor components mounted on a path (e.g. condition chips).
   componentLayoutsById?: Record<string, Layout>;
 };
 
@@ -59,11 +62,8 @@ export type Zone = {
   parentZoneId: ZoneId | null;
   name: string;
   zoneType: ZoneType;
-
   childZoneIds: ZoneId[];
-
   action?: ZoneAction;
-
   pathIds: PathId[];
   pathsById: Record<PathId, Path>;
   meta?: Record<string, unknown>;

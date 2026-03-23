@@ -4,6 +4,7 @@ import type {
   UniverseLayoutModel,
   UniverseModel,
   ZoneId,
+  AnchorRect,
 } from "@zoneflow/core";
 import type {
   EdgeVisual,
@@ -19,9 +20,42 @@ const DEFAULT_PATH_NODE_HEIGHT = 32;
 const DEFAULT_PATH_NODE_OFFSET_X = 32;
 const DEFAULT_PATH_NODE_GAP_Y = 40;
 
+function rectFromLayout(layout: {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}): Rect {
+  return {
+    x: layout.x,
+    y: layout.y,
+    width: layout.width ?? 0,
+    height: layout.height ?? 0,
+  };
+}
+
+function centerOfRect(rect: Rect): Point {
+  return {
+    x: rect.x + rect.width / 2,
+    y: rect.y + rect.height / 2,
+  };
+}
+
+function resolveAnchorRect(
+  worldPos: { x: number; y: number },
+  rect?: AnchorRect
+): AnchorRect | undefined {
+  if (!rect) return undefined;
+
+  return {
+    ...rect,
+    x: worldPos.x + rect.x,
+    y: worldPos.y + rect.y,
+  };
+}
+
 /**
- * - 지금은 그대로 사용
- * - 나중에 relative → absolute 변환 or auto layout 여기서 처리
+ * relative layout -> absolute layout
  */
 function resolveLayout(
   model: UniverseModel,
@@ -67,27 +101,30 @@ function resolveLayout(
     const typedZoneId = zoneId as ZoneId;
     const worldPos = resolveZonePosition(typedZoneId);
 
+    const resolvedAnchors = Object.fromEntries(
+      Object.entries(layout.anchors).map(([anchorKey, anchor]) => [
+        anchorKey,
+        {
+          point: {
+            x: worldPos.x + anchor.point.x,
+            y: worldPos.y + anchor.point.y,
+          },
+          rect: resolveAnchorRect(worldPos, anchor.rect),
+        },
+      ])
+    ) as UniverseLayoutModel["zoneLayoutsById"][ZoneId]["anchors"];
+
     resolvedZoneLayouts[typedZoneId] = {
       ...layout,
       x: worldPos.x,
       y: worldPos.y,
-      anchors: {
-        inlet: {
-          x: worldPos.x + layout.anchors.inlet.x,
-          y: worldPos.y + layout.anchors.inlet.y,
-        },
-        outlet: {
-          x: worldPos.x + layout.anchors.outlet.x,
-          y: worldPos.y + layout.anchors.outlet.y,
-        },
-      },
+      anchors: resolvedAnchors,
     };
   }
 
   for (const [pathId, pathLayout] of Object.entries(layoutModel.pathLayoutsById)) {
     resolvedPathLayouts[pathId as PathId] = {
       ...pathLayout,
-      // componentLayoutsById는 여기서 건드리지 않는다.
     };
   }
 
@@ -95,33 +132,6 @@ function resolveLayout(
     ...layoutModel,
     zoneLayoutsById: resolvedZoneLayouts,
     pathLayoutsById: resolvedPathLayouts,
-  };
-}
-
-/**
- * ========================
- * 기본 유틸
- * ========================
- */
-
-function rectFromLayout(layout: {
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-}): Rect {
-  return {
-    x: layout.x,
-    y: layout.y,
-    width: layout.width ?? 0,
-    height: layout.height ?? 0,
-  };
-}
-
-function centerOfRect(rect: Rect): Point {
-  return {
-    x: rect.x + rect.width / 2,
-    y: rect.y + rect.height / 2,
   };
 }
 
@@ -169,44 +179,29 @@ function resolvePathNodeAnchors(rect: Rect) {
   };
 }
 
-/**
- * ========================
- * Zone
- * ========================
- */
-
 function createZoneVisualNodes(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
 }): Record<ZoneId, ZoneVisualNode> {
   const { model, layoutModel } = params;
-
   const result: Record<ZoneId, ZoneVisualNode> = {};
 
   for (const [zoneId, zone] of Object.entries(model.zonesById)) {
-    const zoneLayout = layoutModel.zoneLayoutsById[zoneId];
+    const typedZoneId = zoneId as ZoneId;
+    const zoneLayout = layoutModel.zoneLayoutsById[typedZoneId];
     if (!zoneLayout) continue;
 
-    const rect = rectFromLayout(zoneLayout);
-
-    result[zoneId] = {
+    result[typedZoneId] = {
       universeId: model.universeId,
-      zoneId,
+      zoneId: typedZoneId,
       zone,
-      rect,
-      inlet: zoneLayout.anchors.inlet,
-      outlet: zoneLayout.anchors.outlet,
+      rect: rectFromLayout(zoneLayout),
+      anchors: zoneLayout.anchors,
     };
   }
 
   return result;
 }
-
-/**
- * ========================
- * Path
- * ========================
- */
 
 function createPathVisualNodes(params: {
   model: UniverseModel;
@@ -214,7 +209,6 @@ function createPathVisualNodes(params: {
   zonesById: Record<ZoneId, ZoneVisualNode>;
 }): Record<PathId, PathVisualNode> {
   const { model, layoutModel, zonesById } = params;
-
   const result: Record<PathId, PathVisualNode> = {};
 
   for (const zone of Object.values(model.zonesById)) {
@@ -230,10 +224,14 @@ function createPathVisualNodes(params: {
           ? path.target.zoneId
           : null;
 
+      const sourceOutlet =
+        sourceZoneVisual.anchors.outlet?.point ??
+        centerOfRect(sourceZoneVisual.rect);
+
       const rect = resolvePathNodeRect({
         layoutModel,
         pathId,
-        sourceOutlet: sourceZoneVisual.outlet,
+        sourceOutlet,
         fallbackIndex: index,
       });
 
@@ -255,20 +253,13 @@ function createPathVisualNodes(params: {
   return result;
 }
 
-/**
- * ========================
- * Edge
- * ========================
- */
-
 function createEdgeVisuals(params: {
   model: UniverseModel;
   zonesById: Record<ZoneId, ZoneVisualNode>;
   pathsById: Record<PathId, PathVisualNode>;
-}): Record<PathId, EdgeVisual> {
+}): Record<PathId, EdgeVisual[]> {
   const { model, zonesById, pathsById } = params;
-
-  const result: Record<PathId, EdgeVisual> = {};
+  const result: Record<PathId, EdgeVisual[]> = {};
 
   for (const zone of Object.values(model.zonesById)) {
     const sourceZoneVisual = zonesById[zone.id];
@@ -282,30 +273,46 @@ function createEdgeVisuals(params: {
         ? zonesById[pathVisual.targetZoneId]
         : undefined;
 
-      const source = pathVisual.outlet ?? sourceZoneVisual.outlet;
+      const zoneOutlet =
+        sourceZoneVisual.anchors.outlet?.point ??
+        centerOfRect(sourceZoneVisual.rect);
 
-      const target = targetZoneVisual
-        ? targetZoneVisual.inlet
-        : pathVisual.rect
-          ? centerOfRect(pathVisual.rect)
-          : source;
+      const pathInlet =
+        pathVisual.inlet ??
+        (pathVisual.rect ? centerOfRect(pathVisual.rect) : zoneOutlet);
 
-      result[pathId] = {
-        pathId,
-        source,
-        target,
-      };
+      const pathOutlet =
+        pathVisual.outlet ??
+        (pathVisual.rect ? centerOfRect(pathVisual.rect) : zoneOutlet);
+
+      const targetInlet = targetZoneVisual
+        ? (
+          targetZoneVisual.anchors.inlet?.point ??
+          centerOfRect(targetZoneVisual.rect)
+        )
+        : pathOutlet;
+
+      result[pathId] = [
+        {
+          id: `${pathId}:z2p`,
+          pathId,
+          kind: "zone-to-path",
+          source: zoneOutlet,
+          target: pathInlet,
+        },
+        {
+          id: `${pathId}:p2z`,
+          pathId,
+          kind: "path-to-zone",
+          source: pathOutlet,
+          target: targetInlet,
+        },
+      ];
     });
   }
 
   return result;
 }
-
-/**
- * ========================
- * Engine
- * ========================
- */
 
 export const defaultGraphLayoutEngine: GraphLayoutEngine = {
   compute(input): GraphLayoutResult {

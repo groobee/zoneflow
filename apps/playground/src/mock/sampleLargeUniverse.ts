@@ -54,8 +54,12 @@ function createActionZone(params: {
     width,
     height,
     anchors: {
-      inlet: { x: 0, y: height / 2 },
-      outlet: { x: width, y: height / 2 },
+      inlet: {
+        point: { x: 0, y: height / 2 },
+      },
+      outlet: {
+        point: { x: width, y: height / 2 },
+      }
     },
   };
 
@@ -99,8 +103,12 @@ function createContainerZone(params: {
     width,
     height,
     anchors: {
-      inlet: { x: 0, y: height / 2 },
-      outlet: { x: width, y: height / 2 },
+      inlet: {
+        point: { x: 0, y: height / 2 },
+      },
+      outlet: {
+        point: { x: width, y: height / 2 },
+      }
     },
   };
 
@@ -126,8 +134,12 @@ zoneLayoutsById.root = {
   width: 2600,
   height: 1400,
   anchors: {
-    inlet: { x: 0, y: 700 },
-    outlet: { x: 2600, y: 700 },
+    inlet: {
+      point: { x: 0, y: 700 },
+    },
+    outlet: {
+      point: { x: 2600, y: 700 },
+    },
   },
 };
 

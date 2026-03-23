@@ -1,10 +1,11 @@
 import type {
+  AnchorRect,
   Path,
   PathId,
   Point,
+  UniverseId,
   UniverseLayoutModel,
   UniverseModel,
-  UniverseId,
   Zone,
   ZoneId,
 } from "@zoneflow/core";
@@ -46,8 +47,10 @@ export type ZoneVisualNode = {
   zoneId: ZoneId;
   zone: Zone;
   rect: Rect;
-  inlet: Point;
-  outlet: Point;
+  anchors: {
+    inlet: { point: Point; rect?: AnchorRect };
+    outlet: { point: Point; rect?: AnchorRect };
+  };
 };
 
 export type PathVisualNode = {
@@ -62,16 +65,18 @@ export type PathVisualNode = {
 };
 
 export type EdgeVisual = {
+  id: string;
   pathId: PathId;
   source: Point;
   target: Point;
+  kind: "zone-to-path" | "path-to-zone";
   points?: Point[];
 };
 
 export type GraphLayoutResult = {
   zonesById: Record<ZoneId, ZoneVisualNode>;
   pathsById: Record<PathId, PathVisualNode>;
-  edgesByPathId: Record<PathId, EdgeVisual>;
+  edgesByPathId: Record<PathId, EdgeVisual[]>;
 };
 
 export type DensityResult = {
@@ -250,13 +255,6 @@ export type DebugLayer =
   | "edges"
   | "anchors"
   | "viewport";
-
-export type Viewport = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
 
 export type ViewportConfig = {
   enabled: boolean;
