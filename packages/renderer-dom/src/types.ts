@@ -178,6 +178,29 @@ export type PathComponentRendererMap = Partial<
   Record<PathComponentSlotName, PathComponentRenderer>
 >;
 
+export type ZoneComponentMount = {
+  key: string;
+  zoneId: ZoneId;
+  slot: ZoneComponentSlotName;
+  host: HTMLElement;
+  rect: Rect;
+  context: ZoneComponentRendererContext;
+};
+
+export type PathComponentMount = {
+  key: string;
+  pathId: PathId;
+  slot: PathComponentSlotName;
+  host: HTMLElement;
+  rect: Rect;
+  context: PathComponentRendererContext;
+};
+
+export type RenderMountRegistry = {
+  zones: ZoneComponentMount[];
+  paths: PathComponentMount[];
+};
+
 export type RendererInteractionHandlers = {
   onZoneClick?: (zoneId: ZoneId) => void;
   onPathClick?: (pathId: PathId) => void;
@@ -215,6 +238,12 @@ export type RendererDrawInput = {
   interactionHandlers?: RendererInteractionHandlers;
 };
 
+export type RendererFrame = {
+  viewportInfo: RenderViewportInfo;
+  pipeline: RenderPipelineResult;
+  mounts: RenderMountRegistry;
+};
+
 export type GraphLayoutEngine = {
   compute(input: RenderPipelineInput): GraphLayoutResult;
 };
@@ -244,7 +273,7 @@ export type ComponentLayoutEngine = {
 };
 
 export type DrawEngine = {
-  draw(input: RendererDrawInput): void;
+  draw(input: RendererDrawInput): RenderMountRegistry;
 };
 
 export type DebugLayer =
@@ -291,6 +320,6 @@ export type RendererInput = {
 
 export type ZoneflowRenderer = {
   mount(container: HTMLElement): void;
-  update(input: RendererInput): void;
+  update(input: RendererInput): RendererFrame | undefined;
   destroy(): void;
 };

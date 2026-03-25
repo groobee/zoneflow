@@ -3,6 +3,10 @@ import { UniverseCanvas } from "@zoneflow/react";
 import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
 import type { DebugState } from "../../hooks/useDebugState";
 import { canvasHostStyle } from "./layout.styles";
+import {
+  pathComponents,
+  zoneComponents,
+} from "../renderers/defaultComponents";
 
 type Props = {
   model: UniverseModel;
@@ -44,6 +48,8 @@ export function CanvasHost({
         model={model}
         layoutModel={layoutModel}
         viewport={debug.viewport}
+        zoneComponents={zoneComponents}
+        pathComponents={pathComponents}
         debug={{
           enabled: debug.enabled,
           layers: debug.layers,

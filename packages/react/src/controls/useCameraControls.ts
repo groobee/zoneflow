@@ -193,7 +193,7 @@ export function useCameraControls({
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
 
-        setCamera((prev) => {
+        setCamera((prev: CameraState) => {
           const nextZoom =
             event.deltaY < 0 ? prev.zoom * ZOOM_STEP : prev.zoom / ZOOM_STEP;
 
@@ -210,7 +210,7 @@ export function useCameraControls({
 
       event.preventDefault();
 
-      setCamera((prev) => ({
+      setCamera((prev: CameraState) => ({
         ...prev,
         x: prev.x - event.deltaX,
         y: prev.y - event.deltaY,
@@ -317,7 +317,7 @@ export function useCameraControls({
       const deltaX = event.clientX - panState.startClientX;
       const deltaY = event.clientY - panState.startClientY;
 
-      setCamera((prev) => ({
+      setCamera((prev: CameraState) => ({
         ...prev,
         x: panState.startCameraX + deltaX,
         y: panState.startCameraY + deltaY,

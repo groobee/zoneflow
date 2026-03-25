@@ -22,7 +22,8 @@ export const defaultTheme: ZoneflowTheme = {
   density: {
     zone: {
       detail: 200,
-      simple: 100,
+      near: 140,
+      mid: 90,
     },
     path: {
       full: 120,

@@ -1,18 +1,23 @@
-import type { DensityEngine } from "../types";
+import type {
+  DensityEngine,
+  DensityLevel,
+  PathVisualMode,
+} from "../types";
 
 function getZoneDensity(
   size: number,
-  thresholds: { detail: number; simple: number }
-): "detail" | "simple" | "minimal" {
+  thresholds: { detail: number; near: number; mid: number }
+): DensityLevel {
   if (size >= thresholds.detail) return "detail";
-  if (size >= thresholds.simple) return "simple";
-  return "minimal";
+  if (size >= thresholds.near) return "near";
+  if (size >= thresholds.mid) return "mid";
+  return "far";
 }
 
 function getPathDensity(
   size: number,
   thresholds: { full: number; chip: number }
-): "full" | "chip" | "edge-only" {
+): PathVisualMode {
   if (size >= thresholds.full) return "full";
   if (size >= thresholds.chip) return "chip";
   return "edge-only";
@@ -24,8 +29,8 @@ export const defaultDensityEngine: DensityEngine = {
     const zoom = base.camera.zoom;
     const theme = base.theme;
 
-    const zoneDensityById: Record<string, any> = {};
-    const pathDensityById: Record<string, any> = {};
+    const zoneDensityById: Record<string, DensityLevel> = {};
+    const pathDensityById: Record<string, PathVisualMode> = {};
 
     const zoneThresholds = theme.density.zone;
     const pathThresholds = theme.density.path;

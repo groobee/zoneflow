@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import type {UniverseLayoutModel, UniverseModel} from "@zoneflow/core";
 import {
   type CameraState,
@@ -7,16 +7,24 @@ import {
   type DensityEngine,
   type DrawEngine,
   type GraphLayoutEngine,
+  type RenderMountRegistry,
   type PathComponentRendererMap,
+  type PathComponentSlotName,
   type RendererDebugOptions,
   type RendererInteractionHandlers,
   type TextScaleLevel,
   type ViewportConfig,
   type VisibilityEngine,
   type ZoneComponentRendererMap,
+  type ZoneComponentSlotName,
   type ZoneflowTheme,
 } from "@zoneflow/renderer-dom";
 import {useCameraControls} from "../controls/useCameraControls";
+import {
+  type PathSlotComponentMap,
+  SlotPortals,
+  type ZoneSlotComponentMap,
+} from "../slots/slotComponents";
 
 export type UniverseCanvasProps = {
   model: UniverseModel;
@@ -33,6 +41,8 @@ export type UniverseCanvasProps = {
 
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  zoneComponents?: ZoneSlotComponentMap;
+  pathComponents?: PathSlotComponentMap;
   interactionHandlers?: RendererInteractionHandlers;
 
   debug?: RendererDebugOptions;
@@ -43,6 +53,8 @@ const DEFAULT_CAMERA: CameraState = {
   y: 0,
   zoom: 1,
 };
+
+const noopRenderer = () => {};
 
 export function UniverseCanvas({
                                  model,
@@ -59,12 +71,46 @@ export function UniverseCanvas({
 
                                  zoneComponentRenderers,
                                  pathComponentRenderers,
+                                 zoneComponents,
+                                 pathComponents,
                                  interactionHandlers,
-                                 debug,
-                               }: UniverseCanvasProps) {
+                               debug,
+                             }: UniverseCanvasProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(createRenderer());
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const [mounts, setMounts] = useState<RenderMountRegistry>({
+    zones: [],
+    paths: [],
+  });
+
+  const effectiveZoneComponentRenderers = useMemo(() => {
+    if (!zoneComponents) return zoneComponentRenderers;
+
+    const next: ZoneComponentRendererMap = {
+      ...(zoneComponentRenderers ?? {}),
+    };
+
+    for (const slot of Object.keys(zoneComponents) as ZoneComponentSlotName[]) {
+      next[slot] = noopRenderer;
+    }
+
+    return next;
+  }, [zoneComponentRenderers, zoneComponents]);
+
+  const effectivePathComponentRenderers = useMemo(() => {
+    if (!pathComponents) return pathComponentRenderers;
+
+    const next: PathComponentRendererMap = {
+      ...(pathComponentRenderers ?? {}),
+    };
+
+    for (const slot of Object.keys(pathComponents) as PathComponentSlotName[]) {
+      next[slot] = noopRenderer;
+    }
+
+    return next;
+  }, [pathComponentRenderers, pathComponents]);
 
   useCameraControls({
     hostRef: ref,
@@ -83,7 +129,7 @@ export function UniverseCanvas({
   }, []);
 
   useEffect(() => {
-    rendererRef.current.update({
+    const frame = rendererRef.current.update({
       model,
       layoutModel,
       theme,
@@ -97,10 +143,15 @@ export function UniverseCanvas({
       componentLayoutEngine,
       drawEngine,
 
-      zoneComponentRenderers,
-      pathComponentRenderers,
+      zoneComponentRenderers: effectiveZoneComponentRenderers,
+      pathComponentRenderers: effectivePathComponentRenderers,
       interactionHandlers,
       debug,
+    });
+
+    setMounts(frame?.mounts ?? {
+      zones: [],
+      paths: [],
     });
   }, [
     model,
@@ -114,24 +165,33 @@ export function UniverseCanvas({
     visibilityEngine,
     componentLayoutEngine,
     drawEngine,
-    zoneComponentRenderers,
-    pathComponentRenderers,
+    effectiveZoneComponentRenderers,
+    effectivePathComponentRenderers,
+    zoneComponents,
+    pathComponents,
     interactionHandlers,
     debug,
   ]);
 
   return (
-    <div
-      ref={ref}
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "relative",
-        overflow: "hidden",
-        cursor: "default",
-        touchAction: "none",
-        overscrollBehavior: "none",
-      }}
-    />
+    <>
+      <div
+        ref={ref}
+        style={{
+          width: "100%",
+          height: "100%",
+          position: "relative",
+          overflow: "hidden",
+          cursor: "default",
+          touchAction: "none",
+          overscrollBehavior: "none",
+        }}
+      />
+      <SlotPortals
+        mounts={mounts}
+        zoneComponents={zoneComponents}
+        pathComponents={pathComponents}
+      />
+    </>
   );
 }

@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "disableSourceOfProjectReferenceRedirect": true,
     "rootDir": "src",
     "outDir": "dist",
     "jsx": "react-jsx"
