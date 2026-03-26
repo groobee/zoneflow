@@ -16,10 +16,10 @@ import type {
   ZoneVisualNode,
 } from "../types";
 
-const DEFAULT_PATH_NODE_WIDTH = 120;
-const DEFAULT_PATH_NODE_HEIGHT = 32;
-const DEFAULT_PATH_NODE_OFFSET_X = 32;
-const DEFAULT_PATH_NODE_GAP_Y = 40;
+export const DEFAULT_PATH_NODE_WIDTH = 120;
+export const DEFAULT_PATH_NODE_HEIGHT = 32;
+export const DEFAULT_PATH_NODE_OFFSET_X = 32;
+export const DEFAULT_PATH_NODE_GAP_Y = 40;
 
 function typedEntries<TKey extends string, TValue>(
   record: Record<TKey, TValue>

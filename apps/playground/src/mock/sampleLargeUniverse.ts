@@ -33,7 +33,7 @@ function createPath(params: {
 
 function createActionZone(params: {
   id: string;
-  parentZoneId: string;
+  parentZoneId: string | null;
   name: string;
   actionType: string;
   x: number;
@@ -83,7 +83,7 @@ function createActionZone(params: {
 
 function createContainerZone(params: {
   id: string;
-  parentZoneId: string;
+  parentZoneId: string | null;
   name: string;
   childZoneIds: string[];
   x: number;
@@ -127,34 +127,6 @@ function createContainerZone(params: {
 }
 
 const zonesById: Record<string, Zone> = {};
-
-zoneLayoutsById.root = {
-  x: 0,
-  y: 0,
-  width: 2600,
-  height: 1400,
-  anchors: {
-    inlet: {
-      point: { x: 0, y: 700 },
-    },
-    outlet: {
-      point: { x: 2600, y: 700 },
-    },
-  },
-};
-
-zonesById.root = {
-  id: "root",
-  parentZoneId: null,
-  name: "Root Universe",
-  zoneType: "container",
-  childZoneIds: ["container-1", "container-2", "container-3"],
-  pathIds: [],
-  pathsById: {},
-  meta: {
-    color: "#1f2937",
-  },
-};
 
 const containerColors = ["#2563eb", "#7c3aed", "#0f766e"];
 const actionColors = [
@@ -291,7 +263,7 @@ containerConfigs.forEach((container, containerIndex) => {
 
   zonesById[container.id] = createContainerZone({
     id: container.id,
-    parentZoneId: "root",
+    parentZoneId: null,
     name: container.name,
     childZoneIds: container.childZoneIds,
     x: container.x,
@@ -464,7 +436,7 @@ actionConfigs.forEach((action, idx) => {
 
 zonesById["action-terminal-1"] = createActionZone({
   id: "action-terminal-1",
-  parentZoneId: "root",
+  parentZoneId: null,
   name: "Purchase Terminal",
   actionType: "markCompleted",
   x: 1850,
@@ -477,7 +449,7 @@ zonesById["action-terminal-1"] = createActionZone({
 
 zonesById["action-terminal-2"] = createActionZone({
   id: "action-terminal-2",
-  parentZoneId: "root",
+  parentZoneId: null,
   name: "Fallback Terminal",
   actionType: "sendCoupon",
   x: 1850,
@@ -490,7 +462,7 @@ zonesById["action-terminal-2"] = createActionZone({
 
 zonesById["action-terminal-3"] = createActionZone({
   id: "action-terminal-3",
-  parentZoneId: "root",
+  parentZoneId: null,
   name: "Hot Lead Terminal",
   actionType: "assignSegment",
   x: 1850,
@@ -503,7 +475,7 @@ zonesById["action-terminal-3"] = createActionZone({
 
 zonesById["action-terminal-4"] = createActionZone({
   id: "action-terminal-4",
-  parentZoneId: "root",
+  parentZoneId: null,
   name: "VIP Terminal",
   actionType: "assignSegment",
   x: 1850,
@@ -555,7 +527,15 @@ const sampleLargePathLayouts = createSampleLargePathLayouts();
 export const sampleLargeUniverse: UniverseModel = {
   version: "2.0.0",
   universeId: "complex-retention",
-  rootZoneIds: ["root"],
+  rootZoneIds: [
+    "container-1",
+    "container-2",
+    "container-3",
+    "action-terminal-1",
+    "action-terminal-2",
+    "action-terminal-3",
+    "action-terminal-4",
+  ],
   meta: {
     name: "Complex Retention Universe",
     description:

@@ -207,6 +207,11 @@ export type RendererInteractionHandlers = {
   onBackgroundClick?: () => void;
 };
 
+export type RendererExclusionState = {
+  excludedZoneIds?: ZoneId[];
+  excludedPathIds?: PathId[];
+};
+
 export type RenderPipelineInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
@@ -236,6 +241,7 @@ export type RendererDrawInput = {
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
   interactionHandlers?: RendererInteractionHandlers;
+  exclusionState?: RendererExclusionState;
 };
 
 export type RendererFrame = {
@@ -314,6 +320,7 @@ export type RendererInput = {
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
   interactionHandlers?: RendererInteractionHandlers;
+  exclusionState?: RendererExclusionState;
 
   debug?: RendererDebugOptions;
 };

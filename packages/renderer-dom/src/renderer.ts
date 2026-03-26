@@ -122,6 +122,7 @@ export function createRenderer(): ZoneflowRenderer {
         zoneComponentRenderers,
         pathComponentRenderers,
         interactionHandlers,
+        exclusionState,
 
         debug,
       } = input;
@@ -156,6 +157,7 @@ export function createRenderer(): ZoneflowRenderer {
           theme: mergedTheme,
           textScale,
           pipeline,
+          exclusionState,
           layers: debug.layers ?? ["graph-layout", "edges", "anchors"],
         });
         return {
@@ -180,6 +182,7 @@ export function createRenderer(): ZoneflowRenderer {
         zoneComponentRenderers,
         pathComponentRenderers,
         interactionHandlers,
+        exclusionState,
       });
 
       return {

@@ -15,6 +15,7 @@ import type {
   ZoneComponentSlotName,
   ZoneVisualNode,
 } from "../types";
+import { resolveZoneAnchorRect } from "../anchors";
 
 const SCENE_PADDING = 64;
 
@@ -37,6 +38,10 @@ function createEmptyMountRegistry(): RenderMountRegistry {
 
 function clearHost(host: HTMLElement) {
   host.innerHTML = "";
+}
+
+function createIdSet(ids?: string[]): Set<string> {
+  return new Set(ids ?? []);
 }
 
 function getOpacity(emphasis: VisibilityEmphasis): number {
@@ -77,6 +82,20 @@ function ensureArrowMarker(svg: SVGSVGElement, color: string) {
   marker.appendChild(arrow);
   defs.appendChild(marker);
   svg.appendChild(defs);
+}
+
+function getBezierCurvePathD(params: {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+}) {
+  const { source, target } = params;
+  const dx = target.x - source.x;
+  const direction = dx >= 0 ? 1 : -1;
+  const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
+  const control1X = source.x + handle * direction;
+  const control2X = target.x - handle * direction;
+
+  return `M ${source.x} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
 }
 
 function computeSceneBounds(input: RendererDrawInput): Rect {
@@ -417,19 +436,25 @@ function drawEdges(params: {
     if (!visibility?.shouldRenderEdge) continue;
 
     for (const edge of edges) {
-      const line = createSvgElement("line");
-      line.setAttribute("x1", String(edge.source.x));
-      line.setAttribute("y1", String(edge.source.y));
-      line.setAttribute("x2", String(edge.target.x));
-      line.setAttribute("y2", String(edge.target.y));
-      line.setAttribute("stroke", input.theme.pathEdge);
-      line.setAttribute("stroke-width", edge.kind === "path-to-zone" ? "2.25" : "1.75");
-      line.setAttribute("stroke-linecap", "round");
-      line.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
-      if (edge.kind === "path-to-zone") {
-        line.setAttribute("marker-end", "url(#zoneflow-arrow)");
-      }
-      svg.appendChild(line);
+      const path = createSvgElement("path");
+      path.setAttribute(
+        "d",
+        getBezierCurvePathD({
+          source: edge.source,
+          target: edge.target,
+        })
+      );
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", input.theme.pathEdge);
+      path.setAttribute(
+        "stroke-width",
+        edge.kind === "path-to-zone" ? "2.25" : "1.85"
+      );
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
+      path.setAttribute("marker-end", "url(#zoneflow-arrow)");
+      svg.appendChild(path);
     }
   }
 }
@@ -440,40 +465,36 @@ function drawZoneAnchors(params: {
 }) {
   const { owner, zone } = params;
 
-  for (const anchor of [zone.anchors.inlet, zone.anchors.outlet]) {
-    const rect = anchor.rect;
-    if (rect) {
-      const el = document.createElement("div");
-      applyStyles(el, {
-        position: "absolute",
-        left: `${rect.x - zone.rect.x}px`,
-        top: `${rect.y - zone.rect.y}px`,
-        width: `${rect.width ?? 8}px`,
-        height: `${rect.height ?? 8}px`,
-        borderRadius: "999px",
-        background: "#ffffff",
-        border: "1px solid rgba(15, 23, 42, 0.28)",
-        boxSizing: "border-box",
-        pointerEvents: "none",
-      });
-      owner.appendChild(el);
-      continue;
-    }
+  for (const kind of ["inlet", "outlet"] as const) {
+    const anchor = zone.anchors[kind];
+    const rect = resolveZoneAnchorRect({
+      zoneRect: zone.rect,
+      anchor,
+      kind,
+    });
+    const el = document.createElement("div");
 
-    const dot = document.createElement("div");
-    applyStyles(dot, {
+    applyStyles(el, {
       position: "absolute",
-      left: `${anchor.point.x - zone.rect.x - 4}px`,
-      top: `${anchor.point.y - zone.rect.y - 4}px`,
-      width: "8px",
-      height: "8px",
+      left: `${rect.x - zone.rect.x}px`,
+      top: `${rect.y - zone.rect.y}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
       borderRadius: "999px",
-      background: "#ffffff",
-      border: "1px solid rgba(15, 23, 42, 0.28)",
+      background:
+        kind === "inlet"
+          ? "linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.98))"
+          : "linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(255, 237, 213, 0.98))",
+      border:
+        kind === "inlet"
+          ? "1px solid rgba(59, 130, 246, 0.26)"
+          : "1px solid rgba(249, 115, 22, 0.26)",
+      boxShadow: "0 6px 14px rgba(15, 23, 42, 0.1)",
       boxSizing: "border-box",
       pointerEvents: "none",
     });
-    owner.appendChild(dot);
+
+    owner.appendChild(el);
   }
 }
 
@@ -488,6 +509,8 @@ export const domDrawEngine: DrawEngine = {
       pipeline,
       interactionHandlers,
     } = input;
+    const excludedZoneIds = createIdSet(input.exclusionState?.excludedZoneIds);
+    const excludedPathIds = createIdSet(input.exclusionState?.excludedPathIds);
 
     clearHost(host);
     applyStyles(host, {
@@ -541,6 +564,7 @@ export const domDrawEngine: DrawEngine = {
       height: `${sceneBounds.height}px`,
       overflow: "visible",
       pointerEvents: "none",
+      zIndex: 20,
     });
     ensureArrowMarker(edgeSvg, theme.pathEdge);
 
@@ -550,6 +574,7 @@ export const domDrawEngine: DrawEngine = {
       top: "0",
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
+      zIndex: 10,
     });
 
     applyStyles(pathLayer, {
@@ -558,6 +583,7 @@ export const domDrawEngine: DrawEngine = {
       top: "0",
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
+      zIndex: 30,
     });
 
     worldRoot.appendChild(edgeSvg);
@@ -573,7 +599,7 @@ export const domDrawEngine: DrawEngine = {
 
     for (const zoneVisual of Object.values(pipeline.graphLayout.zonesById)) {
       const visibility = pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
-      if (!visibility?.isVisible) continue;
+      if (!visibility?.isVisible || excludedZoneIds.has(zoneVisual.zoneId)) continue;
 
       const componentLayout = pipeline.componentLayout.zonesById[zoneVisual.zoneId];
       const zoneEl = document.createElement("div");
@@ -589,6 +615,7 @@ export const domDrawEngine: DrawEngine = {
         height: `${zoneVisual.rect.height}px`,
         opacity: getOpacity(visibility.emphasis),
         overflow: "visible",
+        zIndex: 1,
       });
 
       applyStyles(zoneBodyEl, {
@@ -637,7 +664,13 @@ export const domDrawEngine: DrawEngine = {
 
     for (const pathVisual of Object.values(pipeline.graphLayout.pathsById)) {
       const visibility = pipeline.visibility.pathVisibilityById[pathVisual.pathId];
-      if (!visibility?.shouldRenderNode || !pathVisual.rect) continue;
+      if (
+        !visibility?.shouldRenderNode ||
+        !pathVisual.rect ||
+        excludedPathIds.has(pathVisual.pathId)
+      ) {
+        continue;
+      }
 
       const componentLayout = pipeline.componentLayout.pathsById[pathVisual.pathId];
       const pathEl = document.createElement("div");
@@ -655,6 +688,7 @@ export const domDrawEngine: DrawEngine = {
         boxSizing: "border-box",
         boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
         opacity: getOpacity(visibility.emphasis),
+        zIndex: 1,
       });
 
       pathEl.addEventListener("click", (event) => {

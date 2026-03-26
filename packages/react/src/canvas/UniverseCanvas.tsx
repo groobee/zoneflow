@@ -7,7 +7,9 @@ import {
   type DensityEngine,
   type DrawEngine,
   type GraphLayoutEngine,
+  type RendererExclusionState,
   type RenderMountRegistry,
+  type RendererFrame,
   type PathComponentRendererMap,
   type PathComponentSlotName,
   type RendererDebugOptions,
@@ -20,6 +22,10 @@ import {
   type ZoneflowTheme,
 } from "@zoneflow/renderer-dom";
 import {useCameraControls} from "../controls/useCameraControls";
+import {
+  type ZoneMoveEditorConfig,
+  ZoneMoveEditorOverlay,
+} from "../editor/ZoneMoveEditorOverlay";
 import {
   type PathSlotComponentMap,
   SlotPortals,
@@ -44,6 +50,7 @@ export type UniverseCanvasProps = {
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   interactionHandlers?: RendererInteractionHandlers;
+  zoneMoveEditor?: ZoneMoveEditorConfig;
 
   debug?: RendererDebugOptions;
 };
@@ -74,11 +81,16 @@ export function UniverseCanvas({
                                  zoneComponents,
                                  pathComponents,
                                  interactionHandlers,
-                               debug,
-                             }: UniverseCanvasProps) {
+                                 zoneMoveEditor,
+                                 debug,
+                               }: UniverseCanvasProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(createRenderer());
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const [frame, setFrame] = useState<RendererFrame | null>(null);
+  const [exclusionState, setExclusionState] = useState<
+    RendererExclusionState | undefined
+  >(undefined);
   const [mounts, setMounts] = useState<RenderMountRegistry>({
     zones: [],
     paths: [],
@@ -129,6 +141,11 @@ export function UniverseCanvas({
   }, []);
 
   useEffect(() => {
+    if (zoneMoveEditor?.enabled) return;
+    setExclusionState(undefined);
+  }, [zoneMoveEditor?.enabled]);
+
+  useEffect(() => {
     const frame = rendererRef.current.update({
       model,
       layoutModel,
@@ -146,9 +163,11 @@ export function UniverseCanvas({
       zoneComponentRenderers: effectiveZoneComponentRenderers,
       pathComponentRenderers: effectivePathComponentRenderers,
       interactionHandlers,
+      exclusionState,
       debug,
     });
 
+    setFrame(frame ?? null);
     setMounts(frame?.mounts ?? {
       zones: [],
       paths: [],
@@ -170,17 +189,25 @@ export function UniverseCanvas({
     zoneComponents,
     pathComponents,
     interactionHandlers,
+    exclusionState,
     debug,
   ]);
 
   return (
-    <>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+      }}
+    >
       <div
         ref={ref}
         style={{
           width: "100%",
           height: "100%",
-          position: "relative",
+          position: "absolute",
+          inset: 0,
           overflow: "hidden",
           cursor: "default",
           touchAction: "none",
@@ -192,6 +219,16 @@ export function UniverseCanvas({
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
       />
-    </>
+      <ZoneMoveEditorOverlay
+        model={model}
+        layoutModel={layoutModel}
+        camera={camera}
+        frame={frame}
+        zoneComponents={zoneComponents}
+        pathComponents={pathComponents}
+        editor={zoneMoveEditor}
+        onExclusionStateChange={setExclusionState}
+      />
+    </div>
   );
 }

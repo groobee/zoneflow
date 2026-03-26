@@ -35,9 +35,115 @@ const drawLayerMap: Record<DebugLayer, DrawFn> = {
   viewport: drawViewport,
 };
 
+function createSvgElement<K extends keyof SVGElementTagNameMap>(
+  tag: K
+): SVGElementTagNameMap[K] {
+  return document.createElementNS("http://www.w3.org/2000/svg", tag);
+}
+
+function ensureArrowMarker(svg: SVGSVGElement, color: string) {
+  const defs = createSvgElement("defs");
+  const marker = createSvgElement("marker");
+  marker.setAttribute("id", "zoneflow-debug-arrow");
+  marker.setAttribute("markerWidth", "12");
+  marker.setAttribute("markerHeight", "12");
+  marker.setAttribute("refX", "10");
+  marker.setAttribute("refY", "6");
+  marker.setAttribute("orient", "auto");
+  marker.setAttribute("markerUnits", "strokeWidth");
+
+  const arrow = createSvgElement("path");
+  arrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
+  arrow.setAttribute("fill", color);
+
+  marker.appendChild(arrow);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+}
+
+function getBezierCurvePathD(params: {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+}) {
+  const { source, target } = params;
+  const dx = target.x - source.x;
+  const direction = dx >= 0 ? 1 : -1;
+  const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
+  const control1X = source.x + handle * direction;
+  const control2X = target.x - handle * direction;
+
+  return `M ${source.x} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function filterPipelineForExclusion(input: DebugDrawInput) {
+  const excludedZoneIds = new Set(input.exclusionState?.excludedZoneIds ?? []);
+  const excludedPathIds = new Set(input.exclusionState?.excludedPathIds ?? []);
+
+  if (excludedZoneIds.size === 0 && excludedPathIds.size === 0) {
+    return input.pipeline;
+  }
+
+  return {
+    ...input.pipeline,
+    graphLayout: {
+      ...input.pipeline.graphLayout,
+      zonesById: Object.fromEntries(
+        Object.entries(input.pipeline.graphLayout.zonesById).filter(
+          ([zoneId]) => !excludedZoneIds.has(zoneId)
+        )
+      ),
+      pathsById: Object.fromEntries(
+        Object.entries(input.pipeline.graphLayout.pathsById).filter(
+          ([pathId]) => !excludedPathIds.has(pathId)
+        )
+      ),
+    },
+    density: {
+      ...input.pipeline.density,
+      zoneDensityById: Object.fromEntries(
+        Object.entries(input.pipeline.density.zoneDensityById).filter(
+          ([zoneId]) => !excludedZoneIds.has(zoneId)
+        )
+      ),
+      pathDensityById: Object.fromEntries(
+        Object.entries(input.pipeline.density.pathDensityById).filter(
+          ([pathId]) => !excludedPathIds.has(pathId)
+        )
+      ),
+    },
+    visibility: {
+      ...input.pipeline.visibility,
+      zoneVisibilityById: Object.fromEntries(
+        Object.entries(input.pipeline.visibility.zoneVisibilityById).filter(
+          ([zoneId]) => !excludedZoneIds.has(zoneId)
+        )
+      ),
+      pathVisibilityById: Object.fromEntries(
+        Object.entries(input.pipeline.visibility.pathVisibilityById).filter(
+          ([pathId]) => !excludedPathIds.has(pathId)
+        )
+      ),
+    },
+    componentLayout: {
+      ...input.pipeline.componentLayout,
+      zonesById: Object.fromEntries(
+        Object.entries(input.pipeline.componentLayout.zonesById).filter(
+          ([zoneId]) => !excludedZoneIds.has(zoneId)
+        )
+      ),
+      pathsById: Object.fromEntries(
+        Object.entries(input.pipeline.componentLayout.pathsById).filter(
+          ([pathId]) => !excludedPathIds.has(pathId)
+        )
+      ),
+    },
+  };
+}
+
 export const debugDrawEngine = {
   draw(input: DebugDrawInput) {
-    const { host, pipeline, camera } = input;
+    const { host, camera } = input;
+    const pipeline = filterPipelineForExclusion(input);
     const layers = input.layers ?? DEFAULT_DEBUG_LAYERS;
 
     host.innerHTML = "";
@@ -273,32 +379,48 @@ function drawComponentLayout(
 
 function drawEdges(root: HTMLElement, pipeline: any) {
   const { edgesByPathId } = pipeline.graphLayout;
+  const svg = createSvgElement("svg");
+  svg.style.position = "absolute";
+  svg.style.left = "0";
+  svg.style.top = "0";
+  svg.style.width = "100%";
+  svg.style.height = "100%";
+  svg.style.overflow = "visible";
+  svg.style.pointerEvents = "none";
+
+  ensureArrowMarker(svg, "#0f172a");
 
   Object.values(edgesByPathId)
     .flatMap((edges: any) => edges)
     .forEach((edge: any) => {
-    const line = document.createElement("div");
+      const path = createSvgElement("path");
 
-    const dx = edge.target.x - edge.source.x;
-    const dy = edge.target.y - edge.source.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      path.setAttribute(
+        "d",
+        getBezierCurvePathD({
+          source: edge.source,
+          target: edge.target,
+        })
+      );
+      path.setAttribute("fill", "none");
+      path.setAttribute(
+        "stroke",
+        edge.kind === "zone-to-path"
+          ? "#2563eb"
+          : "#ef4444"
+      );
+      path.setAttribute(
+        "stroke-width",
+        edge.kind === "zone-to-path" ? "2" : "2.4"
+      );
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("marker-end", "url(#zoneflow-debug-arrow)");
 
-    line.style.position = "absolute";
-    line.style.left = `${edge.source.x}px`;
-    line.style.top = `${edge.source.y}px`;
-    line.style.width = `${length}px`;
-    line.style.height = "1px";
-    line.style.background =
-      edge.kind === "zone-to-path"
-        ? "#3b82f6"
-        : "#ef4444";
-    line.style.transformOrigin = "0 0";
-    line.style.transform = `rotate(${angle}deg)`;
-    line.style.pointerEvents = "none";
+      svg.appendChild(path);
+    });
 
-    root.appendChild(line);
-  });
+  root.appendChild(svg);
 }
 
 function drawAnchors(

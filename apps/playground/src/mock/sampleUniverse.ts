@@ -3,28 +3,15 @@ import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
 export const sampleUniverse: UniverseModel = {
   version: "1.0.0",
   universeId: "retention",
-  rootZoneIds: ["root"],
+  rootZoneIds: ["offsite", "purchase", "fallback"],
   meta: {
     name: "Retention Universe",
     description: "Sample universe for playground",
   },
   zonesById: {
-    root: {
-      id: "root",
-      parentZoneId: null,
-      name: "Root Zone",
-      zoneType: "container",
-      childZoneIds: ["offsite", "purchase", "fallback"],
-      pathIds: [],
-      pathsById: {},
-      meta: {
-        color: "#1f2937",
-      },
-    },
-
     offsite: {
       id: "offsite",
-      parentZoneId: "root",
+      parentZoneId: null,
       name: "Offsite Zone",
       zoneType: "container",
       childZoneIds: ["sendPush", "waitResponse"],
@@ -122,7 +109,7 @@ export const sampleUniverse: UniverseModel = {
 
     purchase: {
       id: "purchase",
-      parentZoneId: "root",
+      parentZoneId: null,
       name: "Purchase Zone",
       zoneType: "action",
       childZoneIds: [],
@@ -141,7 +128,7 @@ export const sampleUniverse: UniverseModel = {
 
     fallback: {
       id: "fallback",
-      parentZoneId: "root",
+      parentZoneId: null,
       name: "Fallback Zone",
       zoneType: "action",
       childZoneIds: [],
@@ -164,20 +151,6 @@ export const sampleUniverseLayout: UniverseLayoutModel = {
   version: "1.0.0",
   universeId: "retention",
   zoneLayoutsById: {
-    root: {
-      x: 0,
-      y: 0,
-      width: 1400,
-      height: 900,
-      anchors: {
-        inlet: {
-          point: { x: 0, y: 450 },
-        },
-        outlet: {
-          point: { x: 1400, y: 450 },
-        },
-      },
-    },
     offsite: {
       x: 120,
       y: 120,

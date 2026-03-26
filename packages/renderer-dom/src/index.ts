@@ -1,5 +1,6 @@
 export * from "./theme";
 export * from "./types";
+export * from "./anchors";
 export * from "./pipeline";
 export * from "./renderer";
 
