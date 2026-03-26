@@ -58,6 +58,22 @@ function ensureArrowMarker(svg: SVGSVGElement, color: string) {
 
   marker.appendChild(arrow);
   defs.appendChild(marker);
+
+  const inboundMarker = createSvgElement("marker");
+  inboundMarker.setAttribute("id", "zoneflow-debug-arrow-inbound");
+  inboundMarker.setAttribute("markerWidth", "12");
+  inboundMarker.setAttribute("markerHeight", "12");
+  inboundMarker.setAttribute("refX", "12");
+  inboundMarker.setAttribute("refY", "6");
+  inboundMarker.setAttribute("orient", "0");
+  inboundMarker.setAttribute("markerUnits", "strokeWidth");
+
+  const inboundArrow = createSvgElement("path");
+  inboundArrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
+  inboundArrow.setAttribute("fill", color);
+
+  inboundMarker.appendChild(inboundArrow);
+  defs.appendChild(inboundMarker);
   svg.appendChild(defs);
 }
 
@@ -66,13 +82,15 @@ function getBezierCurvePathD(params: {
   target: { x: number; y: number };
 }) {
   const { source, target } = params;
-  const dx = target.x - source.x;
+  const sourceLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.18, 18), 42);
+  const leadSourceX = source.x + sourceLead;
+  const dx = target.x - leadSourceX;
   const direction = dx >= 0 ? 1 : -1;
   const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
-  const control1X = source.x + handle * direction;
+  const control1X = leadSourceX + handle * direction;
   const control2X = target.x - handle * direction;
 
-  return `M ${source.x} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
+  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
 }
 
 function filterPipelineForExclusion(input: DebugDrawInput) {
@@ -415,7 +433,12 @@ function drawEdges(root: HTMLElement, pipeline: any) {
       );
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
-      path.setAttribute("marker-end", "url(#zoneflow-debug-arrow)");
+      path.setAttribute(
+        "marker-end",
+        edge.kind === "path-to-zone"
+          ? "url(#zoneflow-debug-arrow-inbound)"
+          : "url(#zoneflow-debug-arrow)"
+      );
 
       svg.appendChild(path);
     });

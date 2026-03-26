@@ -11,10 +11,8 @@ import {
   commitZoneReparentAtCurrentPosition,
   getMoveEditorTargets,
   moveEditorTargetByScreenDelta,
-  resizePathNodeByScreenDelta,
   resizeZoneByScreenDelta,
   resolveInputAnchorTargetZoneId,
-  resolvePathResizeOrigin,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
   resolveMoveEditorDragOrigin,
@@ -22,9 +20,17 @@ import {
   screenPointToWorldPoint,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
-  type PathResizeOrigin,
   type ZoneResizeOrigin,
 } from "@zoneflow/editor-dom";
+import {
+  resolvePathOutputAnchorScreenRect,
+  retargetPathFromOutputAnchorDrag,
+} from "../../../editor-dom/src/pathCreateEditor";
+import {
+  resolvePathResizeOrigin,
+  resizePathNodeByScreenDelta,
+  type PathResizeOrigin,
+} from "../../../editor-dom/src/zoneMoveEditor";
 import type {
   CameraState,
   PathComponentMount,
@@ -114,6 +120,21 @@ type PathCreateDragState = {
   hasMoved: boolean;
 };
 
+type PathRetargetDragState = {
+  pathId: PathId;
+  sourceZoneId: ZoneId;
+  startClientX: number;
+  startClientY: number;
+  currentScreenPoint: { x: number; y: number };
+  hasMoved: boolean;
+};
+
+type CornerHandleRect = {
+  size: number;
+  x: number;
+  y: number;
+};
+
 type PreviewHostProps = {
   frame: RendererFrame;
   camera: CameraState;
@@ -181,6 +202,16 @@ function toLocalRect(ownerRect: Rect, childRect: Rect): Rect {
     y: childRect.y - ownerRect.y,
     width: childRect.width,
     height: childRect.height,
+  };
+}
+
+function getCornerResizeHandleRect(rect: Rect): CornerHandleRect {
+  const size = Math.min(18, Math.max(14, Math.min(rect.width, rect.height) * 0.22));
+
+  return {
+    size,
+    x: rect.width - size / 2,
+    y: rect.height - size / 2,
   };
 }
 
@@ -671,11 +702,14 @@ export function ZoneMoveEditorOverlay(props: {
   const [editingZoneId, setEditingZoneId] = useState<ZoneId | null>(null);
   const [creatingPath, setCreatingPath] = useState<PathCreateDragState | null>(null);
   const [pathCreateTargetZoneId, setPathCreateTargetZoneId] = useState<ZoneId | null>(null);
+  const [retargetingPath, setRetargetingPath] = useState<PathRetargetDragState | null>(null);
+  const [retargetPathTargetZoneId, setRetargetPathTargetZoneId] = useState<ZoneId | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
   const pathResizeRef = useRef<PathResizeState | null>(null);
   const pathCreateRef = useRef<PathCreateDragState | null>(null);
+  const pathRetargetRef = useRef<PathRetargetDragState | null>(null);
   const suppressedPathLabelClickRef = useRef<{
     targetKey: string | null;
     until: number;
@@ -711,10 +745,13 @@ export function ZoneMoveEditorOverlay(props: {
     resizeRef.current = null;
     pathResizeRef.current = null;
     pathCreateRef.current = null;
+    pathRetargetRef.current = null;
     setDraggingTarget(null);
     setIsResizing(false);
     setCreatingPath(null);
     setPathCreateTargetZoneId(null);
+    setRetargetingPath(null);
+    setRetargetPathTargetZoneId(null);
     setHoveredTargetKey(null);
     setSelectedTargetKey(null);
     setEditingZoneId(null);
@@ -738,6 +775,7 @@ export function ZoneMoveEditorOverlay(props: {
       const resize = resizeRef.current;
       const pathResize = pathResizeRef.current;
       const pathCreate = pathCreateRef.current;
+      const pathRetarget = pathRetargetRef.current;
 
       if (drag?.hasMoved && drag.target.kind === "path") {
         suppressedPathLabelClickRef.current = {
@@ -792,14 +830,38 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
+      if (pathRetarget?.hasMoved && latestRef.current.frame) {
+        const targetZoneId = resolveInputAnchorTargetZoneId({
+          model: latestRef.current.model,
+          frame: latestRef.current.frame,
+          camera: latestRef.current.camera,
+          point: pathRetarget.currentScreenPoint,
+        });
+
+        const nextModel = retargetPathFromOutputAnchorDrag({
+          model: latestRef.current.model,
+          sourceZoneId: pathRetarget.sourceZoneId,
+          pathId: pathRetarget.pathId,
+          targetZoneId,
+        });
+
+        if (nextModel) {
+          latestRef.current.onModelChange?.(nextModel);
+          setSelectedTargetKey(`path:${pathRetarget.pathId}`);
+        }
+      }
+
       dragRef.current = null;
       resizeRef.current = null;
       pathResizeRef.current = null;
       pathCreateRef.current = null;
+      pathRetargetRef.current = null;
       setDraggingTarget(null);
       setIsResizing(false);
       setCreatingPath(null);
       setPathCreateTargetZoneId(null);
+      setRetargetingPath(null);
+      setRetargetPathTargetZoneId(null);
       setHoveredTargetKey(null);
       latestRef.current.onExclusionStateChange?.(undefined);
       document.body.style.cursor = "";
@@ -838,6 +900,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera: latestRef.current.camera,
           origin: pathResize.origin,
           deltaX: event.clientX - pathResize.startClientX,
+          deltaY: event.clientY - pathResize.startClientY,
         });
 
         onLayoutModelChange(nextLayoutModel);
@@ -884,6 +947,42 @@ export function ZoneMoveEditorOverlay(props: {
         });
 
         onLayoutModelChange(nextLayoutModel);
+        return;
+      }
+
+      const pathRetarget = pathRetargetRef.current;
+      if (pathRetarget && latestRef.current.frame) {
+        event.preventDefault();
+
+        const currentScreenPoint = toCanvasScreenPoint(
+          overlayRef.current,
+          event.clientX,
+          event.clientY
+        );
+        const hasMoved =
+          pathRetarget.hasMoved ||
+          getScreenDistance({
+            startClientX: pathRetarget.startClientX,
+            startClientY: pathRetarget.startClientY,
+            nextClientX: event.clientX,
+            nextClientY: event.clientY,
+          }) >= 10;
+        const nextState: PathRetargetDragState = {
+          ...pathRetarget,
+          currentScreenPoint,
+          hasMoved,
+        };
+
+        pathRetargetRef.current = nextState;
+        setRetargetingPath(nextState);
+        setRetargetPathTargetZoneId(
+          resolveInputAnchorTargetZoneId({
+            model: latestRef.current.model,
+            frame: latestRef.current.frame,
+            camera: latestRef.current.camera,
+            point: currentScreenPoint,
+          })
+        );
         return;
       }
 
@@ -1007,6 +1106,23 @@ export function ZoneMoveEditorOverlay(props: {
           kind: "inlet",
         })
       : undefined;
+  const pathRetargetSourceAnchorRect =
+    retargetingPath
+      ? resolvePathOutputAnchorScreenRect({
+          frame,
+          camera,
+          pathId: retargetingPath.pathId,
+        })
+      : undefined;
+  const pathRetargetTargetAnchorRect =
+    retargetingPath && retargetPathTargetZoneId
+      ? resolveZoneAnchorScreenRect({
+          frame,
+          camera,
+          zoneId: retargetPathTargetZoneId,
+          kind: "inlet",
+        })
+      : undefined;
 
   return (
     <div
@@ -1082,6 +1198,31 @@ export function ZoneMoveEditorOverlay(props: {
           </svg>
         ) : null}
 
+        {retargetingPath && pathRetargetSourceAnchorRect ? (
+          <svg
+            width="100%"
+            height="100%"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "visible",
+              pointerEvents: "none",
+            }}
+          >
+            <line
+              x1={pathRetargetSourceAnchorRect.x + pathRetargetSourceAnchorRect.width}
+              y1={pathRetargetSourceAnchorRect.y + pathRetargetSourceAnchorRect.height / 2}
+              x2={retargetingPath.currentScreenPoint.x}
+              y2={retargetingPath.currentScreenPoint.y}
+              stroke={retargetPathTargetZoneId ? "#0f766e" : "#0f172a"}
+              strokeWidth={2.5}
+              strokeDasharray={retargetPathTargetZoneId ? "0" : "6 6"}
+              strokeLinecap="round"
+              opacity={0.92}
+            />
+          </svg>
+        ) : null}
+
         <div
           style={{
             position: "absolute",
@@ -1111,7 +1252,8 @@ export function ZoneMoveEditorOverlay(props: {
           >
             Drag nodes to move them. Drag the right anchor to add a condition path.
             Use the bottom-right handle to resize zones, or double-click a zone
-            to edit it. Drag the right-side grip on a path to widen its label area.
+            to edit it. Drag the right-side anchor on a path to reconnect it, and
+            use the corner handle to resize the path label box.
           </div>
         </div>
 
@@ -1145,6 +1287,40 @@ export function ZoneMoveEditorOverlay(props: {
               }}
             >
               CONNECT
+            </div>
+          </div>
+        ) : null}
+
+        {retargetingPath && pathRetargetTargetAnchorRect ? (
+          <div
+            style={{
+              position: "absolute",
+              left: `${pathRetargetTargetAnchorRect.x}px`,
+              top: `${pathRetargetTargetAnchorRect.y}px`,
+              width: `${pathRetargetTargetAnchorRect.width}px`,
+              height: `${pathRetargetTargetAnchorRect.height}px`,
+              borderRadius: 999,
+              border: "2px solid rgba(13, 148, 136, 0.92)",
+              background: "rgba(45, 212, 191, 0.18)",
+              boxShadow: "0 0 0 1px rgba(153, 246, 228, 0.22) inset",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: -12,
+                padding: "4px 8px",
+                borderRadius: 999,
+                background: "#0f766e",
+                color: "#f0fdfa",
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+              }}
+            >
+              RECONNECT
             </div>
           </div>
         ) : null}
@@ -1186,10 +1362,7 @@ export function ZoneMoveEditorOverlay(props: {
         {targets.map((target) => {
           const isDragging = draggingTarget?.key === target.key;
           const isResizingTarget = isResizing && isDragging;
-          const resizeCursor =
-            isResizingTarget && target.kind === "path"
-              ? "ew-resize"
-              : "nwse-resize";
+          const resizeCursor = "nwse-resize";
           const visualState = getTargetVisualState({
             target,
             hoveredTargetKey,
@@ -1223,9 +1396,29 @@ export function ZoneMoveEditorOverlay(props: {
             pathLabelScreenRect && target.kind === "path"
               ? toLocalRect(target.rect, pathLabelScreenRect)
               : undefined;
+          const pathOutputAnchorScreenRect =
+            target.kind === "path"
+              ? resolvePathOutputAnchorScreenRect({
+                  frame,
+                  camera,
+                  pathId: target.pathId,
+                })
+              : undefined;
+          const pathOutputAnchorLocalRect =
+            pathOutputAnchorScreenRect && target.kind === "path"
+              ? toLocalRect(target.rect, pathOutputAnchorScreenRect)
+              : undefined;
+          const cornerResizeHandleRect = getCornerResizeHandleRect(target.rect);
+          const shouldShowPathRetargetHandle =
+            target.kind === "path" &&
+            !creatingPath &&
+            !retargetingPath &&
+            !!pathOutputAnchorLocalRect &&
+            (visualState === "hover" || visualState === "selected");
           const shouldShowPathResizeHandle =
             target.kind === "path" &&
             !creatingPath &&
+            !retargetingPath &&
             (visualState === "hover" ||
               visualState === "selected" ||
               isResizingTarget);
@@ -1377,6 +1570,75 @@ export function ZoneMoveEditorOverlay(props: {
                 />
               ) : null}
 
+              {shouldShowPathRetargetHandle ? (
+                <button
+                  type="button"
+                  title={`${target.label} reconnect`}
+                  onPointerDown={(event) => {
+                    if (target.kind !== "path") return;
+
+                    const currentScreenPoint = toCanvasScreenPoint(
+                      overlayRef.current,
+                      event.clientX,
+                      event.clientY
+                    );
+                    const pathVisual = frame.pipeline.graphLayout.pathsById[target.pathId];
+                    if (!pathVisual) return;
+
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const nextState: PathRetargetDragState = {
+                      pathId: target.pathId,
+                      sourceZoneId: pathVisual.sourceZoneId,
+                      startClientX: event.clientX,
+                      startClientY: event.clientY,
+                      currentScreenPoint,
+                      hasMoved: false,
+                    };
+
+                    pathRetargetRef.current = nextState;
+                    setRetargetingPath(nextState);
+                    setRetargetPathTargetZoneId(null);
+                    setSelectedTargetKey(target.key);
+                    setHoveredTargetKey(target.key);
+                    document.body.style.cursor = "crosshair";
+                    document.body.style.userSelect = "none";
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: `${pathOutputAnchorLocalRect?.x ?? 0}px`,
+                    top: `${pathOutputAnchorLocalRect?.y ?? 0}px`,
+                    width: `${pathOutputAnchorLocalRect?.width ?? 0}px`,
+                    height: `${pathOutputAnchorLocalRect?.height ?? 0}px`,
+                    border: "1px solid rgba(13, 148, 136, 0.92)",
+                    borderRadius: 999,
+                    background: "#f0fdfa",
+                    boxShadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+                    cursor: "crosshair",
+                    pointerEvents: "auto",
+                    touchAction: "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#0f766e",
+                      fontSize: 13,
+                      fontWeight: 900,
+                      lineHeight: 1,
+                    }}
+                  >
+                    →
+                  </span>
+                </button>
+              ) : null}
+
               {shouldShowResizeHandle ? (
                 <button
                   type="button"
@@ -1441,7 +1703,7 @@ export function ZoneMoveEditorOverlay(props: {
               {shouldShowPathResizeHandle ? (
                 <button
                   type="button"
-                  title={`${target.label} width`}
+                  title={`${target.label} resize`}
                   onPointerDown={(event) => {
                     if (target.kind !== "path") return;
 
@@ -1467,22 +1729,21 @@ export function ZoneMoveEditorOverlay(props: {
                     setSelectedTargetKey(target.key);
                     setHoveredTargetKey(target.key);
                     onExclusionStateChange?.(getExclusionState(target));
-                    document.body.style.cursor = "ew-resize";
+                    document.body.style.cursor = "nwse-resize";
                     document.body.style.userSelect = "none";
                     event.currentTarget.setPointerCapture?.(event.pointerId);
                   }}
                   style={{
                     position: "absolute",
-                    right: -7,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 16,
-                    height: 28,
+                    left: `${cornerResizeHandleRect.x}px`,
+                    top: `${cornerResizeHandleRect.y}px`,
+                    width: `${cornerResizeHandleRect.size}px`,
+                    height: `${cornerResizeHandleRect.size}px`,
                     border: "1px solid rgba(51, 65, 85, 0.92)",
                     borderRadius: 999,
                     background: "#f8fafc",
                     boxShadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
-                    cursor: "ew-resize",
+                    cursor: "nwse-resize",
                     pointerEvents: "auto",
                     touchAction: "none",
                   }}
@@ -1490,12 +1751,12 @@ export function ZoneMoveEditorOverlay(props: {
                   <span
                     style={{
                       position: "absolute",
-                      left: 5,
-                      top: 6,
-                      width: 1,
-                      height: 14,
-                      background: "#0f172a",
-                      boxShadow: "4px 0 0 #0f172a",
+                      right: 4,
+                      bottom: 3,
+                      width: 7,
+                      height: 7,
+                      borderRight: "2px solid #0f172a",
+                      borderBottom: "2px solid #0f172a",
                     }}
                   />
                 </button>

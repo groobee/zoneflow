@@ -460,19 +460,27 @@ export function resizePathNodeByScreenDelta(params: {
   camera: CameraState;
   origin: PathResizeOrigin;
   deltaX: number;
+  deltaY: number;
   minWidth?: number;
+  minHeight?: number;
 }): UniverseLayoutModel {
   const {
     layoutModel,
     camera,
     origin,
     deltaX,
+    deltaY,
     minWidth = 140,
+    minHeight = 32,
   } = params;
 
   const nextWidth = Math.max(
     minWidth,
     roundCoordinate(origin.originWidth + deltaX / camera.zoom)
+  );
+  const nextHeight = Math.max(
+    minHeight,
+    roundCoordinate(origin.originHeight + deltaY / camera.zoom)
   );
 
   return setPathComponentLayout(
@@ -483,7 +491,7 @@ export function resizePathNodeByScreenDelta(params: {
       x: origin.originX,
       y: origin.originY,
       width: nextWidth,
-      height: origin.originHeight,
+      height: nextHeight,
     }
   );
 }

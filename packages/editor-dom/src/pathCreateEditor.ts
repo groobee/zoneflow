@@ -1,6 +1,7 @@
 import {
   addPath,
   createPathId,
+  setPathTarget,
   type AnchorRect,
   updatePathLayout,
   type PathId,
@@ -30,6 +31,11 @@ const DEFAULT_ANCHOR_MIN_HEIGHT = 36;
 const DEFAULT_ANCHOR_MAX_HEIGHT = 72;
 const DEFAULT_ANCHOR_MARGIN_Y = 10;
 const DEFAULT_ANCHOR_OVERHANG = 9;
+const DEFAULT_PATH_OUTPUT_HANDLE_WIDTH = 18;
+const DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT = 22;
+const DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT = 40;
+const DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y = 4;
+const DEFAULT_PATH_OUTPUT_HANDLE_OVERHANG = 9;
 
 function roundCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
@@ -170,11 +176,84 @@ export function resolveInputAnchorTargetZoneId(params: {
   return bestZoneId;
 }
 
+export function resolvePathOutputAnchorScreenRect(params: {
+  frame: RendererFrame;
+  camera: CameraState;
+  pathId: PathId;
+}): Rect | undefined {
+  const { frame, camera, pathId } = params;
+  const pathVisual = frame.pipeline.graphLayout.pathsById[pathId];
+  if (!pathVisual?.rect) return undefined;
+
+  const outlet = pathVisual.outlet ?? {
+    x: pathVisual.rect.x + pathVisual.rect.width,
+    y: pathVisual.rect.y + pathVisual.rect.height / 2,
+  };
+  const height = clamp(
+    pathVisual.rect.height * 0.72,
+    DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT,
+    Math.min(
+      DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT,
+      Math.max(
+        DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT,
+        pathVisual.rect.height - DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y * 2
+      )
+    )
+  );
+  const minY = pathVisual.rect.y + DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y;
+  const maxY =
+    pathVisual.rect.y +
+    pathVisual.rect.height -
+    DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y -
+    height;
+
+  return projectWorldRectToScreenRect(
+    {
+      x:
+        outlet.x -
+        (DEFAULT_PATH_OUTPUT_HANDLE_WIDTH - DEFAULT_PATH_OUTPUT_HANDLE_OVERHANG),
+      y: clamp(outlet.y - height / 2, minY, maxY),
+      width: DEFAULT_PATH_OUTPUT_HANDLE_WIDTH,
+      height,
+    },
+    camera
+  );
+}
+
 export type CreatePathFromAnchorDragResult = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   pathId: PathId;
 };
+
+export function retargetPathFromOutputAnchorDrag(params: {
+  model: UniverseModel;
+  sourceZoneId: ZoneId;
+  pathId: PathId;
+  targetZoneId?: ZoneId | null;
+}): UniverseModel | undefined {
+  const {
+    model,
+    sourceZoneId,
+    pathId,
+    targetZoneId,
+  } = params;
+
+  const sourceZone = model.zonesById[sourceZoneId];
+  if (!sourceZone?.pathsById[pathId]) return undefined;
+
+  return setPathTarget(
+    model,
+    sourceZoneId,
+    pathId,
+    targetZoneId
+      ? {
+          universeId: model.universeId,
+          zoneId: targetZoneId,
+        }
+      : null
+  );
+}
 
 export function createPathFromOutputAnchorDrag(params: {
   model: UniverseModel;
