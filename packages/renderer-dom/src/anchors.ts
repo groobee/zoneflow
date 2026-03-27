@@ -8,15 +8,8 @@ type AnchorGeometry = {
   rect?: AnchorRect;
 };
 
-const DEFAULT_ANCHOR_WIDTH = 18;
-const DEFAULT_ANCHOR_MIN_HEIGHT = 36;
-const DEFAULT_ANCHOR_MAX_HEIGHT = 72;
-const DEFAULT_ANCHOR_MARGIN_Y = 10;
-const DEFAULT_ANCHOR_OVERHANG = 9;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
+const DEFAULT_ANCHOR_WIDTH = 24;
+const DEFAULT_ANCHOR_ATTACH_DEPTH = 10;
 
 export function resolveZoneAnchorRect(params: {
   zoneRect: Rect;
@@ -30,31 +23,19 @@ export function resolveZoneAnchorRect(params: {
       x: anchor.rect.x,
       y: anchor.rect.y,
       width: anchor.rect.width ?? DEFAULT_ANCHOR_WIDTH,
-      height: anchor.rect.height ?? DEFAULT_ANCHOR_MIN_HEIGHT,
+      height: anchor.rect.height ?? zoneRect.height,
     };
   }
 
-  const availableHeight = Math.max(
-    DEFAULT_ANCHOR_MIN_HEIGHT,
-    zoneRect.height - DEFAULT_ANCHOR_MARGIN_Y * 2
-  );
-  const height = clamp(
-    zoneRect.height * 0.46,
-    DEFAULT_ANCHOR_MIN_HEIGHT,
-    Math.min(DEFAULT_ANCHOR_MAX_HEIGHT, availableHeight)
-  );
-  const minY = zoneRect.y + DEFAULT_ANCHOR_MARGIN_Y;
-  const maxY = zoneRect.y + zoneRect.height - DEFAULT_ANCHOR_MARGIN_Y - height;
-  const y = clamp(anchor.point.y - height / 2, minY, maxY);
   const x =
     kind === "inlet"
-      ? zoneRect.x - DEFAULT_ANCHOR_OVERHANG
-      : zoneRect.x + zoneRect.width - (DEFAULT_ANCHOR_WIDTH - DEFAULT_ANCHOR_OVERHANG);
+      ? zoneRect.x - (DEFAULT_ANCHOR_WIDTH - DEFAULT_ANCHOR_ATTACH_DEPTH)
+      : zoneRect.x + zoneRect.width - DEFAULT_ANCHOR_ATTACH_DEPTH;
 
   return {
     x,
-    y,
+    y: zoneRect.y,
     width: DEFAULT_ANCHOR_WIDTH,
-    height,
+    height: zoneRect.height,
   };
 }

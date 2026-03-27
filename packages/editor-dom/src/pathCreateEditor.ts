@@ -26,11 +26,8 @@ const DEFAULT_PATH_NODE_WIDTH = 120;
 const DEFAULT_PATH_NODE_HEIGHT = 32;
 const DEFAULT_PATH_NODE_OFFSET_X = 32;
 const DEFAULT_PATH_NODE_GAP_Y = 40;
-const DEFAULT_ANCHOR_WIDTH = 18;
-const DEFAULT_ANCHOR_MIN_HEIGHT = 36;
-const DEFAULT_ANCHOR_MAX_HEIGHT = 72;
-const DEFAULT_ANCHOR_MARGIN_Y = 10;
-const DEFAULT_ANCHOR_OVERHANG = 9;
+const DEFAULT_ANCHOR_WIDTH = 24;
+const DEFAULT_ANCHOR_ATTACH_DEPTH = 10;
 const DEFAULT_PATH_OUTPUT_HANDLE_WIDTH = 18;
 const DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT = 22;
 const DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT = 40;
@@ -82,30 +79,18 @@ function resolveZoneAnchorRect(params: {
       x: anchor.rect.x,
       y: anchor.rect.y,
       width: anchor.rect.width ?? DEFAULT_ANCHOR_WIDTH,
-      height: anchor.rect.height ?? DEFAULT_ANCHOR_MIN_HEIGHT,
+      height: anchor.rect.height ?? zoneRect.height,
     };
   }
-
-  const availableHeight = Math.max(
-    DEFAULT_ANCHOR_MIN_HEIGHT,
-    zoneRect.height - DEFAULT_ANCHOR_MARGIN_Y * 2
-  );
-  const height = clamp(
-    zoneRect.height * 0.46,
-    DEFAULT_ANCHOR_MIN_HEIGHT,
-    Math.min(DEFAULT_ANCHOR_MAX_HEIGHT, availableHeight)
-  );
-  const minY = zoneRect.y + DEFAULT_ANCHOR_MARGIN_Y;
-  const maxY = zoneRect.y + zoneRect.height - DEFAULT_ANCHOR_MARGIN_Y - height;
 
   return {
     x:
       kind === "inlet"
-        ? zoneRect.x - DEFAULT_ANCHOR_OVERHANG
-        : zoneRect.x + zoneRect.width - (DEFAULT_ANCHOR_WIDTH - DEFAULT_ANCHOR_OVERHANG),
-    y: clamp(anchor.point.y - height / 2, minY, maxY),
+        ? zoneRect.x - (DEFAULT_ANCHOR_WIDTH - DEFAULT_ANCHOR_ATTACH_DEPTH)
+        : zoneRect.x + zoneRect.width - DEFAULT_ANCHOR_ATTACH_DEPTH,
+    y: zoneRect.y,
     width: DEFAULT_ANCHOR_WIDTH,
-    height,
+    height: zoneRect.height,
   };
 }
 

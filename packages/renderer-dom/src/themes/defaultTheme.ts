@@ -4,18 +4,18 @@ import type { ZoneflowTheme } from "../theme";
  * 기본 테마 (모든 필수 값 포함)
  */
 export const defaultTheme: ZoneflowTheme = {
-  background: "#ffffff",
+  background: "#f3f6fb",
 
-  zoneTitle: "#111111",
-  zoneSubtext: "#666666",
+  zoneTitle: "#0f172a",
+  zoneSubtext: "#5f6f86",
 
-  zoneContainerBorder: "#d0d5dd",
-  zoneActionBorder: "#7f56d9",
+  zoneContainerBorder: "#cbd5e1",
+  zoneActionBorder: "#f59e0b",
 
-  zoneBadgeBg: "#f4f3ff",
+  zoneBadgeBg: "#e0f2fe",
 
-  pathLabel: "#344054",
-  pathEdge: "#98a2b3",
+  pathLabel: "#1e293b",
+  pathEdge: "#7a8aa0",
 
   selection: "#2e90fa",
 

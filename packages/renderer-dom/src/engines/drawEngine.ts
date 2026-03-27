@@ -482,11 +482,70 @@ function drawEdges(params: {
   }
 }
 
+function createSurfaceChrome(params: {
+  owner: HTMLElement;
+  accent: string;
+  radius: string;
+  topBandOpacity?: number;
+}) {
+  const { owner, accent, radius, topBandOpacity = 0.64 } = params;
+  const chrome = document.createElement("div");
+  const topBand = document.createElement("div");
+  const cornerGlow = document.createElement("div");
+
+  applyStyles(chrome, {
+    position: "absolute",
+    inset: "0",
+    borderRadius: radius,
+    pointerEvents: "none",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(255,255,255,0.08) 42%, rgba(255,255,255,0) 100%)",
+  });
+
+  applyStyles(topBand, {
+    position: "absolute",
+    left: "0",
+    top: "0",
+    right: "0",
+    height: "44px",
+    borderTopLeftRadius: radius,
+    borderTopRightRadius: radius,
+    background: `linear-gradient(90deg, ${accent} 0%, rgba(255,255,255,0.04) 72%)`,
+    opacity: topBandOpacity,
+    pointerEvents: "none",
+  });
+
+  applyStyles(cornerGlow, {
+    position: "absolute",
+    right: "-20px",
+    top: "-24px",
+    width: "116px",
+    height: "116px",
+    borderRadius: "999px",
+    background:
+      "radial-gradient(circle, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.22) 36%, rgba(255,255,255,0) 72%)",
+    pointerEvents: "none",
+  });
+
+  chrome.appendChild(topBand);
+  chrome.appendChild(cornerGlow);
+  owner.appendChild(chrome);
+}
+
 function drawZoneAnchors(params: {
   owner: HTMLElement;
   zone: ZoneVisualNode;
+  input: RendererDrawInput;
 }) {
-  const { owner, zone } = params;
+  const { owner, zone, input } = params;
+  const zoneBorderColor =
+    zone.zone.zoneType === "action"
+      ? input.theme.zoneActionBorder
+      : input.theme.zoneContainerBorder;
+  const anchorAccentColor =
+    zone.zone.zoneType === "action"
+      ? "rgba(245, 158, 11, 0.96)"
+      : "rgba(37, 99, 235, 0.96)";
 
   for (const kind of ["inlet", "outlet"] as const) {
     const anchor = zone.anchors[kind];
@@ -496,6 +555,8 @@ function drawZoneAnchors(params: {
       kind,
     });
     const el = document.createElement("div");
+    const seam = document.createElement("div");
+    const accent = document.createElement("div");
 
     applyStyles(el, {
       position: "absolute",
@@ -503,20 +564,45 @@ function drawZoneAnchors(params: {
       top: `${rect.y - zone.rect.y}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
-      borderRadius: "999px",
+      borderRadius: "0",
       background:
-        kind === "inlet"
-          ? "linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.98))"
-          : "linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(255, 237, 213, 0.98))",
-      border:
-        kind === "inlet"
-          ? "1px solid rgba(59, 130, 246, 0.26)"
-          : "1px solid rgba(249, 115, 22, 0.26)",
-      boxShadow: "0 6px 14px rgba(15, 23, 42, 0.1)",
+        "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247,250,253,0.98) 100%)",
+      border: `1px solid ${zoneBorderColor}`,
+      borderRight: kind === "inlet" ? "none" : `1px solid ${zoneBorderColor}`,
+      borderLeft: kind === "outlet" ? "none" : `1px solid ${zoneBorderColor}`,
+      boxShadow:
+        "0 18px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
       boxSizing: "border-box",
+      overflow: "hidden",
       pointerEvents: "none",
     });
 
+    applyStyles(seam, {
+      position: "absolute",
+      top: "0",
+      bottom: "0",
+      width: "10px",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247,250,253,0.98) 100%)",
+      right: kind === "inlet" ? "0" : "auto",
+      left: kind === "outlet" ? "0" : "auto",
+    });
+
+    applyStyles(accent, {
+      position: "absolute",
+      top: "50%",
+      width: "4px",
+      height: `${Math.max(22, rect.height * 0.34)}px`,
+      transform: "translateY(-50%)",
+      borderRadius: "2px",
+      background: anchorAccentColor,
+      left: kind === "inlet" ? "8px" : "auto",
+      right: kind === "outlet" ? "8px" : "auto",
+      boxShadow: `0 0 0 4px ${anchorAccentColor.replace("0.96", "0.12")}`,
+    });
+
+    el.appendChild(seam);
+    el.appendChild(accent);
     owner.appendChild(el);
   }
 }
@@ -627,6 +713,7 @@ export const domDrawEngine: DrawEngine = {
       const componentLayout = pipeline.componentLayout.zonesById[zoneVisual.zoneId];
       const zoneEl = document.createElement("div");
       const zoneBodyEl = document.createElement("div");
+      const zoneChromeEl = document.createElement("div");
       zoneEl.dataset.zoneflowZoneId = zoneVisual.zoneId;
       zoneBodyEl.dataset.zoneflowZoneBody = zoneVisual.zoneId;
 
@@ -647,15 +734,17 @@ export const domDrawEngine: DrawEngine = {
         top: "0",
         width: "100%",
         height: "100%",
-        borderRadius: zoneVisual.zone.zoneType === "action" ? "18px" : "22px",
+        borderRadius: "0",
         border: `1px solid ${
           zoneVisual.zone.zoneType === "action"
             ? theme.zoneActionBorder
             : theme.zoneContainerBorder
         }`,
-        background: "#ffffff",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)",
         boxSizing: "border-box",
-        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.08)",
+        boxShadow:
+          "0 18px 34px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05)",
         overflow: "hidden",
       });
 
@@ -664,6 +753,16 @@ export const domDrawEngine: DrawEngine = {
         interactionHandlers?.onZoneClick?.(zoneVisual.zoneId);
       });
 
+      createSurfaceChrome({
+        owner: zoneChromeEl,
+        accent:
+          zoneVisual.zone.zoneType === "action"
+            ? "rgba(245, 158, 11, 0.18)"
+            : "rgba(37, 99, 235, 0.12)",
+        radius: "0",
+      });
+
+      zoneBodyEl.appendChild(zoneChromeEl);
       zoneEl.appendChild(zoneBodyEl);
 
       for (const slot of Object.keys(componentLayout?.slots ?? {}) as ZoneComponentSlotName[]) {
@@ -680,6 +779,7 @@ export const domDrawEngine: DrawEngine = {
       drawZoneAnchors({
         owner: zoneEl,
         zone: zoneVisual,
+        input,
       });
 
       zoneLayer.appendChild(zoneEl);
@@ -697,6 +797,7 @@ export const domDrawEngine: DrawEngine = {
 
       const componentLayout = pipeline.componentLayout.pathsById[pathVisual.pathId];
       const pathEl = document.createElement("div");
+      const pathChromeEl = document.createElement("div");
       pathEl.dataset.zoneflowPathId = pathVisual.pathId;
 
       applyStyles(pathEl, {
@@ -705,19 +806,31 @@ export const domDrawEngine: DrawEngine = {
         top: `${pathVisual.rect.y}px`,
         width: `${pathVisual.rect.width}px`,
         height: `${pathVisual.rect.height}px`,
-        borderRadius: "16px",
+        borderRadius: "18px",
         border: `1px solid ${theme.pathEdge}`,
-        background: "#ffffff",
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(246,248,252,0.98) 100%)",
         boxSizing: "border-box",
-        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+        boxShadow:
+          "0 16px 26px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05)",
         opacity: getOpacity(visibility.emphasis),
         zIndex: 1,
+        overflow: "hidden",
       });
 
       pathEl.addEventListener("click", (event) => {
         event.stopPropagation();
         interactionHandlers?.onPathClick?.(pathVisual.pathId);
       });
+
+      createSurfaceChrome({
+        owner: pathChromeEl,
+        accent: "rgba(56, 189, 248, 0.16)",
+        radius: "18px",
+        topBandOpacity: 0.72,
+      });
+
+      pathEl.appendChild(pathChromeEl);
 
       for (const slot of Object.keys(componentLayout?.slots ?? {}) as PathComponentSlotName[]) {
         createPathSlotHost({

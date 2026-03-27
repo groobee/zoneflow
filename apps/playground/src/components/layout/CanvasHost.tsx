@@ -14,6 +14,10 @@ import {
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 
+function hasPath(model: UniverseModel, pathId: PathId) {
+  return Object.values(model.zonesById).some((zone) => Boolean(zone.pathsById[pathId]));
+}
+
 type Props = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
@@ -62,11 +66,27 @@ export function CanvasHost({
     setEditingZoneId(null);
   }, [isEditMode]);
 
+  useEffect(() => {
+    if (!editingZoneId) return;
+    if (model.zonesById[editingZoneId]) return;
+    setEditingZoneId(null);
+  }, [editingZoneId, model]);
+
+  useEffect(() => {
+    if (!editingPathId) return;
+    if (hasPath(model, editingPathId)) return;
+    setEditingPathId(null);
+  }, [editingPathId, model]);
+
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = isEditMode
     ? {
       enabled: true,
       onModelChange: onDraftModelChange,
       onLayoutModelChange: onDraftLayoutModelChange,
+      deleteInteraction: {
+        animation: true,
+        confirm: true,
+      },
         renderZoneEditButton: (props) => (
           <PlaygroundZoneEditButton {...props} />
         ),
