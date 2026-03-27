@@ -44,6 +44,8 @@ export default function App() {
     height: 0,
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [gridSnapEnabled, setGridSnapEnabled] = useState(true);
+  const [gridSnapSize, setGridSnapSize] = useState<8 | 12 | 16 | 24>(16);
 
   const isEditMode = draftModel !== null && draftLayoutModel !== null;
   const workingModel = draftModel ?? model;
@@ -79,12 +81,16 @@ export default function App() {
         sampleType={sampleType}
         setSampleType={handleSampleTypeChange}
         isEditMode={isEditMode}
+        gridSnapEnabled={gridSnapEnabled}
+        gridSnapSize={gridSnapSize}
+        onToggleGridSnap={() => setGridSnapEnabled((current) => !current)}
+        onGridSnapSizeChange={setGridSnapSize}
         onStartEdit={handleStartEdit}
         onApplyEdit={handleApplyEdit}
         onCancelEdit={handleCancelEdit}
         onOpenDataModal={() => setIsDataModalOpen(true)}
       />
-
+정
       <LeftPanel />
 
       <CanvasHost
@@ -95,6 +101,8 @@ export default function App() {
         onDraftLayoutModelChange={setDraftLayoutModel}
         debug={debug}
         onResize={setHostSize}
+        gridSnapEnabled={gridSnapEnabled}
+        gridSnapSize={gridSnapSize}
       />
 
       <RightPanel

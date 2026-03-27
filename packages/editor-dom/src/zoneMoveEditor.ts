@@ -48,10 +48,29 @@ export type MoveEditorDragOrigin =
       originY: number;
     }
   | {
+      kind: "zone-group";
+      primaryZoneId: ZoneId;
+      originsByZoneId: Record<ZoneId, Point>;
+    }
+  | {
       kind: "path";
       pathId: PathId;
       originX: number;
       originY: number;
+    }
+  | {
+      kind: "path-group";
+      primaryPathId: PathId;
+      originsByPathId: Record<
+        PathId,
+        {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          componentId: "body" | "label" | null;
+        }
+      >;
     };
 
 export type ZoneResizeOrigin = {
@@ -69,6 +88,22 @@ export type PathResizeOrigin = {
   originHeight: number;
 };
 
+export type GridSnapOptions = {
+  enabled?: boolean;
+  size?: number;
+};
+
+export type ZoneAlignMode =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "center-horizontal"
+  | "center-vertical";
+export type ZoneDistributeMode = "horizontal" | "vertical";
+export type PathAlignMode = ZoneAlignMode;
+export type PathDistributeMode = ZoneDistributeMode;
+
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
 const DEFAULT_MIN_ZONE_WIDTH = 140;
 const DEFAULT_MIN_ZONE_HEIGHT = 96;
@@ -82,6 +117,81 @@ function resolvePathNodeLayoutComponentId(
   if (componentLayoutsById?.body) return "body";
   if (componentLayoutsById?.label) return "label";
   return null;
+}
+
+function resolvePathNodeRect(params: {
+  frame: RendererFrame;
+  layoutModel: UniverseLayoutModel;
+  pathId: PathId;
+}):
+  | {
+      componentId: "body" | "label" | null;
+      rect: Rect;
+    }
+  | undefined {
+  const { frame, layoutModel, pathId } = params;
+  const pathVisual = frame.pipeline.graphLayout.pathsById[pathId];
+  if (!pathVisual?.rect) return undefined;
+
+  const componentId = resolvePathNodeLayoutComponentId(layoutModel, pathId);
+  const componentRect =
+    componentId
+      ? getPathLayout(layoutModel, pathId)?.componentLayoutsById?.[componentId]
+      : undefined;
+
+  return {
+    componentId,
+    rect: componentRect
+      ? {
+          x: componentRect.x,
+          y: componentRect.y,
+          width: componentRect.width ?? pathVisual.rect.width,
+          height: componentRect.height ?? pathVisual.rect.height,
+        }
+      : pathVisual.rect,
+  };
+}
+
+function setPathNodePosition(params: {
+  layoutModel: UniverseLayoutModel;
+  pathId: PathId;
+  x: number;
+  y: number;
+  componentId?: "body" | "label" | null;
+  width?: number;
+  height?: number;
+}): UniverseLayoutModel {
+  const { layoutModel, pathId, x, y, width, height } = params;
+  const componentId =
+    params.componentId ?? resolvePathNodeLayoutComponentId(layoutModel, pathId);
+
+  if (componentId) {
+    const currentRect =
+      getPathLayout(layoutModel, pathId)?.componentLayoutsById?.[componentId];
+
+    return setPathComponentLayout(layoutModel, pathId, componentId, {
+      x,
+      y,
+      width: width ?? currentRect?.width ?? 0,
+      height: height ?? currentRect?.height ?? 0,
+    });
+  }
+
+  if (width !== undefined && height !== undefined) {
+    return setPathComponentLayout(layoutModel, pathId, "body", {
+      x,
+      y,
+      width,
+      height,
+    });
+  }
+
+  return updatePathLayout(layoutModel, pathId, {
+    routeOffset: {
+      x,
+      y,
+    },
+  });
 }
 
 function typedValues<TKey extends string, TValue>(
@@ -104,6 +214,19 @@ function projectWorldRectToScreenRect(
 
 function roundCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function resolveSnapSize(options?: GridSnapOptions): number | null {
+  if (!options?.enabled) return null;
+  const size = options.size ?? 16;
+  if (!Number.isFinite(size) || size <= 0) return null;
+  return size;
+}
+
+function snapCoordinate(value: number, options?: GridSnapOptions): number {
+  const size = resolveSnapSize(options);
+  if (!size) return roundCoordinate(value);
+  return roundCoordinate(Math.round(value / size) * size);
 }
 
 function resolveWorldZoneOrigin(params: {
@@ -282,12 +405,96 @@ export function resolveMoveEditorDragOrigin(
   };
 }
 
+export function resolveGroupZoneDragOrigin(params: {
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+  primaryZoneId: ZoneId;
+}): MoveEditorDragOrigin | undefined {
+  const { layoutModel, zoneIds, primaryZoneId } = params;
+  const originsByZoneId: Record<ZoneId, Point> = {} as Record<ZoneId, Point>;
+
+  for (const zoneId of zoneIds) {
+    const zoneLayout = getZoneLayout(layoutModel, zoneId);
+    if (!zoneLayout) continue;
+    originsByZoneId[zoneId] = {
+      x: zoneLayout.x,
+      y: zoneLayout.y,
+    };
+  }
+
+  if (!originsByZoneId[primaryZoneId]) {
+    return undefined;
+  }
+
+  return {
+    kind: "zone-group",
+    primaryZoneId,
+    originsByZoneId,
+  };
+}
+
+export function resolveGroupPathDragOrigin(params: {
+  frame: RendererFrame;
+  layoutModel: UniverseLayoutModel;
+  pathIds: PathId[];
+  primaryPathId: PathId;
+}): MoveEditorDragOrigin | undefined {
+  const { frame, layoutModel, pathIds, primaryPathId } = params;
+  const originsByPathId: Record<
+    PathId,
+    {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      componentId: "body" | "label" | null;
+    }
+  > = {} as Record<
+    PathId,
+    {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      componentId: "body" | "label" | null;
+    }
+  >;
+
+  for (const pathId of pathIds) {
+    const resolved = resolvePathNodeRect({
+      frame,
+      layoutModel,
+      pathId,
+    });
+    if (!resolved) continue;
+
+    originsByPathId[pathId] = {
+      x: resolved.rect.x,
+      y: resolved.rect.y,
+      width: resolved.rect.width,
+      height: resolved.rect.height,
+      componentId: resolved.componentId,
+    };
+  }
+
+  if (!originsByPathId[primaryPathId]) {
+    return undefined;
+  }
+
+  return {
+    kind: "path-group",
+    primaryPathId,
+    originsByPathId,
+  };
+}
+
 export function moveEditorTargetByScreenDelta(params: {
   layoutModel: UniverseLayoutModel;
   camera: CameraState;
   origin: MoveEditorDragOrigin;
   deltaX: number;
   deltaY: number;
+  gridSnap?: GridSnapOptions;
 }): UniverseLayoutModel {
   const {
     layoutModel,
@@ -295,38 +502,83 @@ export function moveEditorTargetByScreenDelta(params: {
     origin,
     deltaX,
     deltaY,
+    gridSnap,
   } = params;
 
-  const nextX = Math.round((origin.originX + deltaX / camera.zoom) * 100) / 100;
-  const nextY = Math.round((origin.originY + deltaY / camera.zoom) * 100) / 100;
-
   if (origin.kind === "zone") {
+    const nextX = snapCoordinate(origin.originX + deltaX / camera.zoom, gridSnap);
+    const nextY = snapCoordinate(origin.originY + deltaY / camera.zoom, gridSnap);
     return updateZoneLayout(layoutModel, origin.zoneId, {
       x: nextX,
       y: nextY,
     });
   }
 
-  const componentId = resolvePathNodeLayoutComponentId(layoutModel, origin.pathId);
-  if (componentId) {
-    const currentRect =
-      getPathLayout(layoutModel, origin.pathId)?.componentLayoutsById?.[componentId];
+  if (origin.kind === "zone-group") {
+    const primaryOrigin = origin.originsByZoneId[origin.primaryZoneId];
+    if (!primaryOrigin) return layoutModel;
 
-    if (currentRect) {
-      return setPathComponentLayout(layoutModel, origin.pathId, componentId, {
-        x: nextX,
-        y: nextY,
-        width: currentRect.width,
-        height: currentRect.height,
+    const primaryNextX = snapCoordinate(primaryOrigin.x + deltaX / camera.zoom, gridSnap);
+    const primaryNextY = snapCoordinate(primaryOrigin.y + deltaY / camera.zoom, gridSnap);
+    const effectiveDeltaX = primaryNextX - primaryOrigin.x;
+    const effectiveDeltaY = primaryNextY - primaryOrigin.y;
+
+    let nextLayoutModel = layoutModel;
+    for (const [zoneId, point] of Object.entries(origin.originsByZoneId) as Array<
+      [ZoneId, Point]
+    >) {
+      nextLayoutModel = updateZoneLayout(nextLayoutModel, zoneId, {
+        x: roundCoordinate(point.x + effectiveDeltaX),
+        y: roundCoordinate(point.y + effectiveDeltaY),
       });
     }
+
+    return nextLayoutModel;
   }
 
-  return updatePathLayout(layoutModel, origin.pathId, {
-    routeOffset: {
-      x: nextX,
-      y: nextY,
-    },
+  if (origin.kind === "path-group") {
+    const primaryOrigin = origin.originsByPathId[origin.primaryPathId];
+    if (!primaryOrigin) return layoutModel;
+
+    const primaryNextX = snapCoordinate(primaryOrigin.x + deltaX / camera.zoom, gridSnap);
+    const primaryNextY = snapCoordinate(primaryOrigin.y + deltaY / camera.zoom, gridSnap);
+    const effectiveDeltaX = primaryNextX - primaryOrigin.x;
+    const effectiveDeltaY = primaryNextY - primaryOrigin.y;
+
+    let nextLayoutModel = layoutModel;
+    for (const [pathId, rect] of Object.entries(origin.originsByPathId) as Array<
+      [
+        PathId,
+        {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          componentId: "body" | "label" | null;
+        },
+      ]
+    >) {
+      nextLayoutModel = setPathNodePosition({
+        layoutModel: nextLayoutModel,
+        pathId,
+        x: roundCoordinate(rect.x + effectiveDeltaX),
+        y: roundCoordinate(rect.y + effectiveDeltaY),
+        width: rect.width,
+        height: rect.height,
+        componentId: rect.componentId,
+      });
+    }
+
+    return nextLayoutModel;
+  }
+
+  const nextX = snapCoordinate(origin.originX + deltaX / camera.zoom, gridSnap);
+  const nextY = snapCoordinate(origin.originY + deltaY / camera.zoom, gridSnap);
+  return setPathNodePosition({
+    layoutModel,
+    pathId: origin.pathId,
+    x: nextX,
+    y: nextY,
   });
 }
 
@@ -387,6 +639,7 @@ export function resizeZoneByScreenDelta(params: {
   deltaY: number;
   minWidth?: number;
   minHeight?: number;
+  gridSnap?: GridSnapOptions;
 }): UniverseLayoutModel {
   const {
     layoutModel,
@@ -396,6 +649,7 @@ export function resizeZoneByScreenDelta(params: {
     deltaY,
     minWidth = DEFAULT_MIN_ZONE_WIDTH,
     minHeight = DEFAULT_MIN_ZONE_HEIGHT,
+    gridSnap,
   } = params;
 
   const currentLayout = getZoneLayout(layoutModel, origin.zoneId);
@@ -403,11 +657,11 @@ export function resizeZoneByScreenDelta(params: {
 
   const nextWidth = Math.max(
     minWidth,
-    roundCoordinate(origin.originWidth + deltaX / camera.zoom)
+    snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
   );
   const nextHeight = Math.max(
     minHeight,
-    roundCoordinate(origin.originHeight + deltaY / camera.zoom)
+    snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
   );
 
   return updateZoneLayout(layoutModel, origin.zoneId, {
@@ -428,6 +682,292 @@ export function resizeZoneByScreenDelta(params: {
       }),
     },
   });
+}
+
+export function alignZonesByMode(params: {
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+  mode: ZoneAlignMode;
+  gridSnap?: GridSnapOptions;
+}): UniverseLayoutModel {
+  const { layoutModel, zoneIds, mode, gridSnap } = params;
+  const entries = zoneIds
+    .map((zoneId) => ({
+      zoneId,
+      layout: getZoneLayout(layoutModel, zoneId),
+    }))
+    .filter(
+      (
+        entry
+      ): entry is {
+        zoneId: ZoneId;
+        layout: NonNullable<ReturnType<typeof getZoneLayout>>;
+      } => Boolean(entry.layout)
+    );
+
+  if (entries.length < 2) return layoutModel;
+
+  const reference =
+    mode === "left"
+      ? Math.min(...entries.map((entry) => entry.layout.x))
+      : mode === "right"
+        ? Math.max(
+            ...entries.map((entry) => entry.layout.x + (entry.layout.width ?? 0))
+          )
+        : mode === "top"
+          ? Math.min(...entries.map((entry) => entry.layout.y))
+          : mode === "bottom"
+            ? Math.max(
+                ...entries.map((entry) => entry.layout.y + (entry.layout.height ?? 0))
+              )
+            : mode === "center-horizontal"
+              ? entries.reduce(
+                  (sum, entry) => sum + entry.layout.x + (entry.layout.width ?? 0) / 2,
+                  0
+                ) / entries.length
+              : entries.reduce(
+                  (sum, entry) => sum + entry.layout.y + (entry.layout.height ?? 0) / 2,
+                  0
+                ) / entries.length;
+  const snappedReference = snapCoordinate(reference, gridSnap);
+
+  let nextLayoutModel = layoutModel;
+  for (const entry of entries) {
+    nextLayoutModel = updateZoneLayout(nextLayoutModel, entry.zoneId, {
+      x:
+        mode === "left"
+          ? snappedReference
+          : mode === "right"
+            ? snapCoordinate(
+                snappedReference - (entry.layout.width ?? 0),
+                gridSnap
+              )
+            : mode === "center-horizontal"
+              ? snapCoordinate(
+                  snappedReference - (entry.layout.width ?? 0) / 2,
+                  gridSnap
+                )
+              : entry.layout.x,
+      y:
+        mode === "top"
+          ? snappedReference
+          : mode === "bottom"
+            ? snapCoordinate(
+                snappedReference - (entry.layout.height ?? 0),
+                gridSnap
+              )
+            : mode === "center-vertical"
+              ? snapCoordinate(
+                  snappedReference - (entry.layout.height ?? 0) / 2,
+                  gridSnap
+                )
+              : entry.layout.y,
+    });
+  }
+
+  return nextLayoutModel;
+}
+
+export function distributeZonesByMode(params: {
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+  mode: ZoneDistributeMode;
+  gridSnap?: GridSnapOptions;
+}): UniverseLayoutModel {
+  const { layoutModel, zoneIds, mode, gridSnap } = params;
+  const axis = mode === "horizontal" ? "x" : "y";
+  const sizeKey = mode === "horizontal" ? "width" : "height";
+  const entries = zoneIds
+    .map((zoneId) => ({
+      zoneId,
+      layout: getZoneLayout(layoutModel, zoneId),
+    }))
+    .filter(
+      (
+        entry
+      ): entry is {
+        zoneId: ZoneId;
+        layout: NonNullable<ReturnType<typeof getZoneLayout>>;
+      } => Boolean(entry.layout)
+    )
+    .sort((a, b) => a.layout[axis] - b.layout[axis]);
+
+  if (entries.length < 3) return layoutModel;
+
+  const first = entries[0];
+  const last = entries[entries.length - 1];
+  const span =
+    last.layout[axis] + (last.layout[sizeKey] ?? 0) - first.layout[axis];
+  const occupied = entries.reduce(
+    (sum, entry) => sum + (entry.layout[sizeKey] ?? 0),
+    0
+  );
+  const gap = (span - occupied) / (entries.length - 1);
+
+  let cursor = first.layout[axis] + (first.layout[sizeKey] ?? 0) + gap;
+  let nextLayoutModel = layoutModel;
+
+  for (const entry of entries.slice(1, -1)) {
+    const snapped = snapCoordinate(cursor, gridSnap);
+    nextLayoutModel = updateZoneLayout(nextLayoutModel, entry.zoneId, {
+      x: mode === "horizontal" ? snapped : entry.layout.x,
+      y: mode === "vertical" ? snapped : entry.layout.y,
+    });
+    cursor += (entry.layout[sizeKey] ?? 0) + gap;
+  }
+
+  return nextLayoutModel;
+}
+
+export function alignPathsByMode(params: {
+  frame: RendererFrame;
+  layoutModel: UniverseLayoutModel;
+  pathIds: PathId[];
+  mode: PathAlignMode;
+  gridSnap?: GridSnapOptions;
+}): UniverseLayoutModel {
+  const { frame, layoutModel, pathIds, mode, gridSnap } = params;
+  const entries = pathIds
+    .map((pathId) => {
+      const resolved = resolvePathNodeRect({
+        frame,
+        layoutModel,
+        pathId,
+      });
+
+      return resolved
+        ? {
+            pathId,
+            componentId: resolved.componentId,
+            rect: resolved.rect,
+          }
+        : null;
+    })
+    .filter(
+      (
+        entry
+      ): entry is {
+        pathId: PathId;
+        componentId: "body" | "label" | null;
+        rect: Rect;
+      } => Boolean(entry)
+    );
+
+  if (entries.length < 2) return layoutModel;
+
+  const reference =
+    mode === "left"
+      ? Math.min(...entries.map((entry) => entry.rect.x))
+      : mode === "right"
+        ? Math.max(...entries.map((entry) => entry.rect.x + entry.rect.width))
+        : mode === "top"
+          ? Math.min(...entries.map((entry) => entry.rect.y))
+          : mode === "bottom"
+            ? Math.max(...entries.map((entry) => entry.rect.y + entry.rect.height))
+            : mode === "center-horizontal"
+              ? entries.reduce(
+                  (sum, entry) => sum + entry.rect.x + entry.rect.width / 2,
+                  0
+                ) / entries.length
+              : entries.reduce(
+                  (sum, entry) => sum + entry.rect.y + entry.rect.height / 2,
+                  0
+                ) / entries.length;
+  const snappedReference = snapCoordinate(reference, gridSnap);
+
+  let nextLayoutModel = layoutModel;
+  for (const entry of entries) {
+    nextLayoutModel = setPathNodePosition({
+      layoutModel: nextLayoutModel,
+      pathId: entry.pathId,
+      componentId: entry.componentId,
+      width: entry.rect.width,
+      height: entry.rect.height,
+      x:
+        mode === "left"
+          ? snappedReference
+          : mode === "right"
+            ? snapCoordinate(snappedReference - entry.rect.width, gridSnap)
+            : mode === "center-horizontal"
+              ? snapCoordinate(snappedReference - entry.rect.width / 2, gridSnap)
+              : entry.rect.x,
+      y:
+        mode === "top"
+          ? snappedReference
+          : mode === "bottom"
+            ? snapCoordinate(snappedReference - entry.rect.height, gridSnap)
+            : mode === "center-vertical"
+              ? snapCoordinate(snappedReference - entry.rect.height / 2, gridSnap)
+              : entry.rect.y,
+    });
+  }
+
+  return nextLayoutModel;
+}
+
+export function distributePathsByMode(params: {
+  frame: RendererFrame;
+  layoutModel: UniverseLayoutModel;
+  pathIds: PathId[];
+  mode: PathDistributeMode;
+  gridSnap?: GridSnapOptions;
+}): UniverseLayoutModel {
+  const { frame, layoutModel, pathIds, mode, gridSnap } = params;
+  const axis = mode === "horizontal" ? "x" : "y";
+  const sizeKey = mode === "horizontal" ? "width" : "height";
+  const entries = pathIds
+    .map((pathId) => {
+      const resolved = resolvePathNodeRect({
+        frame,
+        layoutModel,
+        pathId,
+      });
+
+      return resolved
+        ? {
+            pathId,
+            componentId: resolved.componentId,
+            rect: resolved.rect,
+          }
+        : null;
+    })
+    .filter(
+      (
+        entry
+      ): entry is {
+        pathId: PathId;
+        componentId: "body" | "label" | null;
+        rect: Rect;
+      } => Boolean(entry)
+    )
+    .sort((a, b) => a.rect[axis] - b.rect[axis]);
+
+  if (entries.length < 3) return layoutModel;
+
+  const first = entries[0];
+  const last = entries[entries.length - 1];
+  const span = last.rect[axis] + last.rect[sizeKey] - first.rect[axis];
+  const occupied = entries.reduce((sum, entry) => sum + entry.rect[sizeKey], 0);
+  const gap = (span - occupied) / (entries.length - 1);
+
+  let cursor = first.rect[axis] + first.rect[sizeKey] + gap;
+  let nextLayoutModel = layoutModel;
+
+  for (const entry of entries.slice(1, -1)) {
+    const snapped = snapCoordinate(cursor, gridSnap);
+    nextLayoutModel = setPathNodePosition({
+      layoutModel: nextLayoutModel,
+      pathId: entry.pathId,
+      componentId: entry.componentId,
+      width: entry.rect.width,
+      height: entry.rect.height,
+      x: mode === "horizontal" ? snapped : entry.rect.x,
+      y: mode === "vertical" ? snapped : entry.rect.y,
+    });
+    cursor += entry.rect[sizeKey] + gap;
+  }
+
+  return nextLayoutModel;
 }
 
 export function resolvePathResizeOrigin(params: {
@@ -463,6 +1003,7 @@ export function resizePathNodeByScreenDelta(params: {
   deltaY: number;
   minWidth?: number;
   minHeight?: number;
+  gridSnap?: GridSnapOptions;
 }): UniverseLayoutModel {
   const {
     layoutModel,
@@ -472,15 +1013,16 @@ export function resizePathNodeByScreenDelta(params: {
     deltaY,
     minWidth = 140,
     minHeight = 32,
+    gridSnap,
   } = params;
 
   const nextWidth = Math.max(
     minWidth,
-    roundCoordinate(origin.originWidth + deltaX / camera.zoom)
+    snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
   );
   const nextHeight = Math.max(
     minHeight,
-    roundCoordinate(origin.originHeight + deltaY / camera.zoom)
+    snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
   );
 
   return setPathComponentLayout(

@@ -1,6 +1,12 @@
 export * from "./zoneMoveEditor";
 export * from "./pathCreateEditor";
 export {
+  alignPathsByMode,
+  alignZonesByMode,
+  distributePathsByMode,
+  distributeZonesByMode,
+  resolveGroupPathDragOrigin,
+  resolveGroupZoneDragOrigin,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
 } from "./zoneMoveEditor";

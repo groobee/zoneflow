@@ -15,6 +15,7 @@ import {
   type Rect,
   type RendererFrame,
 } from "@zoneflow/renderer-dom";
+import type { GridSnapOptions } from "./zoneMoveEditor";
 
 function typedValues<TKey extends string, TValue>(
   record: Record<TKey, TValue>
@@ -36,6 +37,19 @@ const DEFAULT_PATH_OUTPUT_HANDLE_OVERHANG = 9;
 
 function roundCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function resolveSnapSize(options?: GridSnapOptions): number | null {
+  if (!options?.enabled) return null;
+  const size = options.size ?? 16;
+  if (!Number.isFinite(size) || size <= 0) return null;
+  return size;
+}
+
+function snapCoordinate(value: number, options?: GridSnapOptions): number {
+  const size = resolveSnapSize(options);
+  if (!size) return roundCoordinate(value);
+  return roundCoordinate(Math.round(value / size) * size);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -247,6 +261,7 @@ export function createPathFromOutputAnchorDrag(params: {
   sourceZoneId: ZoneId;
   dropWorldPoint: Point;
   targetZoneId?: ZoneId | null;
+  gridSnap?: GridSnapOptions;
 }): CreatePathFromAnchorDragResult | undefined {
   const {
     model,
@@ -255,6 +270,7 @@ export function createPathFromOutputAnchorDrag(params: {
     sourceZoneId,
     dropWorldPoint,
     targetZoneId,
+    gridSnap,
   } = params;
 
   const sourceZone = model.zonesById[sourceZoneId];
@@ -265,8 +281,8 @@ export function createPathFromOutputAnchorDrag(params: {
   const nextPathIndex = sourceZone.pathIds.length;
   const sourceOutlet = sourceVisual.anchors.outlet.point;
   const desiredRect = {
-    x: roundCoordinate(dropWorldPoint.x - DEFAULT_PATH_NODE_WIDTH / 2),
-    y: roundCoordinate(dropWorldPoint.y - DEFAULT_PATH_NODE_HEIGHT / 2),
+    x: snapCoordinate(dropWorldPoint.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
+    y: snapCoordinate(dropWorldPoint.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
   };
   const routeOffset = {
     x: roundCoordinate(desiredRect.x - (sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X)),

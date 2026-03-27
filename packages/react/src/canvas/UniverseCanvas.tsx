@@ -82,8 +82,9 @@ export function UniverseCanvas({
                                  pathComponents,
                                  interactionHandlers,
                                  zoneMoveEditor,
-                                 debug,
+                               debug,
                                }: UniverseCanvasProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(createRenderer());
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
@@ -125,7 +126,7 @@ export function UniverseCanvas({
   }, [pathComponentRenderers, pathComponents]);
 
   useCameraControls({
-    hostRef: ref,
+    hostRef: viewportRef,
     camera,
     setCamera,
   });
@@ -195,10 +196,15 @@ export function UniverseCanvas({
 
   return (
     <div
+      ref={viewportRef}
       style={{
         width: "100%",
         height: "100%",
         position: "relative",
+        overflow: "hidden",
+        cursor: "default",
+        touchAction: "none",
+        overscrollBehavior: "none",
       }}
     >
       <div
@@ -208,10 +214,6 @@ export function UniverseCanvas({
           height: "100%",
           position: "absolute",
           inset: 0,
-          overflow: "hidden",
-          cursor: "default",
-          touchAction: "none",
-          overscrollBehavior: "none",
         }}
       />
       <SlotPortals

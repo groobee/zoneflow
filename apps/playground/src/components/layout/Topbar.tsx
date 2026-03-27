@@ -11,6 +11,10 @@ type Props = {
   sampleType: "small" | "large";
   setSampleType: (value: "small" | "large") => void;
   isEditMode: boolean;
+  gridSnapEnabled: boolean;
+  gridSnapSize: 8 | 12 | 16 | 24;
+  onToggleGridSnap: () => void;
+  onGridSnapSizeChange: (value: 8 | 12 | 16 | 24) => void;
   onStartEdit: () => void;
   onApplyEdit: () => void;
   onCancelEdit: () => void;
@@ -21,6 +25,10 @@ export function Topbar({
   sampleType,
   setSampleType,
   isEditMode,
+  gridSnapEnabled,
+  gridSnapSize,
+  onToggleGridSnap,
+  onGridSnapSizeChange,
   onStartEdit,
   onApplyEdit,
   onCancelEdit,
@@ -36,6 +44,34 @@ export function Topbar({
         >
           <option value="small">Small sample</option>
           <option value="large">Large sample</option>
+        </select>
+        <button
+          type="button"
+          style={
+            gridSnapEnabled
+              ? primaryButtonStyle
+              : buttonStyle
+          }
+          onClick={onToggleGridSnap}
+        >
+          Snap {gridSnapEnabled ? "On" : "Off"}
+        </button>
+        <select
+          style={{
+            ...selectStyle,
+            opacity: gridSnapEnabled ? 1 : 0.56,
+            cursor: gridSnapEnabled ? "pointer" : "not-allowed",
+          }}
+          value={gridSnapSize}
+          disabled={!gridSnapEnabled}
+          onChange={(e) =>
+            onGridSnapSizeChange(Number(e.target.value) as 8 | 12 | 16 | 24)
+          }
+        >
+          <option value={8}>8 px</option>
+          <option value={12}>12 px</option>
+          <option value={16}>16 px</option>
+          <option value={24}>24 px</option>
         </select>
       </div>
 

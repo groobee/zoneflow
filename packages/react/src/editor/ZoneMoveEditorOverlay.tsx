@@ -12,12 +12,18 @@ import type {
   ZoneId,
 } from "@zoneflow/core";
 import {
+  alignPathsByMode,
+  alignZonesByMode,
   createPathFromOutputAnchorDrag,
   commitZoneReparentAtCurrentPosition,
+  distributePathsByMode,
+  distributeZonesByMode,
   getMoveEditorTargets,
   moveEditorTargetByScreenDelta,
   resizeZoneByScreenDelta,
   resolveInputAnchorTargetZoneId,
+  resolveGroupPathDragOrigin,
+  resolveGroupZoneDragOrigin,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
   resolveMoveEditorDragOrigin,
@@ -85,6 +91,10 @@ export type PathLabelEventPayload = {
 export type ZoneMoveEditorConfig = {
   enabled?: boolean;
   includeRoot?: boolean;
+  gridSnap?: {
+    enabled?: boolean;
+    size?: number;
+  };
   onModelChange?: (nextModel: UniverseModel) => void;
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   renderZoneEditButton?: (props: ZoneEditorButtonRenderProps) => ReactNode;
@@ -161,6 +171,14 @@ type DeleteUndoState = {
   label: string;
   previousModel: UniverseModel;
   previousLayoutModel: UniverseLayoutModel;
+};
+
+type MarqueeSelectionState = {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  appendToSelection: boolean;
 };
 
 type PreviewHostProps = {
@@ -309,13 +327,13 @@ function getTargetBadgeLabel(target: MoveEditorTarget): string {
 function getTargetVisualState(params: {
   target: MoveEditorTarget;
   hoveredTargetKey: string | null;
-  selectedTargetKey: string | null;
+  isSelected: boolean;
   draggingTargetKey: string | null;
 }): TargetVisualState {
-  const { target, hoveredTargetKey, selectedTargetKey, draggingTargetKey } = params;
+  const { target, hoveredTargetKey, isSelected, draggingTargetKey } = params;
 
   if (draggingTargetKey === target.key) return "dragging";
-  if (selectedTargetKey === target.key) return "selected";
+  if (isSelected) return "selected";
   if (hoveredTargetKey === target.key) return "hover";
   return "idle";
 }
@@ -389,6 +407,42 @@ function getTargetBadgeStyle(visualState: TargetVisualState): CSSProperties {
 
 function shouldShowTargetMeta(visualState: TargetVisualState): boolean {
   return visualState === "selected" || visualState === "dragging";
+}
+
+function toggleZoneSelection(zoneIds: ZoneId[], zoneId: ZoneId): ZoneId[] {
+  return zoneIds.includes(zoneId)
+    ? zoneIds.filter((current) => current !== zoneId)
+    : [...zoneIds, zoneId];
+}
+
+function togglePathSelection(pathIds: PathId[], pathId: PathId): PathId[] {
+  return pathIds.includes(pathId)
+    ? pathIds.filter((current) => current !== pathId)
+    : [...pathIds, pathId];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizeMarqueeRect(selection: MarqueeSelectionState): Rect {
+  const x = Math.min(selection.startX, selection.currentX);
+  const y = Math.min(selection.startY, selection.currentY);
+  return {
+    x,
+    y,
+    width: Math.abs(selection.currentX - selection.startX),
+    height: Math.abs(selection.currentY - selection.startY),
+  };
+}
+
+function intersectsRect(a: Rect, b: Rect): boolean {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
 }
 
 function renderDefaultZoneEditButton(props: ZoneEditorButtonRenderProps) {
@@ -749,9 +803,14 @@ export function ZoneMoveEditorOverlay(props: {
   } = props;
 
   const [draggingTarget, setDraggingTarget] = useState<MoveEditorTarget | null>(null);
+  const [draggingZoneGroupIds, setDraggingZoneGroupIds] = useState<ZoneId[]>([]);
+  const [draggingPathGroupIds, setDraggingPathGroupIds] = useState<PathId[]>([]);
   const [isResizing, setIsResizing] = useState(false);
   const [hoveredTargetKey, setHoveredTargetKey] = useState<string | null>(null);
   const [selectedTargetKey, setSelectedTargetKey] = useState<string | null>(null);
+  const [selectedZoneIds, setSelectedZoneIds] = useState<ZoneId[]>([]);
+  const [selectedPathIds, setSelectedPathIds] = useState<PathId[]>([]);
+  const [marqueeSelection, setMarqueeSelection] = useState<MarqueeSelectionState | null>(null);
   const [deleteArmedTargetKey, setDeleteArmedTargetKey] = useState<string | null>(null);
   const [deleteConfirmState, setDeleteConfirmState] = useState<DeleteConfirmState | null>(null);
   const [deleteUndoState, setDeleteUndoState] = useState<DeleteUndoState | null>(null);
@@ -766,6 +825,9 @@ export function ZoneMoveEditorOverlay(props: {
   const pathResizeRef = useRef<PathResizeState | null>(null);
   const pathCreateRef = useRef<PathCreateDragState | null>(null);
   const pathRetargetRef = useRef<PathRetargetDragState | null>(null);
+  const marqueeSelectionRef = useRef<MarqueeSelectionState | null>(null);
+  const selectedZoneIdsRef = useRef<ZoneId[]>([]);
+  const selectedPathIdsRef = useRef<PathId[]>([]);
   const longPressRef = useRef<LongPressState | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const deleteUndoTimerRef = useRef<number | null>(null);
@@ -781,6 +843,8 @@ export function ZoneMoveEditorOverlay(props: {
     layoutModel,
     camera,
     frame,
+    includeRoot: editor?.includeRoot,
+    gridSnap: editor?.gridSnap,
     onModelChange: editor?.onModelChange,
     onLayoutModelChange: editor?.onLayoutModelChange,
     onExclusionStateChange,
@@ -792,11 +856,21 @@ export function ZoneMoveEditorOverlay(props: {
       layoutModel,
       camera,
       frame,
+      includeRoot: editor?.includeRoot,
+      gridSnap: editor?.gridSnap,
       onModelChange: editor?.onModelChange,
       onLayoutModelChange: editor?.onLayoutModelChange,
       onExclusionStateChange,
     };
   }, [model, layoutModel, camera, frame, editor, onExclusionStateChange]);
+
+  useEffect(() => {
+    selectedZoneIdsRef.current = selectedZoneIds;
+  }, [selectedZoneIds]);
+
+  useEffect(() => {
+    selectedPathIdsRef.current = selectedPathIds;
+  }, [selectedPathIds]);
 
   useEffect(() => {
     if (editor?.enabled) return;
@@ -805,7 +879,10 @@ export function ZoneMoveEditorOverlay(props: {
     pathResizeRef.current = null;
     pathCreateRef.current = null;
     pathRetargetRef.current = null;
+    marqueeSelectionRef.current = null;
     setDraggingTarget(null);
+    setDraggingZoneGroupIds([]);
+    setDraggingPathGroupIds([]);
     setIsResizing(false);
     setCreatingPath(null);
     setPathCreateTargetZoneId(null);
@@ -813,6 +890,9 @@ export function ZoneMoveEditorOverlay(props: {
     setRetargetPathTargetZoneId(null);
     setHoveredTargetKey(null);
     setSelectedTargetKey(null);
+    setSelectedZoneIds([]);
+    setSelectedPathIds([]);
+    setMarqueeSelection(null);
     setDeleteArmedTargetKey(null);
     setDeleteConfirmState(null);
     setDeleteUndoState(null);
@@ -833,6 +913,18 @@ export function ZoneMoveEditorOverlay(props: {
     if (model.zonesById[editingZoneId]) return;
     setEditingZoneId(null);
   }, [editingZoneId, model]);
+
+  useEffect(() => {
+    setSelectedZoneIds((current) =>
+      current.filter((zoneId) => Boolean(model.zonesById[zoneId]))
+    );
+  }, [model]);
+
+  useEffect(() => {
+    setSelectedPathIds((current) =>
+      current.filter((pathId) => Boolean(frame?.pipeline.graphLayout.pathsById[pathId]))
+    );
+  }, [frame]);
 
   const isPathLabelClickSuppressed = (targetKey: string) => {
     const current = suppressedPathLabelClickRef.current;
@@ -934,6 +1026,7 @@ export function ZoneMoveEditorOverlay(props: {
       const pathResize = pathResizeRef.current;
       const pathCreate = pathCreateRef.current;
       const pathRetarget = pathRetargetRef.current;
+      const marquee = marqueeSelectionRef.current;
 
       if (drag?.hasMoved && drag.target.kind === "path") {
         suppressedPathLabelClickRef.current = {
@@ -949,7 +1042,13 @@ export function ZoneMoveEditorOverlay(props: {
         };
       }
 
-      if (drag?.target.kind === "zone" && drag.hasMoved && !resize && !pathResize) {
+      if (
+        drag?.target.kind === "zone" &&
+        drag.hasMoved &&
+        drag.origin.kind !== "zone-group" &&
+        !resize &&
+        !pathResize
+      ) {
         const reparented = commitZoneReparentAtCurrentPosition({
           model: latestRef.current.model,
           layoutModel: latestRef.current.layoutModel,
@@ -979,6 +1078,7 @@ export function ZoneMoveEditorOverlay(props: {
             latestRef.current.camera
           ),
           targetZoneId,
+          gridSnap: latestRef.current.gridSnap,
         });
 
         if (created) {
@@ -1009,17 +1109,73 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
+      if (marquee && latestRef.current.frame) {
+        const marqueeRect = normalizeMarqueeRect(marquee);
+        const didMarqueeSelect =
+          marqueeRect.width >= DRAG_START_DISTANCE ||
+          marqueeRect.height >= DRAG_START_DISTANCE;
+
+        if (didMarqueeSelect) {
+          const matchedTargets = getMoveEditorTargets({
+            model: latestRef.current.model,
+            frame: latestRef.current.frame,
+            camera: latestRef.current.camera,
+            options: {
+              includeRoot: latestRef.current.includeRoot,
+            },
+          }).filter((target) => intersectsRect(target.rect, marqueeRect));
+
+          const matchedZoneIds = matchedTargets
+            .filter(
+              (target): target is Extract<MoveEditorTarget, { kind: "zone" }> =>
+                target.kind === "zone"
+            )
+            .map((target) => target.zoneId);
+          const matchedPathIds = matchedTargets
+            .filter(
+              (target): target is Extract<MoveEditorTarget, { kind: "path" }> =>
+                target.kind === "path"
+            )
+            .map((target) => target.pathId);
+
+          const nextZoneIds = marquee.appendToSelection
+            ? Array.from(new Set([...selectedZoneIdsRef.current, ...matchedZoneIds]))
+            : matchedZoneIds;
+          const nextPathIds = marquee.appendToSelection
+            ? Array.from(new Set([...selectedPathIdsRef.current, ...matchedPathIds]))
+            : matchedPathIds;
+          const selectedKeys = [
+            ...nextZoneIds.map((zoneId) => `zone:${zoneId}`),
+            ...nextPathIds.map((pathId) => `path:${pathId}`),
+          ];
+
+          setSelectedZoneIds(nextZoneIds);
+          setSelectedPathIds(nextPathIds);
+          setSelectedTargetKey(
+            selectedKeys.length === 1 ? selectedKeys[0] : null
+          );
+        } else if (!marquee.appendToSelection) {
+          setSelectedZoneIds([]);
+          setSelectedPathIds([]);
+          setSelectedTargetKey(null);
+        }
+      }
+
       dragRef.current = null;
       resizeRef.current = null;
       pathResizeRef.current = null;
       pathCreateRef.current = null;
       pathRetargetRef.current = null;
+      marqueeSelectionRef.current = null;
       setDraggingTarget(null);
+      setDraggingZoneGroupIds([]);
+      setDraggingPathGroupIds([]);
       setIsResizing(false);
       setCreatingPath(null);
       setPathCreateTargetZoneId(null);
       setRetargetingPath(null);
       setRetargetPathTargetZoneId(null);
+      setMarqueeSelection(null);
       setHoveredTargetKey(null);
       latestRef.current.onExclusionStateChange?.(undefined);
       document.body.style.cursor = "";
@@ -1055,9 +1211,33 @@ export function ZoneMoveEditorOverlay(props: {
           origin: resize.origin,
           deltaX: event.clientX - resize.startClientX,
           deltaY: event.clientY - resize.startClientY,
+          gridSnap: latestRef.current.gridSnap,
         });
 
         onLayoutModelChange(nextLayoutModel);
+        return;
+      }
+
+      const marquee = marqueeSelectionRef.current;
+      if (marquee) {
+        event.preventDefault();
+
+        const nextSelection: MarqueeSelectionState = {
+          ...marquee,
+          currentX: toCanvasScreenPoint(
+            overlayRef.current,
+            event.clientX,
+            event.clientY
+          ).x,
+          currentY: toCanvasScreenPoint(
+            overlayRef.current,
+            event.clientX,
+            event.clientY
+          ).y,
+        };
+
+        marqueeSelectionRef.current = nextSelection;
+        setMarqueeSelection(nextSelection);
         return;
       }
 
@@ -1074,6 +1254,7 @@ export function ZoneMoveEditorOverlay(props: {
           origin: pathResize.origin,
           deltaX: event.clientX - pathResize.startClientX,
           deltaY: event.clientY - pathResize.startClientY,
+          gridSnap: latestRef.current.gridSnap,
         });
 
         onLayoutModelChange(nextLayoutModel);
@@ -1106,7 +1287,19 @@ export function ZoneMoveEditorOverlay(props: {
             hasMoved: true,
           };
           setDraggingTarget(drag.target);
-          latestRef.current.onExclusionStateChange?.(getExclusionState(drag.target));
+          if (drag.origin.kind === "zone-group") {
+            setDraggingZoneGroupIds(Object.keys(drag.origin.originsByZoneId) as ZoneId[]);
+            setDraggingPathGroupIds([]);
+            latestRef.current.onExclusionStateChange?.(undefined);
+          } else if (drag.origin.kind === "path-group") {
+            setDraggingZoneGroupIds([]);
+            setDraggingPathGroupIds(Object.keys(drag.origin.originsByPathId) as PathId[]);
+            latestRef.current.onExclusionStateChange?.(undefined);
+          } else {
+            setDraggingZoneGroupIds([]);
+            setDraggingPathGroupIds([]);
+            latestRef.current.onExclusionStateChange?.(getExclusionState(drag.target));
+          }
           document.body.style.cursor = "grabbing";
           document.body.style.userSelect = "none";
         }
@@ -1117,6 +1310,7 @@ export function ZoneMoveEditorOverlay(props: {
           origin: drag.origin,
           deltaX: event.clientX - drag.startClientX,
           deltaY: event.clientY - drag.startClientY,
+          gridSnap: latestRef.current.gridSnap,
         });
 
         onLayoutModelChange(nextLayoutModel);
@@ -1224,8 +1418,82 @@ export function ZoneMoveEditorOverlay(props: {
     });
   }, [camera, editor, frame, model]);
 
+  const selectedZoneTargets = useMemo(
+    () =>
+      targets.filter(
+        (target): target is Extract<MoveEditorTarget, { kind: "zone" }> =>
+          target.kind === "zone" && selectedZoneIds.includes(target.zoneId)
+      ),
+    [selectedZoneIds, targets]
+  );
+
+  const selectedPathTargets = useMemo(
+    () =>
+      targets.filter(
+        (target): target is Extract<MoveEditorTarget, { kind: "path" }> =>
+          target.kind === "path" && selectedPathIds.includes(target.pathId)
+      ),
+    [selectedPathIds, targets]
+  );
+
+  const selectionBounds = useMemo(() => {
+    if (selectedZoneTargets.length === 0) return null;
+
+    const minX = Math.min(...selectedZoneTargets.map((target) => target.rect.x));
+    const minY = Math.min(...selectedZoneTargets.map((target) => target.rect.y));
+    const maxX = Math.max(
+      ...selectedZoneTargets.map((target) => target.rect.x + target.rect.width)
+    );
+    const maxY = Math.max(
+      ...selectedZoneTargets.map((target) => target.rect.y + target.rect.height)
+    );
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [selectedZoneTargets]);
+
+  const pathSelectionBounds = useMemo(() => {
+    if (selectedPathTargets.length === 0) return null;
+
+    const minX = Math.min(...selectedPathTargets.map((target) => target.rect.x));
+    const minY = Math.min(...selectedPathTargets.map((target) => target.rect.y));
+    const maxX = Math.max(
+      ...selectedPathTargets.map((target) => target.rect.x + target.rect.width)
+    );
+    const maxY = Math.max(
+      ...selectedPathTargets.map((target) => target.rect.y + target.rect.height)
+    );
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [selectedPathTargets]);
+
+  const canRunZoneSelectionCommands = useMemo(() => {
+    if (selectedZoneTargets.length < 2) return false;
+
+    const parentIds = new Set(
+      selectedZoneTargets.map((target) => model.zonesById[target.zoneId]?.parentZoneId ?? null)
+    );
+
+    return parentIds.size === 1;
+  }, [model, selectedZoneTargets]);
+
+  const canRunPathSelectionCommands = selectedPathTargets.length >= 2;
+
   const dropTargetZoneId = useMemo(() => {
-    if (isResizing || draggingTarget?.kind !== "zone") {
+    if (
+      isResizing ||
+      draggingTarget?.kind !== "zone" ||
+      draggingZoneGroupIds.length > 1
+    ) {
       return null;
     }
 
@@ -1240,7 +1508,7 @@ export function ZoneMoveEditorOverlay(props: {
     }
 
     return resolved.candidateParentZoneId;
-  }, [draggingTarget, isResizing, layoutModel, model]);
+  }, [draggingTarget, draggingZoneGroupIds.length, isResizing, layoutModel, model]);
 
   const openZoneEditor = (zoneId: ZoneId, targetKey: string) => {
     if (editor?.onZoneEditClick) {
@@ -1252,7 +1520,173 @@ export function ZoneMoveEditorOverlay(props: {
     setSelectedTargetKey(targetKey);
   };
 
+  const runZoneSelectionCommand = (
+    command:
+      | "align-left"
+      | "align-right"
+      | "align-top"
+      | "align-bottom"
+      | "align-center-horizontal"
+      | "align-center-vertical"
+      | "distribute-horizontal"
+      | "distribute-vertical"
+  ) => {
+    if (!latestRef.current.onLayoutModelChange) return;
+    if (selectedZoneIds.length < 2) return;
+    if (!canRunZoneSelectionCommands) return;
+
+    const nextLayoutModel =
+      command === "align-left"
+        ? alignZonesByMode({
+            layoutModel: latestRef.current.layoutModel,
+            zoneIds: selectedZoneIds,
+            mode: "left",
+            gridSnap: latestRef.current.gridSnap,
+          })
+        : command === "align-right"
+          ? alignZonesByMode({
+              layoutModel: latestRef.current.layoutModel,
+              zoneIds: selectedZoneIds,
+              mode: "right",
+              gridSnap: latestRef.current.gridSnap,
+            })
+        : command === "align-top"
+          ? alignZonesByMode({
+              layoutModel: latestRef.current.layoutModel,
+              zoneIds: selectedZoneIds,
+              mode: "top",
+              gridSnap: latestRef.current.gridSnap,
+            })
+          : command === "align-bottom"
+            ? alignZonesByMode({
+                layoutModel: latestRef.current.layoutModel,
+                zoneIds: selectedZoneIds,
+                mode: "bottom",
+                gridSnap: latestRef.current.gridSnap,
+              })
+            : command === "align-center-horizontal"
+              ? alignZonesByMode({
+                  layoutModel: latestRef.current.layoutModel,
+                  zoneIds: selectedZoneIds,
+                  mode: "center-horizontal",
+                  gridSnap: latestRef.current.gridSnap,
+                })
+              : command === "align-center-vertical"
+                ? alignZonesByMode({
+                    layoutModel: latestRef.current.layoutModel,
+                    zoneIds: selectedZoneIds,
+                    mode: "center-vertical",
+                    gridSnap: latestRef.current.gridSnap,
+                  })
+          : command === "distribute-horizontal"
+            ? distributeZonesByMode({
+                layoutModel: latestRef.current.layoutModel,
+                zoneIds: selectedZoneIds,
+                mode: "horizontal",
+                gridSnap: latestRef.current.gridSnap,
+              })
+            : distributeZonesByMode({
+                layoutModel: latestRef.current.layoutModel,
+                zoneIds: selectedZoneIds,
+                mode: "vertical",
+                gridSnap: latestRef.current.gridSnap,
+              });
+
+    latestRef.current.onLayoutModelChange(nextLayoutModel);
+  };
+
+  const runPathSelectionCommand = (
+    command:
+      | "align-left"
+      | "align-right"
+      | "align-top"
+      | "align-bottom"
+      | "align-center-horizontal"
+      | "align-center-vertical"
+      | "distribute-horizontal"
+      | "distribute-vertical"
+  ) => {
+    if (!latestRef.current.onLayoutModelChange) return;
+    if (!latestRef.current.frame) return;
+    if (selectedPathIds.length < 2) return;
+    if (!canRunPathSelectionCommands) return;
+
+    const nextLayoutModel =
+      command === "align-left"
+        ? alignPathsByMode({
+            frame: latestRef.current.frame,
+            layoutModel: latestRef.current.layoutModel,
+            pathIds: selectedPathIds,
+            mode: "left",
+            gridSnap: latestRef.current.gridSnap,
+          })
+        : command === "align-right"
+          ? alignPathsByMode({
+              frame: latestRef.current.frame,
+              layoutModel: latestRef.current.layoutModel,
+              pathIds: selectedPathIds,
+              mode: "right",
+              gridSnap: latestRef.current.gridSnap,
+            })
+        : command === "align-top"
+          ? alignPathsByMode({
+              frame: latestRef.current.frame,
+              layoutModel: latestRef.current.layoutModel,
+              pathIds: selectedPathIds,
+              mode: "top",
+              gridSnap: latestRef.current.gridSnap,
+            })
+          : command === "align-bottom"
+            ? alignPathsByMode({
+                frame: latestRef.current.frame,
+                layoutModel: latestRef.current.layoutModel,
+                pathIds: selectedPathIds,
+                mode: "bottom",
+                gridSnap: latestRef.current.gridSnap,
+              })
+            : command === "align-center-horizontal"
+              ? alignPathsByMode({
+                  frame: latestRef.current.frame,
+                  layoutModel: latestRef.current.layoutModel,
+                  pathIds: selectedPathIds,
+                  mode: "center-horizontal",
+                  gridSnap: latestRef.current.gridSnap,
+                })
+              : command === "align-center-vertical"
+                ? alignPathsByMode({
+                    frame: latestRef.current.frame,
+                    layoutModel: latestRef.current.layoutModel,
+                    pathIds: selectedPathIds,
+                    mode: "center-vertical",
+                    gridSnap: latestRef.current.gridSnap,
+                  })
+                : command === "distribute-horizontal"
+                  ? distributePathsByMode({
+                      frame: latestRef.current.frame,
+                      layoutModel: latestRef.current.layoutModel,
+                      pathIds: selectedPathIds,
+                      mode: "horizontal",
+                      gridSnap: latestRef.current.gridSnap,
+                    })
+                  : distributePathsByMode({
+                      frame: latestRef.current.frame,
+                      layoutModel: latestRef.current.layoutModel,
+                      pathIds: selectedPathIds,
+                      mode: "vertical",
+                      gridSnap: latestRef.current.gridSnap,
+                    });
+
+    latestRef.current.onLayoutModelChange(nextLayoutModel);
+  };
+
   if (!editor?.enabled || !frame) return null;
+
+  const marqueeRect = marqueeSelection
+    ? normalizeMarqueeRect(marqueeSelection)
+    : null;
+  const overlayWidth =
+    overlayRef.current?.clientWidth ??
+    (typeof window === "undefined" ? 0 : window.innerWidth);
 
   const editingZone = editingZoneId ? model.zonesById[editingZoneId] : undefined;
   const dropTargetRect = dropTargetZoneId
@@ -1303,7 +1737,7 @@ export function ZoneMoveEditorOverlay(props: {
       style={{
         position: "absolute",
         inset: 0,
-        pointerEvents: "none",
+        pointerEvents: "auto",
         zIndex: 30,
       }}
     >
@@ -1326,6 +1760,54 @@ export function ZoneMoveEditorOverlay(props: {
         </style>
       ) : null}
       <div
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          if (event.target !== event.currentTarget) return;
+          if (
+            dragRef.current ||
+            resizeRef.current ||
+            pathResizeRef.current ||
+            pathCreateRef.current ||
+            pathRetargetRef.current
+          ) {
+            return;
+          }
+
+          cancelLongPress();
+          setDeleteArmedTargetKey(null);
+          setDeleteConfirmState(null);
+          setHoveredTargetKey(null);
+
+          const start = toCanvasScreenPoint(
+            overlayRef.current,
+            event.clientX,
+            event.clientY
+          );
+          const nextSelection: MarqueeSelectionState = {
+            startX: start.x,
+            startY: start.y,
+            currentX: start.x,
+            currentY: start.y,
+            appendToSelection:
+              event.shiftKey || event.metaKey || event.ctrlKey,
+          };
+
+          marqueeSelectionRef.current = nextSelection;
+          setMarqueeSelection(nextSelection);
+          document.body.style.cursor = "crosshair";
+          document.body.style.userSelect = "none";
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+        }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "auto",
+          background: "transparent",
+        }}
+      />
+      <div
         style={{
           position: "absolute",
           inset: 0,
@@ -1335,7 +1817,9 @@ export function ZoneMoveEditorOverlay(props: {
           willChange: "transform",
         }}
       >
-        {draggingTarget
+        {draggingTarget &&
+        draggingZoneGroupIds.length === 0 &&
+        draggingPathGroupIds.length === 0
           ? renderZonePreview({
               frame,
               camera,
@@ -1441,12 +1925,206 @@ export function ZoneMoveEditorOverlay(props: {
               color: "#94a3b8",
             }}
           >
-            Drag nodes to move them. Drag the right anchor to add a condition path.
-            Use the bottom-right handle to resize zones, or double-click a zone
-            to edit it. Drag the right-side anchor on a path to reconnect it, and
-            use the corner handle to resize the path label box.
+            Drag nodes to move them. Shift-click zones or paths to multi-select,
+            then align or distribute them from the floating toolbar. Drag the right
+            anchor to add a condition path. Use the bottom-right handle to resize
+            zones, or double-click a zone to edit it. Drag the right-side anchor on
+            a path to reconnect it, and use the corner handle to resize the path
+            label box. Drag empty canvas space to marquee-select zones and paths.
           </div>
         </div>
+
+        {selectionBounds && selectedZoneTargets.length > 1 ? (
+          <div
+            style={{
+              position: "absolute",
+              left: `${clamp(selectionBounds.x + selectionBounds.width / 2, 96, overlayWidth - 96)}px`,
+              top: `${Math.max(18, selectionBounds.y - 18)}px`,
+              transform: "translate(-50%, -100%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 10px",
+              borderRadius: 14,
+              border: "1px solid rgba(148, 163, 184, 0.18)",
+              background: "rgba(15, 23, 42, 0.94)",
+              color: "#e2e8f0",
+              boxShadow: "0 18px 30px rgba(2, 6, 23, 0.22)",
+              pointerEvents: "auto",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                color: "#bfdbfe",
+                paddingRight: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {selectedZoneTargets.length} selected
+            </span>
+            {[
+              ["좌측", "align-left"],
+              ["우측", "align-right"],
+              ["상단", "align-top"],
+              ["하단", "align-bottom"],
+              ["가로중앙", "align-center-horizontal"],
+              ["세로중앙", "align-center-vertical"],
+              ["가로 분배", "distribute-horizontal"],
+              ["세로 분배", "distribute-vertical"],
+            ].map(([label, command]) => (
+              <button
+                key={command}
+                type="button"
+                disabled={
+                  !canRunZoneSelectionCommands ||
+                  (command.includes("distribute") && selectedZoneTargets.length < 3)
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  runZoneSelectionCommand(
+                    command as
+                      | "align-left"
+                      | "align-right"
+                      | "align-top"
+                      | "align-bottom"
+                      | "align-center-horizontal"
+                      | "align-center-vertical"
+                      | "distribute-horizontal"
+                      | "distribute-vertical"
+                  );
+                }}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  background: canRunZoneSelectionCommands
+                    ? "rgba(255, 255, 255, 0.08)"
+                    : "rgba(255, 255, 255, 0.04)",
+                  color: canRunZoneSelectionCommands
+                    ? "#f8fafc"
+                    : "rgba(226, 232, 240, 0.48)",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: canRunZoneSelectionCommands ? "pointer" : "not-allowed",
+                  whiteSpace: "nowrap",
+                }}
+                title={
+                  canRunZoneSelectionCommands
+                    ? undefined
+                    : "정렬/분배는 같은 부모를 가진 존들만 지원합니다."
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {pathSelectionBounds && selectedPathTargets.length > 1 ? (
+          <div
+            style={{
+              position: "absolute",
+              left: `${clamp(pathSelectionBounds.x + pathSelectionBounds.width / 2, 96, overlayWidth - 96)}px`,
+              top: `${Math.max(18, pathSelectionBounds.y - 18)}px`,
+              transform: "translate(-50%, -100%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 10px",
+              borderRadius: 14,
+              border: "1px solid rgba(148, 163, 184, 0.18)",
+              background: "rgba(15, 23, 42, 0.94)",
+              color: "#e2e8f0",
+              boxShadow: "0 18px 30px rgba(2, 6, 23, 0.22)",
+              pointerEvents: "auto",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                color: "#c7d2fe",
+                paddingRight: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {selectedPathTargets.length} paths
+            </span>
+            {[
+              ["좌측", "align-left"],
+              ["우측", "align-right"],
+              ["상단", "align-top"],
+              ["하단", "align-bottom"],
+              ["가로중앙", "align-center-horizontal"],
+              ["세로중앙", "align-center-vertical"],
+              ["가로 분배", "distribute-horizontal"],
+              ["세로 분배", "distribute-vertical"],
+            ].map(([label, command]) => (
+              <button
+                key={command}
+                type="button"
+                disabled={
+                  !canRunPathSelectionCommands ||
+                  (command.includes("distribute") && selectedPathTargets.length < 3)
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  runPathSelectionCommand(
+                    command as
+                      | "align-left"
+                      | "align-right"
+                      | "align-top"
+                      | "align-bottom"
+                      | "align-center-horizontal"
+                      | "align-center-vertical"
+                      | "distribute-horizontal"
+                      | "distribute-vertical"
+                  );
+                }}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  background: canRunPathSelectionCommands
+                    ? "rgba(255, 255, 255, 0.08)"
+                    : "rgba(255, 255, 255, 0.04)",
+                  color: canRunPathSelectionCommands
+                    ? "#f8fafc"
+                    : "rgba(226, 232, 240, 0.48)",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {marqueeRect ? (
+          <div
+            style={{
+              position: "absolute",
+              left: `${marqueeRect.x}px`,
+              top: `${marqueeRect.y}px`,
+              width: `${marqueeRect.width}px`,
+              height: `${marqueeRect.height}px`,
+              border: "1.5px dashed rgba(37, 99, 235, 0.94)",
+              background: "rgba(59, 130, 246, 0.12)",
+              boxShadow: "0 0 0 1px rgba(191, 219, 254, 0.28) inset",
+              borderRadius: 12,
+              pointerEvents: "none",
+            }}
+          />
+        ) : null}
 
         {creatingPath && pathCreateTargetAnchorRect ? (
           <div
@@ -1554,10 +2232,18 @@ export function ZoneMoveEditorOverlay(props: {
           const isDragging = draggingTarget?.key === target.key;
           const isResizingTarget = isResizing && isDragging;
           const resizeCursor = "nwse-resize";
+          const isZoneSelected =
+            target.kind === "zone" && selectedZoneIds.includes(target.zoneId);
+          const isPathSelected =
+            target.kind === "path" && selectedPathIds.includes(target.pathId);
+          const isSelected =
+            target.kind === "zone"
+              ? isZoneSelected
+              : isPathSelected;
           const visualState = getTargetVisualState({
             target,
             hoveredTargetKey,
-            selectedTargetKey,
+            isSelected,
             draggingTargetKey: draggingTarget?.key ?? null,
           });
           const zone = target.kind === "zone" ? model.zonesById[target.zoneId] : undefined;
@@ -1694,7 +2380,66 @@ export function ZoneMoveEditorOverlay(props: {
                   return;
                 }
 
-                const origin = resolveMoveEditorDragOrigin(layoutModel, target);
+                const isToggleSelection =
+                  (target.kind === "zone" || target.kind === "path") &&
+                  (event.shiftKey || event.metaKey || event.ctrlKey);
+
+                if (isToggleSelection) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  cancelLongPress();
+                  setDeleteArmedTargetKey(null);
+                  setDeleteConfirmState(null);
+                  if (target.kind === "zone") {
+                    setSelectedZoneIds((current) => {
+                      const nextZoneIds = toggleZoneSelection(current, target.zoneId);
+                      const selectedKeys = [
+                        ...nextZoneIds.map((zoneId) => `zone:${zoneId}`),
+                        ...selectedPathIdsRef.current.map((pathId) => `path:${pathId}`),
+                      ];
+                      setSelectedTargetKey(
+                        selectedKeys.length === 1 ? selectedKeys[0] : null
+                      );
+                      return nextZoneIds;
+                    });
+                  } else {
+                    setSelectedPathIds((current) => {
+                      const nextPathIds = togglePathSelection(current, target.pathId);
+                      const selectedKeys = [
+                        ...selectedZoneIdsRef.current.map((zoneId) => `zone:${zoneId}`),
+                        ...nextPathIds.map((pathId) => `path:${pathId}`),
+                      ];
+                      setSelectedTargetKey(
+                        selectedKeys.length === 1 ? selectedKeys[0] : null
+                      );
+                      return nextPathIds;
+                    });
+                  }
+                  return;
+                }
+
+                const shouldStartZoneGroupDrag =
+                  target.kind === "zone" &&
+                  selectedZoneIds.includes(target.zoneId) &&
+                  selectedZoneIds.length > 1;
+                const shouldStartPathGroupDrag =
+                  target.kind === "path" &&
+                  selectedPathIds.includes(target.pathId) &&
+                  selectedPathIds.length > 1;
+                const origin = shouldStartZoneGroupDrag
+                  ? resolveGroupZoneDragOrigin({
+                      layoutModel,
+                      zoneIds: selectedZoneIds,
+                      primaryZoneId: target.zoneId,
+                    })
+                  : shouldStartPathGroupDrag
+                    ? resolveGroupPathDragOrigin({
+                        frame,
+                        layoutModel,
+                        pathIds: selectedPathIds,
+                        primaryPathId: target.pathId,
+                      })
+                  : resolveMoveEditorDragOrigin(layoutModel, target);
                 if (!origin) return;
 
                 cancelLongPress();
@@ -1707,6 +2452,15 @@ export function ZoneMoveEditorOverlay(props: {
 
                 if (target.kind === "zone") {
                   event.preventDefault();
+                  if (!shouldStartZoneGroupDrag || !isZoneSelected) {
+                    setSelectedZoneIds([target.zoneId]);
+                  }
+                  setSelectedPathIds([]);
+                } else {
+                  setSelectedZoneIds([]);
+                  if (!shouldStartPathGroupDrag || !isPathSelected) {
+                    setSelectedPathIds([target.pathId]);
+                  }
                 }
                 event.stopPropagation();
 

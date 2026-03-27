@@ -22,6 +22,8 @@ type Props = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   isEditMode: boolean;
+  gridSnapEnabled: boolean;
+  gridSnapSize: 8 | 12 | 16 | 24;
   onDraftModelChange: (nextModel: UniverseModel) => void;
   onDraftLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   debug: DebugState;
@@ -32,6 +34,8 @@ export function CanvasHost({
                              model,
                              layoutModel,
                              isEditMode,
+                             gridSnapEnabled,
+                             gridSnapSize,
                              onDraftModelChange,
                              onDraftLayoutModelChange,
                              debug,
@@ -81,6 +85,10 @@ export function CanvasHost({
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = isEditMode
     ? {
       enabled: true,
+      gridSnap: {
+        enabled: gridSnapEnabled,
+        size: gridSnapSize,
+      },
       onModelChange: onDraftModelChange,
       onLayoutModelChange: onDraftLayoutModelChange,
       deleteInteraction: {
