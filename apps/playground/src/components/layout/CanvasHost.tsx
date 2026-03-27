@@ -101,9 +101,6 @@ export function CanvasHost({
         onZoneEditClick: (zoneId: ZoneId) => {
           setEditingZoneId(zoneId);
         },
-        onPathLabelClick: ({ pathId }: { pathId: PathId }) => {
-          setEditingPathId(pathId);
-        },
         onPathLabelDoubleClick: ({ pathId }: { pathId: PathId }) => {
           setEditingPathId(pathId);
         },

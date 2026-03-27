@@ -23,7 +23,6 @@ import {
   resizeZoneByScreenDelta,
   resolveInputAnchorTargetZoneId,
   resolveGroupPathDragOrigin,
-  resolveGroupZoneDragOrigin,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
   resolveMoveEditorDragOrigin,
@@ -38,6 +37,7 @@ import {
   retargetPathFromOutputAnchorDrag,
 } from "../../../editor-dom/src/pathCreateEditor";
 import {
+  resolveGroupZoneDragOrigin,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
   type PathResizeOrigin,
@@ -1138,12 +1138,17 @@ export function ZoneMoveEditorOverlay(props: {
             )
             .map((target) => target.pathId);
 
-          const nextZoneIds = marquee.appendToSelection
-            ? Array.from(new Set([...selectedZoneIdsRef.current, ...matchedZoneIds]))
-            : matchedZoneIds;
-          const nextPathIds = marquee.appendToSelection
-            ? Array.from(new Set([...selectedPathIdsRef.current, ...matchedPathIds]))
-            : matchedPathIds;
+          const shouldPreferZones = matchedZoneIds.length > 0;
+          const nextZoneIds = shouldPreferZones
+            ? marquee.appendToSelection
+              ? Array.from(new Set([...selectedZoneIdsRef.current, ...matchedZoneIds]))
+              : matchedZoneIds
+            : [];
+          const nextPathIds = shouldPreferZones
+            ? []
+            : marquee.appendToSelection
+              ? Array.from(new Set([...selectedPathIdsRef.current, ...matchedPathIds]))
+              : matchedPathIds;
           const selectedKeys = [
             ...nextZoneIds.map((zoneId) => `zone:${zoneId}`),
             ...nextPathIds.map((pathId) => `path:${pathId}`),
@@ -2391,24 +2396,20 @@ export function ZoneMoveEditorOverlay(props: {
                   setDeleteArmedTargetKey(null);
                   setDeleteConfirmState(null);
                   if (target.kind === "zone") {
+                    setSelectedPathIds([]);
                     setSelectedZoneIds((current) => {
                       const nextZoneIds = toggleZoneSelection(current, target.zoneId);
-                      const selectedKeys = [
-                        ...nextZoneIds.map((zoneId) => `zone:${zoneId}`),
-                        ...selectedPathIdsRef.current.map((pathId) => `path:${pathId}`),
-                      ];
+                      const selectedKeys = nextZoneIds.map((zoneId) => `zone:${zoneId}`);
                       setSelectedTargetKey(
                         selectedKeys.length === 1 ? selectedKeys[0] : null
                       );
                       return nextZoneIds;
                     });
                   } else {
+                    setSelectedZoneIds([]);
                     setSelectedPathIds((current) => {
                       const nextPathIds = togglePathSelection(current, target.pathId);
-                      const selectedKeys = [
-                        ...selectedZoneIdsRef.current.map((zoneId) => `zone:${zoneId}`),
-                        ...nextPathIds.map((pathId) => `path:${pathId}`),
-                      ];
+                      const selectedKeys = nextPathIds.map((pathId) => `path:${pathId}`);
                       setSelectedTargetKey(
                         selectedKeys.length === 1 ? selectedKeys[0] : null
                       );
@@ -2428,6 +2429,7 @@ export function ZoneMoveEditorOverlay(props: {
                   selectedPathIds.length > 1;
                 const origin = shouldStartZoneGroupDrag
                   ? resolveGroupZoneDragOrigin({
+                      model,
                       layoutModel,
                       zoneIds: selectedZoneIds,
                       primaryZoneId: target.zoneId,
@@ -2938,20 +2940,15 @@ export function ZoneMoveEditorOverlay(props: {
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
-                    editor.onPathLabelClick?.({
-                      pathId: target.pathId,
-                      clientX: event.clientX,
-                      clientY: event.clientY,
-                    });
                   }}
                   onDoubleClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
                     if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
-                    editor.onPathLabelDoubleClick?.({
+                    const trigger = editor.onPathLabelDoubleClick ?? editor.onPathLabelClick;
+                    trigger?.({
                       pathId: target.pathId,
                       clientX: event.clientX,
                       clientY: event.clientY,

@@ -317,6 +317,24 @@ function getRectArea(rect: Rect): number {
   return rect.width * rect.height;
 }
 
+function resolveTopSelectedZoneId(params: {
+  model: UniverseModel;
+  selectedZoneIds: Set<ZoneId>;
+  zoneId: ZoneId;
+}): ZoneId {
+  const { model, selectedZoneIds, zoneId } = params;
+
+  let currentZoneId = zoneId;
+  let currentZone = model.zonesById[currentZoneId];
+
+  while (currentZone?.parentZoneId && selectedZoneIds.has(currentZone.parentZoneId)) {
+    currentZoneId = currentZone.parentZoneId;
+    currentZone = model.zonesById[currentZoneId];
+  }
+
+  return currentZoneId;
+}
+
 export function getMoveEditorTargets(params: {
   model: UniverseModel;
   frame: RendererFrame;
@@ -406,14 +424,29 @@ export function resolveMoveEditorDragOrigin(
 }
 
 export function resolveGroupZoneDragOrigin(params: {
+  model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   zoneIds: ZoneId[];
   primaryZoneId: ZoneId;
 }): MoveEditorDragOrigin | undefined {
-  const { layoutModel, zoneIds, primaryZoneId } = params;
+  const { model, layoutModel, zoneIds, primaryZoneId } = params;
+  const selectedZoneIds = new Set(zoneIds);
+  const effectiveZoneIds = zoneIds.filter(
+    (zoneId) =>
+      resolveTopSelectedZoneId({
+        model,
+        selectedZoneIds,
+        zoneId,
+      }) === zoneId
+  );
+  const effectivePrimaryZoneId = resolveTopSelectedZoneId({
+    model,
+    selectedZoneIds,
+    zoneId: primaryZoneId,
+  });
   const originsByZoneId: Record<ZoneId, Point> = {} as Record<ZoneId, Point>;
 
-  for (const zoneId of zoneIds) {
+  for (const zoneId of effectiveZoneIds) {
     const zoneLayout = getZoneLayout(layoutModel, zoneId);
     if (!zoneLayout) continue;
     originsByZoneId[zoneId] = {
@@ -422,13 +455,13 @@ export function resolveGroupZoneDragOrigin(params: {
     };
   }
 
-  if (!originsByZoneId[primaryZoneId]) {
+  if (!originsByZoneId[effectivePrimaryZoneId]) {
     return undefined;
   }
 
   return {
     kind: "zone-group",
-    primaryZoneId,
+    primaryZoneId: effectivePrimaryZoneId,
     originsByZoneId,
   };
 }
