@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import type {UniverseLayoutModel, UniverseModel} from "@zoneflow/core";
+import {screenPointToWorldPoint} from "@zoneflow/editor-dom";
 import {
   type CameraState,
   type ComponentLayoutEngine,
@@ -96,6 +97,10 @@ export function UniverseCanvas({
     zones: [],
     paths: [],
   });
+  const externalDropEnabled =
+    zoneMoveEditor?.enabled &&
+    zoneMoveEditor.externalDrop?.enabled !== false &&
+    Boolean(zoneMoveEditor.externalDrop?.onDrop);
 
   const effectiveZoneComponentRenderers = useMemo(() => {
     if (!zoneComponents) return zoneComponentRenderers;
@@ -197,6 +202,35 @@ export function UniverseCanvas({
   return (
     <div
       ref={viewportRef}
+      onDragOver={(event) => {
+        if (!externalDropEnabled) return;
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={(event) => {
+        if (!externalDropEnabled) return;
+        event.preventDefault();
+
+        const bounds = viewportRef.current?.getBoundingClientRect();
+        const screenPoint = {
+          x: event.clientX - (bounds?.left ?? 0),
+          y: event.clientY - (bounds?.top ?? 0),
+        };
+
+        zoneMoveEditor?.externalDrop?.onDrop({
+          dataTransfer: event.dataTransfer,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          screenPoint,
+          worldPoint: screenPointToWorldPoint(screenPoint, camera),
+          model,
+          layoutModel,
+          camera,
+          frame,
+        });
+      }}
       style={{
         width: "100%",
         height: "100%",

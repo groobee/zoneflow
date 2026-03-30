@@ -16,7 +16,11 @@ import type {
   ZoneVisualNode,
 } from "../types";
 import { resolveZoneAnchorRect } from "../anchors";
-import { isZoneInputEnabled, isZoneOutputEnabled } from "@zoneflow/core";
+import {
+  getZoneDepth,
+  isZoneInputEnabled,
+  isZoneOutputEnabled,
+} from "@zoneflow/core";
 
 const SCENE_PADDING = 64;
 
@@ -43,6 +47,22 @@ function clearHost(host: HTMLElement) {
 
 function createIdSet(ids?: string[]): Set<string> {
   return new Set(ids ?? []);
+}
+
+function sortZonesForRender(params: {
+  input: RendererDrawInput;
+  zonesById: Record<string, ZoneVisualNode>;
+}): ZoneVisualNode[] {
+  const zones = Object.values(params.zonesById);
+
+  return zones
+    .map((zone, index) => ({
+      zone,
+      index,
+      depth: getZoneDepth(params.input.model, zone.zoneId),
+    }))
+    .sort((a, b) => a.depth - b.depth || a.index - b.index)
+    .map((entry) => entry.zone);
 }
 
 function resolvePathDisplayName(params: {
@@ -720,11 +740,15 @@ export const domDrawEngine: DrawEngine = {
       input,
     });
 
-    for (const zoneVisual of Object.values(pipeline.graphLayout.zonesById)) {
+    for (const zoneVisual of sortZonesForRender({
+      input,
+      zonesById: pipeline.graphLayout.zonesById,
+    })) {
       const visibility = pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
       if (!visibility?.isVisible || excludedZoneIds.has(zoneVisual.zoneId)) continue;
 
       const componentLayout = pipeline.componentLayout.zonesById[zoneVisual.zoneId];
+      const zoneDepth = getZoneDepth(input.model, zoneVisual.zoneId);
       const zoneEl = document.createElement("div");
       const zoneBodyEl = document.createElement("div");
       const zoneChromeEl = document.createElement("div");
@@ -739,7 +763,7 @@ export const domDrawEngine: DrawEngine = {
         height: `${zoneVisual.rect.height}px`,
         opacity: getOpacity(visibility.emphasis),
         overflow: "visible",
-        zIndex: 1,
+        zIndex: zoneDepth + 1,
       });
 
       applyStyles(zoneBodyEl, {

@@ -8,6 +8,20 @@ const cardStyle: React.CSSProperties = {
   background: "rgba(15, 23, 42, 0.72)",
 };
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <div style={cardStyle}>{children}</div>;
+export function Card({
+  children,
+  style,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      {...props}
+      style={{
+        ...cardStyle,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
 }

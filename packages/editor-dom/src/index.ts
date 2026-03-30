@@ -7,6 +7,7 @@ export {
   distributeZonesByMode,
   resolveGroupPathDragOrigin,
   resolveGroupZoneDragOrigin,
+  resolveZonePlacementAtWorldRect,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
 } from "./zoneMoveEditor";

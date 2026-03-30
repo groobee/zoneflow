@@ -90,8 +90,7 @@ export default function App() {
         onCancelEdit={handleCancelEdit}
         onOpenDataModal={() => setIsDataModalOpen(true)}
       />
-정
-      <LeftPanel />
+      <LeftPanel isEditMode={isEditMode} />
 
       <CanvasHost
         model={workingModel}

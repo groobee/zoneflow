@@ -45,6 +45,29 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
+function sortZoneVisualsForRender(pipeline: any) {
+  function getDepth(zoneId: string) {
+    let depth = 0;
+    let current = pipeline.graphLayout.zonesById[zoneId]?.zone;
+
+    while (current?.parentZoneId) {
+      depth += 1;
+      current = pipeline.graphLayout.zonesById[current.parentZoneId]?.zone;
+    }
+
+    return depth;
+  }
+
+  return Object.values(pipeline.graphLayout.zonesById)
+    .map((zone: any, index: number) => ({
+      zone,
+      index,
+      depth: getDepth(zone.zoneId),
+    }))
+    .sort((a: any, b: any) => a.depth - b.depth || a.index - b.index)
+    .map((entry: any) => entry.zone);
+}
+
 function getEdgeColor(kind: "zone-to-path" | "path-to-zone") {
   return kind === "zone-to-path" ? "#2563eb" : "#0f766e";
 }
@@ -280,7 +303,7 @@ function drawGraphLayout(
 ) {
   const { graphLayout } = pipeline;
 
-  Object.values(graphLayout.zonesById).forEach((zone: any) => {
+  sortZoneVisualsForRender(pipeline).forEach((zone: any) => {
     drawBox(root, zone.rect, "blue", zone.zone.name, camera);
   });
 

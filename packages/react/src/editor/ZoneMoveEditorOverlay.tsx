@@ -6,7 +6,9 @@ import {
   removeZone,
 } from "@zoneflow/core";
 import type {
+  Path,
   PathId,
+  Point,
   UniverseLayoutModel,
   UniverseModel,
   Zone,
@@ -86,8 +88,22 @@ export type ZoneEditorRenderProps = {
 export type PathLabelEventPayload = {
   pathId: PathId;
   sourceZoneId: ZoneId;
+  path: Path;
+  sourceZone: Zone;
   clientX: number;
   clientY: number;
+};
+
+export type CanvasExternalDropPayload = {
+  dataTransfer: DataTransfer | null;
+  clientX: number;
+  clientY: number;
+  screenPoint: Point;
+  worldPoint: Point;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  camera: CameraState;
+  frame: RendererFrame | null;
 };
 
 export type ZoneMoveEditorConfig = {
@@ -105,6 +121,10 @@ export type ZoneMoveEditorConfig = {
   onPathLabelClick?: (event: PathLabelEventPayload) => void;
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
   onPathLabelContextMenu?: (event: PathLabelEventPayload) => void;
+  externalDrop?: {
+    enabled?: boolean;
+    onDrop: (event: CanvasExternalDropPayload) => void;
+  };
   deleteInteraction?: {
     animation?: boolean;
     confirm?: boolean;
@@ -276,6 +296,30 @@ function resolveDeleteButtonPosition(target: MoveEditorTarget) {
 
 function resolveDeleteTargetLabel(target: MoveEditorTarget) {
   return target.kind === "zone" ? `존 "${target.label}"` : `패스 "${target.label}"`;
+}
+
+function resolvePathLabelEventPayload(params: {
+  model: UniverseModel;
+  pathId: PathId;
+  clientX: number;
+  clientY: number;
+}): PathLabelEventPayload | null {
+  const { model, pathId, clientX, clientY } = params;
+  const sourceZoneId = findPathSourceZoneId(model, pathId);
+  if (!sourceZoneId) return null;
+
+  const sourceZone = model.zonesById[sourceZoneId];
+  const path = sourceZone?.pathsById[pathId];
+  if (!sourceZone || !path) return null;
+
+  return {
+    pathId,
+    sourceZoneId,
+    path,
+    sourceZone,
+    clientX,
+    clientY,
+  };
 }
 
 function toCanvasScreenPoint(
@@ -2941,15 +2985,15 @@ export function ZoneMoveEditorOverlay(props: {
                     event.stopPropagation();
                     if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
-                    const sourceZoneId = findPathSourceZoneId(model, target.pathId);
-                    if (!sourceZoneId) return;
-                    const trigger = editor.onPathLabelDoubleClick ?? editor.onPathLabelClick;
-                    trigger?.({
+                    const payload = resolvePathLabelEventPayload({
+                      model,
                       pathId: target.pathId,
-                      sourceZoneId,
                       clientX: event.clientX,
                       clientY: event.clientY,
                     });
+                    if (!payload) return;
+                    const trigger = editor.onPathLabelDoubleClick ?? editor.onPathLabelClick;
+                    trigger?.(payload);
                   }}
                   onContextMenu={(event) => {
                     if (!editor.onPathLabelContextMenu) return;
@@ -2958,14 +3002,14 @@ export function ZoneMoveEditorOverlay(props: {
                     event.stopPropagation();
                     if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
-                    const sourceZoneId = findPathSourceZoneId(model, target.pathId);
-                    if (!sourceZoneId) return;
-                    editor.onPathLabelContextMenu({
+                    const payload = resolvePathLabelEventPayload({
+                      model,
                       pathId: target.pathId,
-                      sourceZoneId,
                       clientX: event.clientX,
                       clientY: event.clientY,
                     });
+                    if (!payload) return;
+                    editor.onPathLabelContextMenu(payload);
                   }}
                   style={{
                     position: "absolute",

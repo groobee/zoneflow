@@ -1,8 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
-import { findPathSourceZoneId, type PathId, type ZoneId } from "@zoneflow/core";
-import { UniverseCanvas, type ZoneMoveEditorConfig } from "@zoneflow/react";
-import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
+import {
+  createZone,
+  createZoneId,
+  createZoneLayout,
+  findPathSourceZoneId,
+  setZoneLayout,
+  type PathId,
+  type UniverseLayoutModel,
+  type UniverseModel,
+  type ZoneId,
+} from "@zoneflow/core";
+import {
+  resolveZonePlacementAtWorldRect,
+} from "@zoneflow/editor-dom";
+import {
+  UniverseCanvas,
+  type CanvasExternalDropPayload,
+  type PathLabelEventPayload,
+  type ZoneMoveEditorConfig,
+} from "@zoneflow/react";
 import type { DebugState } from "../../hooks/useDebugState";
+import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
 import {
   pathComponents,
@@ -26,17 +44,30 @@ type Props = {
   onResize: (size: { width: number; height: number }) => void;
 };
 
+function roundCoordinate(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function snapCoordinate(
+  value: number,
+  enabled: boolean,
+  size: 8 | 12 | 16 | 24
+): number {
+  if (!enabled) return roundCoordinate(value);
+  return roundCoordinate(Math.round(value / size) * size);
+}
+
 export function CanvasHost({
-                             model,
-                             layoutModel,
-                             isEditMode,
-                             gridSnapEnabled,
-                             gridSnapSize,
-                             onDraftModelChange,
-                             onDraftLayoutModelChange,
-                             debug,
-                             onResize,
-                           }: Props) {
+  model,
+  layoutModel,
+  isEditMode,
+  gridSnapEnabled,
+  gridSnapSize,
+  onDraftModelChange,
+  onDraftLayoutModelChange,
+  debug,
+  onResize,
+}: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [editingPath, setEditingPath] = useState<{
     pathId: PathId;
@@ -48,7 +79,6 @@ export function CanvasHost({
     if (!ref.current) return;
 
     const el = ref.current;
-
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0].contentRect;
 
@@ -59,7 +89,6 @@ export function CanvasHost({
     });
 
     observer.observe(el);
-
     return () => observer.disconnect();
   }, [onResize]);
 
@@ -82,19 +111,72 @@ export function CanvasHost({
     setEditingPath(null);
   }, [editingPath, model]);
 
+  const handlePaletteZoneDrop = (event: CanvasExternalDropPayload) => {
+    const template = readPaletteZoneDragData(event.dataTransfer);
+    if (!template) return;
+
+    const worldRect = {
+      x: snapCoordinate(
+        event.worldPoint.x - template.width / 2,
+        gridSnapEnabled,
+        gridSnapSize
+      ),
+      y: snapCoordinate(
+        event.worldPoint.y - template.height / 2,
+        gridSnapEnabled,
+        gridSnapSize
+      ),
+      width: template.width,
+      height: template.height,
+    };
+    const placement = resolveZonePlacementAtWorldRect({
+      model,
+      layoutModel,
+      worldRect,
+    });
+    const zoneId = createZoneId();
+    const nextModel = createZone(model, {
+      id: zoneId,
+      name: template.label,
+      parentZoneId: placement.parentZoneId,
+      zoneType: template.zoneType,
+      action: template.action,
+      inputDisabled: template.inputDisabled,
+      outputDisabled: template.outputDisabled,
+      meta: template.meta,
+    });
+    const nextLayoutModel = setZoneLayout(
+      layoutModel,
+      zoneId,
+      createZoneLayout({
+        x: placement.x,
+        y: placement.y,
+        width: template.width,
+        height: template.height,
+      })
+    );
+
+    onDraftModelChange(nextModel);
+    onDraftLayoutModelChange(nextLayoutModel);
+  };
+
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = isEditMode
     ? {
-      enabled: true,
-      gridSnap: {
-        enabled: gridSnapEnabled,
-        size: gridSnapSize,
-      },
-      onModelChange: onDraftModelChange,
-      onLayoutModelChange: onDraftLayoutModelChange,
-      deleteInteraction: {
-        animation: true,
-        confirm: true,
-      },
+        enabled: true,
+        gridSnap: {
+          enabled: gridSnapEnabled,
+          size: gridSnapSize,
+        },
+        onModelChange: onDraftModelChange,
+        onLayoutModelChange: onDraftLayoutModelChange,
+        externalDrop: {
+          enabled: true,
+          onDrop: handlePaletteZoneDrop,
+        },
+        deleteInteraction: {
+          animation: true,
+          confirm: true,
+        },
         renderZoneEditButton: (props) => (
           <PlaygroundZoneEditButton {...props} />
         ),
@@ -104,19 +186,13 @@ export function CanvasHost({
         onPathLabelDoubleClick: ({
           pathId,
           sourceZoneId,
-        }: {
-          pathId: PathId;
-          sourceZoneId: ZoneId;
-        }) => {
+        }: PathLabelEventPayload) => {
           setEditingPath({ pathId, sourceZoneId });
         },
         onPathLabelContextMenu: ({
           pathId,
           sourceZoneId,
-        }: {
-          pathId: PathId;
-          sourceZoneId: ZoneId;
-        }) => {
+        }: PathLabelEventPayload) => {
           setEditingPath({ pathId, sourceZoneId });
         },
       }

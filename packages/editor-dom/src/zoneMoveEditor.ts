@@ -350,7 +350,8 @@ export function getMoveEditorTargets(params: {
 
   const includeRoot = options?.includeRoot ?? true;
   const minVisibleSize = options?.minVisibleSize ?? DEFAULT_MIN_VISIBLE_SIZE;
-  const targets: MoveEditorTarget[] = [];
+  const zoneTargets: Array<MoveEditorTarget & { kind: "zone"; depth: number }> = [];
+  const pathTargets: MoveEditorTarget[] = [];
 
   for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
     const zone = model.zonesById[zoneVisual.zoneId];
@@ -365,12 +366,13 @@ export function getMoveEditorTargets(params: {
       continue;
     }
 
-    targets.push({
+    zoneTargets.push({
       key: `zone:${zoneVisual.zoneId}`,
       kind: "zone",
       zoneId: zoneVisual.zoneId,
       label: zone.name,
       rect,
+      depth: getZoneDepth(model, zoneVisual.zoneId),
     });
   }
 
@@ -385,7 +387,7 @@ export function getMoveEditorTargets(params: {
       continue;
     }
 
-    targets.push({
+    pathTargets.push({
       key: `path:${pathVisual.pathId}`,
       kind: "path",
       pathId: pathVisual.pathId,
@@ -394,7 +396,12 @@ export function getMoveEditorTargets(params: {
     });
   }
 
-  return targets;
+  return [
+    ...zoneTargets
+      .sort((a, b) => a.depth - b.depth)
+      .map(({ depth: _depth, ...target }) => target),
+    ...pathTargets,
+  ];
 }
 
 export function resolveMoveEditorDragOrigin(
@@ -1149,6 +1156,67 @@ export function resolveZoneReparentCandidate(params: {
     candidateParentZoneId:
       bestDepth >= 0 ? nextParentZoneId : null,
     currentParentZoneId: zone.parentZoneId,
+    worldRect,
+  };
+}
+
+export function resolveZonePlacementAtWorldRect(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  worldRect: Rect;
+}): {
+  parentZoneId: ZoneId | null;
+  x: number;
+  y: number;
+  worldRect: Rect;
+} {
+  const { model, layoutModel, worldRect } = params;
+  const centerPoint = {
+    x: worldRect.x + worldRect.width / 2,
+    y: worldRect.y + worldRect.height / 2,
+  };
+  const cache = new Map<ZoneId, Point>();
+  let parentZoneId: ZoneId | null = null;
+  let bestDepth = -1;
+  let bestArea = Number.POSITIVE_INFINITY;
+
+  for (const candidateZone of typedValues(model.zonesById)) {
+    const candidateRect = resolveWorldZoneRect({
+      model,
+      layoutModel,
+      zoneId: candidateZone.id,
+      cache,
+    });
+
+    if (!candidateRect || !containsPoint(candidateRect, centerPoint)) {
+      continue;
+    }
+
+    const candidateDepth = getZoneDepth(model, candidateZone.id);
+    const candidateArea = getRectArea(candidateRect);
+
+    if (
+      candidateDepth > bestDepth ||
+      (candidateDepth === bestDepth && candidateArea < bestArea)
+    ) {
+      parentZoneId = candidateZone.id;
+      bestDepth = candidateDepth;
+      bestArea = candidateArea;
+    }
+  }
+
+  const parentOrigin = parentZoneId
+    ? resolveWorldZoneOrigin({
+        model,
+        layoutModel,
+        zoneId: parentZoneId,
+      })
+    : ROOT_WORLD_ORIGIN;
+
+  return {
+    parentZoneId,
+    x: roundCoordinate(worldRect.x - parentOrigin.x),
+    y: roundCoordinate(worldRect.y - parentOrigin.y),
     worldRect,
   };
 }
