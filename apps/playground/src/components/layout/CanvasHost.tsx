@@ -22,12 +22,14 @@ type Props = {
   editor: UniverseEditorController;
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
+  overlayHudVisible: boolean;
 };
 
 export function CanvasHost({
   editor,
   debug,
   onResize,
+  overlayHudVisible,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -82,6 +84,9 @@ export function CanvasHost({
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{
+          overlayControls: {
+            enabled: overlayHudVisible,
+          },
           externalDrop: {
             enabled: true,
             onDrop: handlePaletteZoneDrop,

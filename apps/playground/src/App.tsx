@@ -47,6 +47,7 @@ export default function App() {
     height: 0,
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [overlayHudVisible, setOverlayHudVisible] = useState(true);
   const isEditMode = editor.isEditMode;
   const workingModel = editor.model;
   const workingLayoutModel = editor.layoutModel;
@@ -62,6 +63,8 @@ export default function App() {
         sampleType={sampleType}
         setSampleType={handleSampleTypeChange}
         editor={editor}
+        overlayHudVisible={overlayHudVisible}
+        onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
         onOpenDataModal={() => setIsDataModalOpen(true)}
       />
       <LeftPanel isEditMode={isEditMode} />
@@ -70,6 +73,7 @@ export default function App() {
         editor={editor}
         debug={debug}
         onResize={setHostSize}
+        overlayHudVisible={overlayHudVisible}
       />
 
       <RightPanel

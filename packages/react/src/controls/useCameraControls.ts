@@ -352,7 +352,7 @@ export function useCameraControls({
     };
 
     host.addEventListener("wheel", handleWheel, { passive: false });
-    host.addEventListener("pointerdown", handlePointerDown);
+    host.addEventListener("pointerdown", handlePointerDown, true);
     window.addEventListener("pointermove", handlePointerMove, {
       passive: false,
     });
@@ -363,7 +363,7 @@ export function useCameraControls({
 
     return () => {
       host.removeEventListener("wheel", handleWheel);
-      host.removeEventListener("pointerdown", handlePointerDown);
+      host.removeEventListener("pointerdown", handlePointerDown, true);
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerEndLike);
       window.removeEventListener("pointercancel", handlePointerEndLike);

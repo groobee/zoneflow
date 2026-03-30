@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type { CSSProperties } from "react";
 import type {UniverseLayoutModel, UniverseModel} from "@zoneflow/core";
 import {screenPointToWorldPoint} from "@zoneflow/editor-dom";
@@ -61,6 +61,8 @@ export type UniverseCanvasProps = {
   pathComponents?: PathSlotComponentMap;
   interactionHandlers?: RendererInteractionHandlers;
   zoneMoveEditor?: ZoneMoveEditorConfig;
+  cameraState?: CameraState;
+  onCameraChange?: (nextCamera: CameraState) => void;
 
   debug?: RendererDebugOptions;
 };
@@ -97,12 +99,14 @@ export function UniverseCanvas({
                                  pathComponents,
                                  interactionHandlers,
                                  zoneMoveEditor,
+                                 cameraState,
+                                 onCameraChange,
                                debug,
                                }: UniverseCanvasProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(createRenderer());
-  const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const [internalCamera, setInternalCamera] = useState<CameraState>(DEFAULT_CAMERA);
   const [frame, setFrame] = useState<RendererFrame | null>(null);
   const [exclusionState, setExclusionState] = useState<
     RendererExclusionState | undefined
@@ -111,6 +115,37 @@ export function UniverseCanvas({
     zones: [],
     paths: [],
   });
+  const camera = cameraState ?? internalCamera;
+  const cameraRef = useRef(camera);
+  const isControlledCameraRef = useRef(cameraState !== undefined);
+  const onCameraChangeRef = useRef(onCameraChange);
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+  useEffect(() => {
+    isControlledCameraRef.current = cameraState !== undefined;
+  }, [cameraState]);
+  useEffect(() => {
+    onCameraChangeRef.current = onCameraChange;
+  }, [onCameraChange]);
+
+  const setCamera = useCallback((
+    nextCamera: CameraState | ((prev: CameraState) => CameraState)
+  ) => {
+    const resolved =
+      typeof nextCamera === "function"
+        ? nextCamera(cameraRef.current)
+        : nextCamera;
+
+    cameraRef.current = resolved;
+
+    if (!isControlledCameraRef.current) {
+      setInternalCamera(resolved);
+    }
+
+    onCameraChangeRef.current?.(resolved);
+  }, []);
+
   const externalDropEnabled =
     zoneMoveEditor?.enabled &&
     zoneMoveEditor.externalDrop?.enabled !== false &&
@@ -263,6 +298,8 @@ export function UniverseCanvas({
     interactionHandlers,
     exclusionState,
     debug,
+    cameraState,
+    onCameraChange,
   ]);
 
   return (

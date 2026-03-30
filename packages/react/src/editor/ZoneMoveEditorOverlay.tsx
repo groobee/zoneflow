@@ -174,7 +174,26 @@ export type ZoneMoveEditorConfig = {
   onTransactionCancel?: (transaction: EditorTransactionMeta) => void;
   history?: {
     canUndo?: boolean;
+    canRedo?: boolean;
     onUndo?: () => void;
+    onRedo?: () => void;
+  };
+  overlayControls?: {
+    enabled?: boolean;
+    showHistory?: boolean;
+    showDelete?: boolean;
+    showGridToggle?: boolean;
+    showSnapToggle?: boolean;
+    showZoomControls?: boolean;
+    showZoomValue?: boolean;
+    gridVisible?: boolean;
+    onToggleGridVisible?: () => void;
+    snapEnabled?: boolean;
+    onToggleSnap?: () => void;
+    zoom?: number;
+    onZoomIn?: () => void;
+    onZoomOut?: () => void;
+    onResetZoom?: () => void;
   };
   externalDrop?: {
     enabled?: boolean;
@@ -1117,6 +1136,8 @@ export function ZoneMoveEditorOverlay(props: {
     editor?.deleteInteraction?.longPressMs ?? DELETE_LONG_PRESS_MS;
   const deleteUndoMs = editor?.deleteInteraction?.undoMs ?? DELETE_UNDO_MS;
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
+  const overlayControlsEnabled = editor?.overlayControls?.enabled ?? false;
+  const overlayControls = editor?.overlayControls;
 
   const startTransaction = (transaction: EditorTransactionMeta) => {
     if (activeTransactionRef.current) return;
@@ -2100,6 +2121,11 @@ export function ZoneMoveEditorOverlay(props: {
   const overlayWidth =
     overlayRef.current?.clientWidth ??
     (typeof window === "undefined" ? 0 : window.innerWidth);
+  const canDeleteSelection =
+    !deleteConfirmState &&
+    (selectedZoneIds.length > 0 ||
+      selectedPathIds.length > 0 ||
+      selectedTarget !== null);
 
   const editingZone = editingZoneId ? model.zonesById[editingZoneId] : undefined;
   const editingPathSourceZone = editingPathState
@@ -2182,7 +2208,15 @@ export function ZoneMoveEditorOverlay(props: {
       <div
         onPointerDown={(event) => {
           if (event.button !== 0) return;
+          if (event.pointerType === "touch") return;
+          if (event.altKey) return;
           if (event.target !== event.currentTarget) return;
+          const currentCursor = window.getComputedStyle(
+            event.currentTarget
+          ).cursor;
+          if (currentCursor === "grab" || currentCursor === "grabbing") {
+            return;
+          }
           if (
             dragRef.current ||
             resizeRef.current ||
@@ -2353,6 +2387,167 @@ export function ZoneMoveEditorOverlay(props: {
             label box. Drag empty canvas space to marquee-select zones and paths.
           </div>
         </div>
+
+        {overlayControlsEnabled ? (
+          <div
+            style={{
+              position: "absolute",
+              right: 16,
+              top: 16,
+              display: "grid",
+              gap: 8,
+              padding: 10,
+              minWidth: 198,
+              borderRadius: 14,
+              border: "1px solid rgba(148, 163, 184, 0.22)",
+              background: "rgba(15, 23, 42, 0.9)",
+              boxShadow: "0 16px 32px rgba(2, 6, 23, 0.22)",
+              pointerEvents: "auto",
+            }}
+          >
+            {overlayControls?.showHistory !== false ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => editor.history?.onUndo?.()}
+                  disabled={!editor.history?.canUndo}
+                  style={{
+                    ...HUD_BUTTON_STYLE,
+                    opacity: editor.history?.canUndo ? 1 : 0.48,
+                    cursor: editor.history?.canUndo ? "pointer" : "not-allowed",
+                  }}
+                >
+                  되돌리기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.history?.onRedo?.()}
+                  disabled={!editor.history?.canRedo}
+                  style={{
+                    ...HUD_BUTTON_STYLE,
+                    opacity: editor.history?.canRedo ? 1 : 0.48,
+                    cursor: editor.history?.canRedo ? "pointer" : "not-allowed",
+                  }}
+                >
+                  다시하기
+                </button>
+              </div>
+            ) : null}
+
+            {overlayControls?.showDelete !== false ? (
+              <button
+                type="button"
+                onClick={() => requestDeleteCurrentSelection()}
+                disabled={!canDeleteSelection}
+                style={{
+                  ...HUD_BUTTON_STYLE,
+                  background: canDeleteSelection
+                    ? "rgba(127, 29, 29, 0.74)"
+                    : "rgba(15, 23, 42, 0.72)",
+                  border: canDeleteSelection
+                    ? "1px solid rgba(248, 113, 113, 0.44)"
+                    : HUD_BUTTON_STYLE.border,
+                  color: canDeleteSelection ? "#fee2e2" : "#e2e8f0",
+                  opacity: canDeleteSelection ? 1 : 0.48,
+                  cursor: canDeleteSelection ? "pointer" : "not-allowed",
+                }}
+              >
+                선택 삭제
+              </button>
+            ) : null}
+
+            {(overlayControls?.showGridToggle !== false ||
+              overlayControls?.showSnapToggle !== false) ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: 8,
+                }}
+              >
+                {overlayControls?.showGridToggle !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => overlayControls?.onToggleGridVisible?.()}
+                    style={{
+                      ...HUD_BUTTON_STYLE,
+                      ...(overlayControls?.gridVisible ? HUD_ACTIVE_BUTTON_STYLE : null),
+                    }}
+                  >
+                    Grid {overlayControls?.gridVisible ? "On" : "Off"}
+                  </button>
+                ) : null}
+                {overlayControls?.showSnapToggle !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => overlayControls?.onToggleSnap?.()}
+                    style={{
+                      ...HUD_BUTTON_STYLE,
+                      ...(overlayControls?.snapEnabled ? HUD_ACTIVE_BUTTON_STYLE : null),
+                    }}
+                  >
+                    Snap {overlayControls?.snapEnabled ? "On" : "Off"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {(overlayControls?.showZoomControls !== false ||
+              overlayControls?.showZoomValue !== false) ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "36px minmax(0, 1fr) 36px",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                {overlayControls?.showZoomControls !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => overlayControls?.onZoomOut?.()}
+                    style={HUD_BUTTON_STYLE}
+                  >
+                    -
+                  </button>
+                ) : (
+                  <div />
+                )}
+                {overlayControls?.showZoomValue !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => overlayControls?.onResetZoom?.()}
+                    style={{
+                      ...HUD_BUTTON_STYLE,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {Math.round((overlayControls?.zoom ?? 1) * 100)}%
+                  </button>
+                ) : (
+                  <div />
+                )}
+                {overlayControls?.showZoomControls !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => overlayControls?.onZoomIn?.()}
+                    style={HUD_BUTTON_STYLE}
+                  >
+                    +
+                  </button>
+                ) : (
+                  <div />
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {selectionBounds && selectedZoneTargets.length > 1 ? (
           <div
@@ -3795,3 +3990,21 @@ export function ZoneMoveEditorOverlay(props: {
     </div>
   );
 }
+
+const HUD_BUTTON_STYLE: CSSProperties = {
+  border: "1px solid rgba(148, 163, 184, 0.22)",
+  borderRadius: 10,
+  background: "rgba(15, 23, 42, 0.74)",
+  color: "#e2e8f0",
+  minHeight: 34,
+  padding: "8px 10px",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const HUD_ACTIVE_BUTTON_STYLE: CSSProperties = {
+  background: "rgba(37, 99, 235, 0.92)",
+  border: "1px solid rgba(96, 165, 250, 0.4)",
+  color: "#eff6ff",
+};

@@ -13,6 +13,8 @@ type Props = {
   sampleType: "small" | "large";
   setSampleType: (value: "small" | "large") => void;
   editor: UniverseEditorController;
+  overlayHudVisible: boolean;
+  onToggleOverlayHud: () => void;
   onOpenDataModal: () => void;
 };
 
@@ -20,6 +22,8 @@ export function Topbar({
   sampleType,
   setSampleType,
   editor,
+  overlayHudVisible,
+  onToggleOverlayHud,
   onOpenDataModal,
 }: Props) {
   return (
@@ -37,9 +41,14 @@ export function Topbar({
         </select>
       }
       trailing={
-        <button type="button" style={buttonStyle} onClick={onOpenDataModal}>
-          데이터
-        </button>
+        <>
+          <button type="button" style={buttonStyle} onClick={onToggleOverlayHud}>
+            HUD {overlayHudVisible ? "On" : "Off"}
+          </button>
+          <button type="button" style={buttonStyle} onClick={onOpenDataModal}>
+            데이터
+          </button>
+        </>
       }
     />
   );
