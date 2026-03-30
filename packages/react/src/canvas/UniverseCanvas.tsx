@@ -63,6 +63,7 @@ export type UniverseCanvasProps = {
   zoneMoveEditor?: ZoneMoveEditorConfig;
   cameraState?: CameraState;
   onCameraChange?: (nextCamera: CameraState) => void;
+  onFrameChange?: (frame: RendererFrame | null) => void;
 
   debug?: RendererDebugOptions;
 };
@@ -101,6 +102,7 @@ export function UniverseCanvas({
                                  zoneMoveEditor,
                                  cameraState,
                                  onCameraChange,
+                                 onFrameChange,
                                debug,
                                }: UniverseCanvasProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -278,6 +280,7 @@ export function UniverseCanvas({
       zones: [],
       paths: [],
     });
+    onFrameChange?.(frame ?? null);
   }, [
     model,
     layoutModel,
@@ -300,6 +303,7 @@ export function UniverseCanvas({
     debug,
     cameraState,
     onCameraChange,
+    onFrameChange,
   ]);
 
   return (

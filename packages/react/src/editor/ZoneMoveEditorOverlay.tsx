@@ -185,12 +185,14 @@ export type ZoneMoveEditorConfig = {
     showDelete?: boolean;
     showGridToggle?: boolean;
     showSnapToggle?: boolean;
+    showFitToView?: boolean;
     showZoomControls?: boolean;
     showZoomValue?: boolean;
     gridVisible?: boolean;
     onToggleGridVisible?: () => void;
     snapEnabled?: boolean;
     onToggleSnap?: () => void;
+    onFitToView?: () => void;
     zoom?: number;
     onZoomIn?: () => void;
     onZoomOut?: () => void;
@@ -2488,6 +2490,16 @@ export function ZoneMoveEditorOverlay(props: {
                 }}
               >
                 선택 삭제
+              </button>
+            ) : null}
+
+            {overlayControls?.showFitToView !== false ? (
+              <button
+                type="button"
+                onClick={() => overlayControls?.onFitToView?.()}
+                style={HUD_BUTTON_STYLE}
+              >
+                한눈에 보기
               </button>
             ) : null}
 

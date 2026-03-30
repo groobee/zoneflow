@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { CameraState } from "@zoneflow/renderer-dom";
+import type { CameraState, RendererFrame, Rect } from "@zoneflow/renderer-dom";
 import { UniverseCanvas, type UniverseCanvasProps } from "../canvas/UniverseCanvas";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay";
 import type { UniverseEditorController } from "./useUniverseEditor";
@@ -18,7 +18,12 @@ type ControlledZoneMoveEditorConfig = Omit<
 
 export type UniverseEditorCanvasProps = Omit<
   UniverseCanvasProps,
-  "model" | "layoutModel" | "zoneMoveEditor" | "cameraState" | "onCameraChange"
+  | "model"
+  | "layoutModel"
+  | "zoneMoveEditor"
+  | "cameraState"
+  | "onCameraChange"
+  | "onFrameChange"
 > & {
   editor: UniverseEditorController;
   editorConfig?: ControlledZoneMoveEditorConfig;
@@ -33,6 +38,25 @@ const DEFAULT_CAMERA: CameraState = {
 const ZOOM_STEP = 1.1;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
+const FIT_TO_VIEW_PADDING = 64;
+const VIEWER_HUD_BUTTON_STYLE = {
+  appearance: "none",
+  border: "1px solid rgba(148, 163, 184, 0.22)",
+  background: "rgba(15, 23, 42, 0.72)",
+  color: "#e2e8f0",
+  borderRadius: 10,
+  height: 36,
+  padding: "0 12px",
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: "0.02em",
+  cursor: "pointer",
+} as const;
+const VIEWER_HUD_ACTIVE_BUTTON_STYLE = {
+  background: "rgba(37, 99, 235, 0.24)",
+  border: "1px solid rgba(96, 165, 250, 0.34)",
+  color: "#dbeafe",
+} as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -56,9 +80,70 @@ function zoomCameraAt(params: {
   };
 }
 
+function getUnionRect(rects: Rect[]): Rect | null {
+  if (rects.length === 0) return null;
+
+  let minX = rects[0].x;
+  let minY = rects[0].y;
+  let maxX = rects[0].x + rects[0].width;
+  let maxY = rects[0].y + rects[0].height;
+
+  for (const rect of rects.slice(1)) {
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.width);
+    maxY = Math.max(maxY, rect.y + rect.height);
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+function resolveSceneBounds(frame: RendererFrame | null): Rect | null {
+  if (!frame) return null;
+
+  const zoneRects = Object.values(frame.pipeline.graphLayout.zonesById).map(
+    (zone) => zone.rect
+  );
+  const pathRects = Object.values(frame.pipeline.graphLayout.pathsById)
+    .map((path) => path.rect)
+    .filter((rect): rect is Rect => rect !== undefined);
+
+  return getUnionRect([...zoneRects, ...pathRects]);
+}
+
+function fitCameraToWorldRect(params: {
+  rect: Rect;
+  viewportWidth: number;
+  viewportHeight: number;
+  padding?: number;
+}): CameraState {
+  const { rect, viewportWidth, viewportHeight, padding = FIT_TO_VIEW_PADDING } = params;
+  const availableWidth = Math.max(viewportWidth - padding * 2, 1);
+  const availableHeight = Math.max(viewportHeight - padding * 2, 1);
+  const zoom = clamp(
+    Math.min(availableWidth / rect.width, availableHeight / rect.height),
+    MIN_ZOOM,
+    MAX_ZOOM
+  );
+  const contentWidth = rect.width * zoom;
+  const contentHeight = rect.height * zoom;
+
+  return {
+    x: padding + (availableWidth - contentWidth) / 2 - rect.x * zoom,
+    y: padding + (availableHeight - contentHeight) / 2 - rect.y * zoom,
+    zoom,
+  };
+}
+
 export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
   const { editor, editorConfig, grid, ...canvasProps } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<RendererFrame | null>(null);
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
 
   const zoomAtCenter = useCallback((factor: number) => {
@@ -90,6 +175,23 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
     );
   }, []);
 
+  const fitToView = useCallback(() => {
+    const rect = hostRef.current?.getBoundingClientRect();
+    const sceneBounds = resolveSceneBounds(frameRef.current);
+
+    if (!rect || rect.width <= 0 || rect.height <= 0 || !sceneBounds) {
+      return;
+    }
+
+    setCamera(
+      fitCameraToWorldRect({
+        rect: sceneBounds,
+        viewportWidth: rect.width,
+        viewportHeight: rect.height,
+      })
+    );
+  }, []);
+
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = editor.isEditMode
     ? {
         ...editorConfig,
@@ -115,12 +217,14 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
           showDelete: editorConfig?.overlayControls?.showDelete,
           showGridToggle: editorConfig?.overlayControls?.showGridToggle,
           showSnapToggle: editorConfig?.overlayControls?.showSnapToggle,
+          showFitToView: editorConfig?.overlayControls?.showFitToView,
           showZoomControls: editorConfig?.overlayControls?.showZoomControls,
           showZoomValue: editorConfig?.overlayControls?.showZoomValue,
           gridVisible: editor.gridVisible,
           onToggleGridVisible: editor.toggleGridVisible,
           snapEnabled: editor.gridSnapEnabled,
           onToggleSnap: editor.toggleGridSnap,
+          onFitToView: fitToView,
           zoom: camera.zoom,
           onZoomIn: () => zoomAtCenter(ZOOM_STEP),
           onZoomOut: () => zoomAtCenter(1 / ZOOM_STEP),
@@ -128,6 +232,8 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
         },
       }
     : undefined;
+  const viewerOverlayControlsEnabled =
+    !editor.isEditMode && (editorConfig?.overlayControls?.enabled ?? false);
 
   return (
     <div
@@ -151,8 +257,125 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
         }}
         cameraState={camera}
         onCameraChange={setCamera}
+        onFrameChange={(nextFrame) => {
+          frameRef.current = nextFrame;
+        }}
         zoneMoveEditor={zoneMoveEditor}
       />
+      {viewerOverlayControlsEnabled ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 16,
+            top: 16,
+            display: "grid",
+            gap: 8,
+            padding: 10,
+            minWidth: 198,
+            borderRadius: 14,
+            border: "1px solid rgba(148, 163, 184, 0.22)",
+            background: "rgba(15, 23, 42, 0.9)",
+            boxShadow: "0 16px 32px rgba(2, 6, 23, 0.22)",
+            pointerEvents: "auto",
+            zIndex: 20,
+          }}
+        >
+          {editorConfig?.overlayControls?.showFitToView !== false ? (
+            <button
+              type="button"
+              onClick={fitToView}
+              style={VIEWER_HUD_BUTTON_STYLE}
+            >
+              한눈에 보기
+            </button>
+          ) : null}
+
+          {(editorConfig?.overlayControls?.showGridToggle !== false ||
+            editorConfig?.overlayControls?.showSnapToggle !== false) ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+              }}
+            >
+              {editorConfig?.overlayControls?.showGridToggle !== false ? (
+                <button
+                  type="button"
+                  onClick={editor.toggleGridVisible}
+                  style={{
+                    ...VIEWER_HUD_BUTTON_STYLE,
+                    ...(editor.gridVisible ? VIEWER_HUD_ACTIVE_BUTTON_STYLE : null),
+                  }}
+                >
+                  Grid {editor.gridVisible ? "On" : "Off"}
+                </button>
+              ) : null}
+              {editorConfig?.overlayControls?.showSnapToggle !== false ? (
+                <button
+                  type="button"
+                  onClick={editor.toggleGridSnap}
+                  style={{
+                    ...VIEWER_HUD_BUTTON_STYLE,
+                    ...(editor.gridSnapEnabled ? VIEWER_HUD_ACTIVE_BUTTON_STYLE : null),
+                  }}
+                >
+                  Snap {editor.gridSnapEnabled ? "On" : "Off"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {(editorConfig?.overlayControls?.showZoomControls !== false ||
+            editorConfig?.overlayControls?.showZoomValue !== false) ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "36px minmax(0, 1fr) 36px",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              {editorConfig?.overlayControls?.showZoomControls !== false ? (
+                <button
+                  type="button"
+                  onClick={() => zoomAtCenter(1 / ZOOM_STEP)}
+                  style={VIEWER_HUD_BUTTON_STYLE}
+                >
+                  -
+                </button>
+              ) : (
+                <div />
+              )}
+              {editorConfig?.overlayControls?.showZoomValue !== false ? (
+                <button
+                  type="button"
+                  onClick={resetZoom}
+                  style={{
+                    ...VIEWER_HUD_BUTTON_STYLE,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {Math.round(camera.zoom * 100)}%
+                </button>
+              ) : (
+                <div />
+              )}
+              {editorConfig?.overlayControls?.showZoomControls !== false ? (
+                <button
+                  type="button"
+                  onClick={() => zoomAtCenter(ZOOM_STEP)}
+                  style={VIEWER_HUD_BUTTON_STYLE}
+                >
+                  +
+                </button>
+              ) : (
+                <div />
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
