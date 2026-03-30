@@ -11,23 +11,28 @@ const zoneLayoutsById: Record<string, ZoneLayout> = {};
 function createPath(params: {
   id: string;
   key: string;
-  name: string;
-  targetZoneId: string;
-  ruleType: string;
+  name?: string;
+  targetZoneId?: string | null;
+  ruleType?: string | null;
   payload?: Record<string, unknown>;
 }): Path {
   return {
     id: params.id,
     key: params.key,
-    name: params.name,
-    target: {
-      universeId: "complex-retention",
-      zoneId: params.targetZoneId,
-    },
-    rule: {
-      type: params.ruleType,
-      payload: params.payload ?? {},
-    },
+    name: params.name ?? "",
+    target: params.targetZoneId
+      ? {
+          universeId: "complex-retention",
+          zoneId: params.targetZoneId,
+        }
+      : null,
+    rule:
+      params.ruleType === undefined || params.ruleType === null
+        ? null
+        : {
+            type: params.ruleType,
+            payload: params.payload ?? {},
+          },
   };
 }
 
@@ -44,6 +49,8 @@ function createActionZone(params: {
   pathIds?: string[];
   pathsById?: Record<string, Path>;
   payload?: Record<string, unknown>;
+  inputDisabled?: boolean;
+  outputDisabled?: boolean;
 }): Zone {
   const width = params.width ?? 190;
   const height = params.height ?? 120;
@@ -59,7 +66,7 @@ function createActionZone(params: {
       },
       outlet: {
         point: { x: width, y: height / 2 },
-      }
+      },
     },
   };
 
@@ -68,6 +75,8 @@ function createActionZone(params: {
     parentZoneId: params.parentZoneId,
     name: params.name,
     zoneType: "action",
+    inputDisabled: params.inputDisabled,
+    outputDisabled: params.outputDisabled,
     childZoneIds: [],
     action: {
       type: params.actionType,
@@ -108,7 +117,7 @@ function createContainerZone(params: {
       },
       outlet: {
         point: { x: width, y: height / 2 },
-      }
+      },
     },
   };
 
@@ -147,10 +156,10 @@ const containerConfigs = [
   {
     id: "container-1",
     name: "Acquisition Journey",
-    x: 120,
-    y: 120,
+    x: 60,
+    y: 80,
     color: containerColors[0],
-    childZoneIds: ["action-1", "action-2", "action-3"],
+    childZoneIds: ["container-1-engage", "action-3"],
     pathTargets: [
       "action-1",
       "action-2",
@@ -158,15 +167,16 @@ const containerConfigs = [
       "action-4",
       "action-terminal-1",
       "action-terminal-2",
+      "action-terminal-3",
     ],
   },
   {
     id: "container-2",
     name: "Retention Journey",
-    x: 980,
-    y: 120,
+    x: 60,
+    y: 430,
     color: containerColors[1],
-    childZoneIds: ["action-4", "action-5", "action-6"],
+    childZoneIds: ["container-2-offers", "action-6"],
     pathTargets: [
       "action-4",
       "action-5",
@@ -174,13 +184,14 @@ const containerConfigs = [
       "action-7",
       "action-terminal-2",
       "action-terminal-3",
+      "action-terminal-4",
     ],
   },
   {
     id: "container-3",
     name: "Recovery Journey",
-    x: 120,
-    y: 560,
+    x: 60,
+    y: 780,
     color: containerColors[2],
     childZoneIds: ["action-7", "action-8", "action-9", "action-10"],
     pathTargets: [
@@ -188,6 +199,7 @@ const containerConfigs = [
       "action-7",
       "action-8",
       "action-9",
+      "action-terminal-1",
       "action-terminal-3",
       "action-terminal-4",
     ],
@@ -244,12 +256,19 @@ containerConfigs.forEach((container, containerIndex) => {
       ruleType: "segment",
       payload: { segment: "vip-user" },
     },
+    {
+      suffix: "draft",
+      key: "draft",
+      name: "",
+      targetZoneId: container.pathTargets[6],
+      ruleType: null,
+    },
   ];
 
   const pathsById: Record<string, Path> = {};
   const pathIds: string[] = [];
 
-  containerPathDefs.forEach((def, idx) => {
+  containerPathDefs.forEach((def) => {
     const id = `path-${container.id}-${def.suffix}`;
     pathIds.push(id);
     pathsById[id] = createPath({
@@ -269,32 +288,77 @@ containerConfigs.forEach((container, containerIndex) => {
     childZoneIds: container.childZoneIds,
     x: container.x,
     y: container.y,
-    width: 720,
-    height: 280,
+    width: 980,
+    height: 320,
     color: container.color,
     pathIds,
     pathsById,
   });
 });
 
+zonesById["container-1-engage"] = createContainerZone({
+  id: "container-1-engage",
+  parentZoneId: "container-1",
+  name: "Engagement Cluster",
+  childZoneIds: ["action-1", "action-2"],
+  x: 24,
+  y: 24,
+  width: 600,
+  height: 160,
+  color: "#60a5fa",
+  pathIds: ["path-container-1-engage-draft"],
+  pathsById: {
+    "path-container-1-engage-draft": createPath({
+      id: "path-container-1-engage-draft",
+      key: "draft",
+      name: "",
+      targetZoneId: "action-3",
+      ruleType: null,
+    }),
+  },
+});
+
+zonesById["container-2-offers"] = createContainerZone({
+  id: "container-2-offers",
+  parentZoneId: "container-2",
+  name: "Offer Cluster",
+  childZoneIds: ["action-4", "action-5"],
+  x: 24,
+  y: 24,
+  width: 600,
+  height: 160,
+  color: "#a78bfa",
+  pathIds: ["path-container-2-offers-ready"],
+  pathsById: {
+    "path-container-2-offers-ready": createPath({
+      id: "path-container-2-offers-ready",
+      key: "ready",
+      name: "Offer Ready",
+      targetZoneId: "action-6",
+      ruleType: "segment",
+      payload: { segment: "offer-qualified" },
+    }),
+  },
+});
+
 const actionConfigs = [
   {
     id: "action-1",
-    parentZoneId: "container-1",
+    parentZoneId: "container-1-engage",
     name: "Send Push A",
     actionType: "sendPush",
-    x: 28,
-    y: 34,
+    x: 24,
+    y: 24,
     color: actionColors[0],
     next: "action-2",
   },
   {
     id: "action-2",
-    parentZoneId: "container-1",
+    parentZoneId: "container-1-engage",
     name: "Wait Response A",
     actionType: "wait",
-    x: 248,
-    y: 34,
+    x: 386,
+    y: 24,
     color: actionColors[1],
     next: "action-3",
   },
@@ -303,29 +367,28 @@ const actionConfigs = [
     parentZoneId: "container-1",
     name: "Send Email A",
     actionType: "sendEmail",
-    x: 468,
-    y: 34,
+    x: 780,
+    y: 88,
     color: actionColors[2],
-    next: "container-2",
+    next: "action-4",
   },
-
   {
     id: "action-4",
-    parentZoneId: "container-2",
+    parentZoneId: "container-2-offers",
     name: "Send Push B",
     actionType: "sendPush",
-    x: 28,
-    y: 34,
+    x: 24,
+    y: 24,
     color: actionColors[3],
     next: "action-5",
   },
   {
     id: "action-5",
-    parentZoneId: "container-2",
+    parentZoneId: "container-2-offers",
     name: "Wait Response B",
     actionType: "wait",
-    x: 248,
-    y: 34,
+    x: 386,
+    y: 24,
     color: actionColors[4],
     next: "action-6",
   },
@@ -334,19 +397,18 @@ const actionConfigs = [
     parentZoneId: "container-2",
     name: "Send Coupon B",
     actionType: "sendCoupon",
-    x: 468,
-    y: 34,
+    x: 780,
+    y: 88,
     color: actionColors[5],
-    next: "container-3",
+    next: "action-7",
   },
-
   {
     id: "action-7",
     parentZoneId: "container-3",
     name: "Send Push C",
     actionType: "sendPush",
-    x: 28,
-    y: 34,
+    x: 36,
+    y: 28,
     color: actionColors[6],
     next: "action-8",
   },
@@ -355,8 +417,8 @@ const actionConfigs = [
     parentZoneId: "container-3",
     name: "Wait Response C",
     actionType: "wait",
-    x: 248,
-    y: 34,
+    x: 382,
+    y: 28,
     color: actionColors[7],
     next: "action-9",
   },
@@ -365,8 +427,8 @@ const actionConfigs = [
     parentZoneId: "container-3",
     name: "Send Email C",
     actionType: "sendEmail",
-    x: 468,
-    y: 34,
+    x: 36,
+    y: 164,
     color: actionColors[8],
     next: "action-10",
   },
@@ -375,8 +437,8 @@ const actionConfigs = [
     parentZoneId: "container-3",
     name: "Assign Segment C",
     actionType: "assignSegment",
-    x: 248,
-    y: 150,
+    x: 382,
+    y: 164,
     color: actionColors[9],
     next: "action-terminal-1",
   },
@@ -410,6 +472,18 @@ actionConfigs.forEach((action, idx) => {
     });
   }
 
+  if (idx === 2 || idx === 7) {
+    const draftPathId = `path-${action.id}-draft`;
+    pathIds.push(draftPathId);
+    actionPaths[draftPathId] = createPath({
+      id: draftPathId,
+      key: "draft",
+      name: "",
+      targetZoneId: idx === 2 ? "action-terminal-2" : "action-terminal-4",
+      ruleType: null,
+    });
+  }
+
   zonesById[action.id] = createActionZone({
     id: action.id,
     parentZoneId: action.parentZoneId,
@@ -440,11 +514,12 @@ zonesById["action-terminal-1"] = createActionZone({
   parentZoneId: null,
   name: "Purchase Terminal",
   actionType: "markCompleted",
-  x: 1850,
-  y: 180,
+  x: 1280,
+  y: 110,
   width: 260,
   height: 130,
   color: "#16a34a",
+  outputDisabled: true,
   payload: { status: "purchased" },
 });
 
@@ -453,11 +528,12 @@ zonesById["action-terminal-2"] = createActionZone({
   parentZoneId: null,
   name: "Fallback Terminal",
   actionType: "sendCoupon",
-  x: 1850,
-  y: 360,
+  x: 1280,
+  y: 300,
   width: 260,
   height: 130,
   color: "#f59e0b",
+  outputDisabled: true,
   payload: { couponId: "fallback-coupon" },
 });
 
@@ -466,11 +542,12 @@ zonesById["action-terminal-3"] = createActionZone({
   parentZoneId: null,
   name: "Hot Lead Terminal",
   actionType: "assignSegment",
-  x: 1850,
-  y: 540,
+  x: 1280,
+  y: 560,
   width: 260,
   height: 130,
   color: "#ec4899",
+  outputDisabled: true,
   payload: { segment: "hot-lead" },
 });
 
@@ -479,20 +556,48 @@ zonesById["action-terminal-4"] = createActionZone({
   parentZoneId: null,
   name: "VIP Terminal",
   actionType: "assignSegment",
-  x: 1850,
-  y: 720,
+  x: 1280,
+  y: 750,
   width: 260,
   height: 130,
   color: "#8b5cf6",
+  outputDisabled: true,
   payload: { segment: "vip" },
 });
 
 function createSampleLargePathLayouts(): UniverseLayoutModel["pathLayoutsById"] {
   const pathLayoutsById: UniverseLayoutModel["pathLayoutsById"] = {};
+  const worldPositionCache = new Map<string, { x: number; y: number }>();
+
+  const resolveWorldPosition = (zoneId: string): { x: number; y: number } => {
+    const cached = worldPositionCache.get(zoneId);
+    if (cached) return cached;
+
+    const zone = zonesById[zoneId];
+    const layout = zoneLayoutsById[zoneId];
+    if (!zone || !layout) {
+      return { x: 0, y: 0 };
+    }
+
+    if (!zone.parentZoneId) {
+      const rootPosition = { x: layout.x, y: layout.y };
+      worldPositionCache.set(zoneId, rootPosition);
+      return rootPosition;
+    }
+
+    const parentPosition = resolveWorldPosition(zone.parentZoneId);
+    const nextPosition = {
+      x: parentPosition.x + layout.x,
+      y: parentPosition.y + layout.y,
+    };
+    worldPositionCache.set(zoneId, nextPosition);
+    return nextPosition;
+  };
 
   for (const sourceZone of Object.values(zonesById)) {
     const sourceLayout = zoneLayoutsById[sourceZone.id];
     if (!sourceLayout) continue;
+    const sourceWorldPosition = resolveWorldPosition(sourceZone.id);
 
     const total = sourceZone.pathIds.length;
     if (total === 0) continue;
@@ -503,17 +608,17 @@ function createSampleLargePathLayouts(): UniverseLayoutModel["pathLayoutsById"] 
 
       const targetLayout = zoneLayoutsById[path.target.zoneId];
       if (!targetLayout) return;
+      const targetWorldPosition = resolveWorldPosition(path.target.zoneId);
 
       const spread = index - (total - 1) / 2;
-      const horizontalDirection = targetLayout.x >= sourceLayout.x ? 1 : -1;
-      const verticalDirection = targetLayout.y >= sourceLayout.y ? 1 : -1;
-
-      const yStep = sourceZone.zoneType === "container" ? 22 : 14;
-      const xStep = sourceZone.zoneType === "container" ? 10 : 6;
+      const horizontalDirection =
+        targetWorldPosition.x >= sourceWorldPosition.x ? 1 : -1;
+      const yStep = sourceZone.zoneType === "container" ? 16 : 10;
+      const xStep = sourceZone.zoneType === "container" ? 8 : 4;
 
       const routeOffset = {
         x: Math.round(horizontalDirection * Math.abs(spread) * xStep),
-        y: Math.round(spread * yStep + verticalDirection * Math.abs(spread) * 2),
+        y: Math.round(spread * yStep),
       };
 
       pathLayoutsById[pathId] = { routeOffset };
@@ -526,7 +631,7 @@ function createSampleLargePathLayouts(): UniverseLayoutModel["pathLayoutsById"] 
 const sampleLargePathLayouts = createSampleLargePathLayouts();
 
 export const sampleLargeUniverse: UniverseModel = {
-  version: "2.0.0",
+  version: "2.1.0",
   universeId: "complex-retention",
   rootZoneIds: [
     "container-1",
@@ -540,13 +645,13 @@ export const sampleLargeUniverse: UniverseModel = {
   meta: {
     name: "Complex Retention Universe",
     description:
-      "3 containers, 10 actions, each container connected to 6 action-level routes.",
+      "Large sample with nested containers, draft paths, disabled terminal outputs, and cross-journey routing.",
   },
   zonesById,
 };
 
 export const sampleLargeUniverseLayout: UniverseLayoutModel = {
-  version: "1.0.0",
+  version: "2.1.0",
   universeId: sampleLargeUniverse.universeId,
   zoneLayoutsById,
   pathLayoutsById: sampleLargePathLayouts,

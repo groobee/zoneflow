@@ -407,7 +407,8 @@ export function getMoveEditorTargets(params: {
 
 export function resolveMoveEditorDragOrigin(
   layoutModel: UniverseLayoutModel,
-  target: MoveEditorTarget
+  target: MoveEditorTarget,
+  frame?: RendererFrame
 ): MoveEditorDragOrigin | undefined {
   if (target.kind === "zone") {
     const zoneLayout = getZoneLayout(layoutModel, target.zoneId);
@@ -418,6 +419,22 @@ export function resolveMoveEditorDragOrigin(
       zoneId: target.zoneId,
       originX: zoneLayout.x,
       originY: zoneLayout.y,
+    };
+  }
+
+  const resolvedRect = frame
+    ? resolvePathNodeRect({
+        frame,
+        layoutModel,
+        pathId: target.pathId,
+      })
+    : undefined;
+  if (resolvedRect?.componentId) {
+    return {
+      kind: "path",
+      pathId: target.pathId,
+      originX: resolvedRect.rect.x,
+      originY: resolvedRect.rect.y,
     };
   }
 

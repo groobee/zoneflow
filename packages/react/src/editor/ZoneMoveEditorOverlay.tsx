@@ -29,7 +29,6 @@ import {
   resolveGroupPathDragOrigin,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
-  resolveMoveEditorDragOrigin,
   resolveZoneResizeOrigin,
   screenPointToWorldPoint,
   type MoveEditorDragOrigin,
@@ -41,6 +40,7 @@ import {
   retargetPathFromOutputAnchorDrag,
 } from "../../../editor-dom/src/pathCreateEditor";
 import {
+  resolveMoveEditorDragOrigin,
   resolveGroupZoneDragOrigin,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
@@ -3330,7 +3330,7 @@ export function ZoneMoveEditorOverlay(props: {
                         pathIds: selectedPathIds,
                         primaryPathId: target.pathId,
                       })
-                  : resolveMoveEditorDragOrigin(layoutModel, target);
+                  : resolveMoveEditorDragOrigin(layoutModel, target, frame);
                 if (!origin) return;
 
                 cancelLongPress();
