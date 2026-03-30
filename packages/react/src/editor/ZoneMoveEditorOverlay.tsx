@@ -24,7 +24,13 @@ import {
   distributeZonesByMode,
   getMoveEditorTargets,
   moveEditorTargetByScreenDelta,
+  resolveGroupZoneDragOrigin,
+  resolveMoveEditorDragOrigin,
+  resolvePathOutputAnchorScreenRect,
+  resolvePathResizeOrigin,
   resizeZoneByScreenDelta,
+  resizePathNodeByScreenDelta,
+  retargetPathFromOutputAnchorDrag,
   resolveInputAnchorTargetZoneId,
   resolveGroupPathDragOrigin,
   resolveZoneReparentCandidate,
@@ -33,19 +39,9 @@ import {
   screenPointToWorldPoint,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
+  type PathResizeOrigin,
   type ZoneResizeOrigin,
 } from "@zoneflow/editor-dom";
-import {
-  resolvePathOutputAnchorScreenRect,
-  retargetPathFromOutputAnchorDrag,
-} from "../../../editor-dom/src/pathCreateEditor";
-import {
-  resolveMoveEditorDragOrigin,
-  resolveGroupZoneDragOrigin,
-  resolvePathResizeOrigin,
-  resizePathNodeByScreenDelta,
-  type PathResizeOrigin,
-} from "../../../editor-dom/src/zoneMoveEditor";
 import type {
   CameraState,
   PathComponentMount,
