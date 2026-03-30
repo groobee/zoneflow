@@ -1,0 +1,34 @@
+{
+  "name": "@zoneflow/react",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git@github-groobee:groobee/zoneflow.git",
+    "directory": "packages/react"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": ["dist"],
+  "peerDependencies": {
+    "react": "^18 || ^19",
+    "react-dom": "^18 || ^19"
+  },
+  "dependencies": {
+    "@zoneflow/core": "workspace:*",
+    "@zoneflow/renderer-dom": "workspace:*",
+    "@zoneflow/editor-dom": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "react-dom": "^19.2.4"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  }
+}

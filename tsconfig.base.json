@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@zoneflow/core": ["packages/core/src"],
+      "@zoneflow/renderer-dom": ["packages/renderer-dom/src"],
+      "@zoneflow/editor-dom": ["packages/editor-dom/src"],
+      "@zoneflow/react": ["packages/react/src"]
+    }
+  }
+}

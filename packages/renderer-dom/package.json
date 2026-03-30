@@ -1,0 +1,23 @@
+{
+  "name": "@zoneflow/renderer-dom",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git@github-groobee:groobee/zoneflow.git",
+    "directory": "packages/renderer-dom"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@zoneflow/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  }
+}
