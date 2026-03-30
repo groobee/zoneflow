@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./zoneCapabilities";
 
 export * from "./lookup";
 export * from "./path";

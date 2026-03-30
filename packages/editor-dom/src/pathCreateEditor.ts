@@ -1,6 +1,8 @@
 import {
   addPath,
   createPathId,
+  isZoneInputEnabled,
+  isZoneOutputEnabled,
   setPathTarget,
   type AnchorRect,
   updatePathLayout,
@@ -127,6 +129,8 @@ export function resolveZoneAnchorScreenRect(params: {
   const { frame, camera, zoneId, kind } = params;
   const zoneVisual = frame.pipeline.graphLayout.zonesById[zoneId];
   if (!zoneVisual) return undefined;
+  if (kind === "inlet" && !isZoneInputEnabled(zoneVisual.zone)) return undefined;
+  if (kind === "outlet" && !isZoneOutputEnabled(zoneVisual.zone)) return undefined;
 
   const anchorRect = resolveZoneAnchorRect({
     zoneRect: zoneVisual.rect,
@@ -152,6 +156,7 @@ export function resolveInputAnchorTargetZoneId(params: {
   for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
     if (excluded.has(zoneVisual.zoneId)) continue;
     if (!model.zonesById[zoneVisual.zoneId]) continue;
+    if (!isZoneInputEnabled(zoneVisual.zone)) continue;
 
     const visibility =
       frame.pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
@@ -240,6 +245,9 @@ export function retargetPathFromOutputAnchorDrag(params: {
 
   const sourceZone = model.zonesById[sourceZoneId];
   if (!sourceZone?.pathsById[pathId]) return undefined;
+  if (targetZoneId && !isZoneInputEnabled(model.zonesById[targetZoneId])) {
+    return undefined;
+  }
 
   return setPathTarget(
     model,
@@ -276,6 +284,10 @@ export function createPathFromOutputAnchorDrag(params: {
   const sourceZone = model.zonesById[sourceZoneId];
   const sourceVisual = frame.pipeline.graphLayout.zonesById[sourceZoneId];
   if (!sourceZone || !sourceVisual) return undefined;
+  if (!isZoneOutputEnabled(sourceZone)) return undefined;
+  if (targetZoneId && !isZoneInputEnabled(model.zonesById[targetZoneId])) {
+    return undefined;
+  }
 
   const pathId = createPathId();
   const nextPathIndex = sourceZone.pathIds.length;
@@ -296,17 +308,14 @@ export function createPathFromOutputAnchorDrag(params: {
   const nextModel = addPath(model, sourceZoneId, {
     id: pathId,
     key: `condition_${ordinal}`,
-    name: `Condition ${ordinal}`,
+    name: "Empty",
     target: targetZoneId
       ? {
           universeId: model.universeId,
           zoneId: targetZoneId,
         }
       : null,
-    rule: {
-      type: "manual",
-      payload: {},
-    },
+    rule: null,
   });
   const nextLayoutModel = updatePathLayout(layoutModel, pathId, {
     routeOffset,

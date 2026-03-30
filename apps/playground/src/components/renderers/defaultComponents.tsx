@@ -252,6 +252,8 @@ export const zoneComponents: ZoneSlotComponentMap = {
 
 export const pathComponents: PathSlotComponentMap = {
   label({ mount }: PathSlotComponentProps) {
+    const label = mount.context.path.name.trim() || "Empty";
+
     return (
       <Pathed style={{ display: "flex", alignItems: "center" }}>
         <div
@@ -266,14 +268,14 @@ export const pathComponents: PathSlotComponentMap = {
             whiteSpace: "nowrap",
           }}
         >
-          {mount.context.path.name}
+          {label}
         </div>
       </Pathed>
     );
   },
 
   rule({ mount }: PathSlotComponentProps) {
-    const label = mount.context.path.rule?.type ?? mount.context.path.key;
+    const label = mount.context.path.rule?.type ?? "Empty";
 
     return (
       <Pathed style={{ display: "flex", alignItems: "center" }}>
@@ -380,7 +382,9 @@ export const pathComponents: PathSlotComponentMap = {
             whiteSpace: "nowrap",
           }}
         >
-          {summarizePayload(mount.context.path.rule?.payload)}
+          {mount.context.path.rule
+            ? summarizePayload(mount.context.path.rule.payload)
+            : "No rule configured"}
         </div>
       </Pathed>
     );

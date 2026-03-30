@@ -54,3 +54,22 @@ export function getPathByKey(
 ): Path | undefined {
   return getPaths(zone).find((path) => path.key === key);
 }
+
+export function findPathSourceZoneId(
+  model: UniverseModel,
+  pathId: PathId
+): ZoneId | undefined {
+  for (const zone of Object.values(model.zonesById)) {
+    if (zone.pathsById[pathId]) return zone.id;
+  }
+
+  return undefined;
+}
+
+export function findPathSourceZone(
+  model: UniverseModel,
+  pathId: PathId
+): Zone | undefined {
+  const zoneId = findPathSourceZoneId(model, pathId);
+  return zoneId ? model.zonesById[zoneId] : undefined;
+}

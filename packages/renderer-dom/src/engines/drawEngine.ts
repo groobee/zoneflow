@@ -16,6 +16,7 @@ import type {
   ZoneVisualNode,
 } from "../types";
 import { resolveZoneAnchorRect } from "../anchors";
+import { isZoneInputEnabled, isZoneOutputEnabled } from "@zoneflow/core";
 
 const SCENE_PADDING = 64;
 
@@ -42,6 +43,15 @@ function clearHost(host: HTMLElement) {
 
 function createIdSet(ids?: string[]): Set<string> {
   return new Set(ids ?? []);
+}
+
+function resolvePathDisplayName(params: {
+  name: string;
+  rule: PathVisualNode["path"]["rule"];
+}): string {
+  const trimmed = params.name.trim();
+  if (trimmed) return trimmed;
+  return params.rule === null ? "Empty" : "Untitled";
 }
 
 function getOpacity(emphasis: VisibilityEmphasis): number {
@@ -236,7 +246,10 @@ function renderPathFallback(
   };
 
   if (slot === "label") {
-    host.textContent = context.path.name;
+    host.textContent = resolvePathDisplayName({
+      name: context.path.name,
+      rule: context.path.rule,
+    });
     applyStyles(host, {
       ...base,
       fontSize: "12px",
@@ -246,7 +259,7 @@ function renderPathFallback(
   }
 
   if (slot === "rule") {
-    host.textContent = context.path.rule?.type ?? context.path.key;
+    host.textContent = context.path.rule?.type ?? "empty";
     applyStyles(host, {
       ...base,
       color: context.theme.zoneSubtext,
@@ -268,9 +281,11 @@ function renderPathFallback(
   }
 
   if (slot === "body") {
-    host.textContent = context.path.rule?.payload
-      ? JSON.stringify(context.path.rule.payload)
-      : "condition";
+    host.textContent = context.path.rule
+      ? context.path.rule.payload
+        ? JSON.stringify(context.path.rule.payload)
+        : "No payload"
+      : "No rule configured";
     applyStyles(host, {
       ...base,
       whiteSpace: "normal",
@@ -541,8 +556,13 @@ function drawZoneAnchors(params: {
     zone.zone.zoneType === "action"
       ? "rgba(245, 158, 11, 0.96)"
       : "rgba(37, 99, 235, 0.96)";
+  const shouldRenderAnchor = (kind: "inlet" | "outlet") =>
+    kind === "inlet"
+      ? isZoneInputEnabled(zone.zone)
+      : isZoneOutputEnabled(zone.zone);
 
   for (const kind of ["inlet", "outlet"] as const) {
+    if (!shouldRenderAnchor(kind)) continue;
     const anchor = zone.anchors[kind];
     const rect = resolveZoneAnchorRect({
       zoneRect: zone.rect,

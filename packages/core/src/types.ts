@@ -53,7 +53,7 @@ export type Path = {
   key: string;
   name: string;
   target?: ZoneRef | null;
-  rule?: PathRule;
+  rule: PathRule | null;
   meta?: Record<string, unknown>;
 };
 
@@ -62,6 +62,8 @@ export type Zone = {
   parentZoneId: ZoneId | null;
   name: string;
   zoneType: ZoneType;
+  inputDisabled?: boolean;
+  outputDisabled?: boolean;
   childZoneIds: ZoneId[];
   action?: ZoneAction;
   pathIds: PathId[];

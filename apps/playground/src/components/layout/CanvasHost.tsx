@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { PathId, ZoneId } from "@zoneflow/core";
+import { findPathSourceZoneId, type PathId, type ZoneId } from "@zoneflow/core";
 import { UniverseCanvas, type ZoneMoveEditorConfig } from "@zoneflow/react";
 import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
 import type { DebugState } from "../../hooks/useDebugState";
@@ -13,10 +13,6 @@ import {
   PlaygroundZoneEditor,
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
-
-function hasPath(model: UniverseModel, pathId: PathId) {
-  return Object.values(model.zonesById).some((zone) => Boolean(zone.pathsById[pathId]));
-}
 
 type Props = {
   model: UniverseModel;
@@ -42,7 +38,10 @@ export function CanvasHost({
                              onResize,
                            }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [editingPathId, setEditingPathId] = useState<PathId | null>(null);
+  const [editingPath, setEditingPath] = useState<{
+    pathId: PathId;
+    sourceZoneId: ZoneId;
+  } | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<ZoneId | null>(null);
 
   useEffect(() => {
@@ -66,7 +65,7 @@ export function CanvasHost({
 
   useEffect(() => {
     if (isEditMode) return;
-    setEditingPathId(null);
+    setEditingPath(null);
     setEditingZoneId(null);
   }, [isEditMode]);
 
@@ -77,10 +76,11 @@ export function CanvasHost({
   }, [editingZoneId, model]);
 
   useEffect(() => {
-    if (!editingPathId) return;
-    if (hasPath(model, editingPathId)) return;
-    setEditingPathId(null);
-  }, [editingPathId, model]);
+    if (!editingPath) return;
+    const sourceZoneId = findPathSourceZoneId(model, editingPath.pathId);
+    if (sourceZoneId && sourceZoneId === editingPath.sourceZoneId) return;
+    setEditingPath(null);
+  }, [editingPath, model]);
 
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = isEditMode
     ? {
@@ -101,11 +101,23 @@ export function CanvasHost({
         onZoneEditClick: (zoneId: ZoneId) => {
           setEditingZoneId(zoneId);
         },
-        onPathLabelDoubleClick: ({ pathId }: { pathId: PathId }) => {
-          setEditingPathId(pathId);
+        onPathLabelDoubleClick: ({
+          pathId,
+          sourceZoneId,
+        }: {
+          pathId: PathId;
+          sourceZoneId: ZoneId;
+        }) => {
+          setEditingPath({ pathId, sourceZoneId });
         },
-        onPathLabelContextMenu: ({ pathId }: { pathId: PathId }) => {
-          setEditingPathId(pathId);
+        onPathLabelContextMenu: ({
+          pathId,
+          sourceZoneId,
+        }: {
+          pathId: PathId;
+          sourceZoneId: ZoneId;
+        }) => {
+          setEditingPath({ pathId, sourceZoneId });
         },
       }
     : undefined;
@@ -124,13 +136,14 @@ export function CanvasHost({
           layers: debug.layers,
         }}
       />
-      {editingPathId ? (
+      {editingPath ? (
         <PlaygroundPathEditor
-          key={editingPathId}
+          key={`${editingPath.sourceZoneId}:${editingPath.pathId}`}
           model={model}
-          pathId={editingPathId}
+          pathId={editingPath.pathId}
+          sourceZoneId={editingPath.sourceZoneId}
           onModelChange={onDraftModelChange}
-          onClose={() => setEditingPathId(null)}
+          onClose={() => setEditingPath(null)}
         />
       ) : null}
       {editingZoneId ? (

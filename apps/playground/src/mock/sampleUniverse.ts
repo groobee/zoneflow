@@ -14,6 +14,7 @@ export const sampleUniverse: UniverseModel = {
       parentZoneId: null,
       name: "Offsite Zone",
       zoneType: "container",
+      inputDisabled: true,
       childZoneIds: ["sendPush", "waitResponse"],
       pathIds: ["path-offsite-purchase", "path-offsite-timeout"],
       pathsById: {

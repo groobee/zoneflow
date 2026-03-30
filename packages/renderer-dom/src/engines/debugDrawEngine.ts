@@ -1,4 +1,8 @@
-import type { Point } from "@zoneflow/core";
+import {
+  isZoneInputEnabled,
+  isZoneOutputEnabled,
+  type Point,
+} from "@zoneflow/core";
 import type {
   CameraState,
   DebugLayer,
@@ -445,10 +449,10 @@ function drawAnchors(
     const inlet = zone.anchors?.inlet?.point;
     const outlet = zone.anchors?.outlet?.point;
 
-    if (inlet) {
+    if (inlet && isZoneInputEnabled(zone.zone)) {
       drawAnchor(root, inlet, "#2563eb", `${zone.zoneId}:in`, camera);
     }
-    if (outlet) {
+    if (outlet && isZoneOutputEnabled(zone.zone)) {
       drawAnchor(root, outlet, "#dc2626", `${zone.zoneId}:out`, camera);
     }
   });

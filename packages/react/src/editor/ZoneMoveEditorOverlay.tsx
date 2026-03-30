@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
+  findPathSourceZoneId,
   pruneLayoutModel,
   removePath,
   removeZone,
@@ -84,6 +85,7 @@ export type ZoneEditorRenderProps = {
 
 export type PathLabelEventPayload = {
   pathId: PathId;
+  sourceZoneId: ZoneId;
   clientX: number;
   clientY: number;
 };
@@ -274,16 +276,6 @@ function resolveDeleteButtonPosition(target: MoveEditorTarget) {
 
 function resolveDeleteTargetLabel(target: MoveEditorTarget) {
   return target.kind === "zone" ? `존 "${target.label}"` : `패스 "${target.label}"`;
-}
-
-function resolvePathSourceZoneId(model: UniverseModel, pathId: PathId): ZoneId | null {
-  for (const zone of Object.values(model.zonesById)) {
-    if (zone.pathsById[pathId]) {
-      return zone.id;
-    }
-  }
-
-  return null;
 }
 
 function toCanvasScreenPoint(
@@ -560,7 +552,7 @@ function renderPathFallback(
             whiteSpace: "nowrap",
           }}
         >
-          {context.path.name}
+          {context.path.name.trim() || "Empty"}
         </div>
       );
     case "rule":
@@ -574,7 +566,7 @@ function renderPathFallback(
             textTransform: "uppercase",
           }}
         >
-          {context.path.rule?.type ?? context.path.key}
+          {context.path.rule?.type ?? "Empty"}
         </div>
       );
     case "target":
@@ -595,9 +587,11 @@ function renderPathFallback(
     case "body":
       return (
         <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>
-          {context.path.rule?.payload
-            ? JSON.stringify(context.path.rule.payload)
-            : "No payload"}
+          {context.path.rule
+            ? context.path.rule.payload
+              ? JSON.stringify(context.path.rule.payload)
+              : "No payload"
+            : "No rule configured"}
         </div>
       );
   }
@@ -995,7 +989,7 @@ export function ZoneMoveEditorOverlay(props: {
       });
       setEditingZoneId((current) => (current === target.zoneId ? null : current));
     } else {
-      const sourceZoneId = resolvePathSourceZoneId(previousModel, target.pathId);
+      const sourceZoneId = findPathSourceZoneId(previousModel, target.pathId);
       if (!sourceZoneId) return;
 
       const nextModel = removePath(previousModel, sourceZoneId, target.pathId);
@@ -2947,9 +2941,12 @@ export function ZoneMoveEditorOverlay(props: {
                     event.stopPropagation();
                     if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
+                    const sourceZoneId = findPathSourceZoneId(model, target.pathId);
+                    if (!sourceZoneId) return;
                     const trigger = editor.onPathLabelDoubleClick ?? editor.onPathLabelClick;
                     trigger?.({
                       pathId: target.pathId,
+                      sourceZoneId,
                       clientX: event.clientX,
                       clientY: event.clientY,
                     });
@@ -2961,8 +2958,11 @@ export function ZoneMoveEditorOverlay(props: {
                     event.stopPropagation();
                     if (isPathLabelClickSuppressed(target.key)) return;
                     setSelectedTargetKey(target.key);
+                    const sourceZoneId = findPathSourceZoneId(model, target.pathId);
+                    if (!sourceZoneId) return;
                     editor.onPathLabelContextMenu({
                       pathId: target.pathId,
+                      sourceZoneId,
                       clientX: event.clientX,
                       clientY: event.clientY,
                     });

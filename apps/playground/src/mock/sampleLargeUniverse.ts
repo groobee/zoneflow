@@ -117,6 +117,7 @@ function createContainerZone(params: {
     parentZoneId: params.parentZoneId,
     name: params.name,
     zoneType: "container",
+    inputDisabled: true,
     childZoneIds: params.childZoneIds,
     pathIds: params.pathIds,
     pathsById: params.pathsById,

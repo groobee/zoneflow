@@ -14,6 +14,8 @@ export type CreateZoneInput = {
   name: string;
   parentZoneId?: ZoneId | null;
   zoneType?: ZoneType;
+  inputDisabled?: boolean;
+  outputDisabled?: boolean;
   action?: ZoneAction;
   meta?: Record<string, unknown>;
 };
@@ -23,7 +25,7 @@ export type CreatePathInput = {
   key: string;
   name: string;
   target?: ZoneRef | null;
-  rule?: Path["rule"];
+  rule: Path["rule"];
   meta?: Record<string, unknown>;
 };
 
@@ -36,6 +38,8 @@ export function createZone(
     name,
     parentZoneId = null,
     zoneType = "container",
+    inputDisabled,
+    outputDisabled,
     action,
     meta,
   } = input;
@@ -47,6 +51,8 @@ export function createZone(
     parentZoneId,
     name,
     zoneType,
+    inputDisabled,
+    outputDisabled,
     childZoneIds: [],
     pathIds: [],
     pathsById: {},
@@ -236,7 +242,7 @@ export function addPath(
     key: input.key,
     name: input.name,
     target: input.target,
-    rule: input.rule,
+    rule: input.rule ?? null,
     meta: input.meta,
   };
 
@@ -279,6 +285,10 @@ export function updatePath(
           [pathId]: {
             ...path,
             ...patch,
+            rule:
+              Object.prototype.hasOwnProperty.call(patch, "rule")
+                ? (patch.rule ?? null)
+                : path.rule,
           },
         },
       },
