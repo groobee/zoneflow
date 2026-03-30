@@ -1,4 +1,5 @@
 import {
+  canZoneContainChildren,
   collectSubtreeZoneIds,
   getPathLayout,
   setPathComponentLayout,
@@ -1127,6 +1128,7 @@ export function resolveZoneReparentCandidate(params: {
 
   for (const candidateZone of typedValues(model.zonesById)) {
     if (invalidZoneIds.has(candidateZone.id)) continue;
+    if (!canZoneContainChildren(candidateZone)) continue;
 
     const candidateRect = resolveWorldZoneRect({
       model,
@@ -1181,6 +1183,8 @@ export function resolveZonePlacementAtWorldRect(params: {
   let bestArea = Number.POSITIVE_INFINITY;
 
   for (const candidateZone of typedValues(model.zonesById)) {
+    if (!canZoneContainChildren(candidateZone)) continue;
+
     const candidateRect = resolveWorldZoneRect({
       model,
       layoutModel,
