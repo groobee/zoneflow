@@ -141,7 +141,7 @@ function resolveViewportOffsetByPreset(params: {
 
 
 export function useDebugState(initialLayers: DebugLayer[]): DebugState {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const [layers, setLayers] = useState<DebugLayer[]>(initialLayers);
 
   const [viewport, setViewport] = useState<DebugViewportState>({

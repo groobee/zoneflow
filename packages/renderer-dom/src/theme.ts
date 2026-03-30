@@ -18,7 +18,8 @@ export type ZoneflowTheme = {
   density: {
     zone: {
       detail: number;
-      simple: number;
+      near: number;
+      mid: number;
     };
     path: {
       full: number;

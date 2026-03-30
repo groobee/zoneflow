@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "disableSourceOfProjectReferenceRedirect": true,
     "rootDir": "src",
     "outDir": "dist",
     "jsx": "react-jsx"
@@ -9,6 +10,7 @@
   "include": ["src"],
   "references": [
     { "path": "../core" },
-    { "path": "../renderer-dom" }
+    { "path": "../renderer-dom" },
+    { "path": "../editor-dom" }
   ]
 }

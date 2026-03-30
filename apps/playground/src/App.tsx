@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
 import { shellStyle } from "./components/layout/layout.styles";
@@ -6,6 +7,7 @@ import { Topbar } from "./components/layout/Topbar";
 import { LeftPanel } from "./components/layout/LeftPanel";
 import { RightPanel } from "./components/layout/RightPanel";
 import { CanvasHost } from "./components/layout/CanvasHost";
+import { ModelDataModal } from "./components/data/ModelDataModal";
 
 /**
  * Zoneflow Playground (Sample App)
@@ -24,25 +26,54 @@ export default function App() {
     "viewport",
   ]);
 
-  const { sampleType, setSampleType, model, layoutModel } =
+  const {
+    sampleType,
+    setSampleType,
+    model,
+    layoutModel,
+    setModel,
+    setLayoutModel,
+  } =
     useSampleSwitcher("small");
+  const editor = useUniverseEditor({
+    model,
+    layoutModel,
+    setModel,
+    setLayoutModel,
+  });
 
   const [hostSize, setHostSize] = useState({
     width: 0,
     height: 0,
   });
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [overlayHudVisible, setOverlayHudVisible] = useState(true);
+  const isEditMode = editor.isEditMode;
+  const workingModel = editor.model;
+  const workingLayoutModel = editor.layoutModel;
+
+  const handleSampleTypeChange = (nextSampleType: "small" | "large") => {
+    editor.resetForSampleChange();
+    setSampleType(nextSampleType);
+  };
 
   return (
     <div style={shellStyle}>
-      <Topbar sampleType={sampleType} setSampleType={setSampleType} />
-
-      <LeftPanel />
+      <Topbar
+        sampleType={sampleType}
+        setSampleType={handleSampleTypeChange}
+        editor={editor}
+        overlayHudVisible={overlayHudVisible}
+        onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
+        onOpenDataModal={() => setIsDataModalOpen(true)}
+      />
+      <LeftPanel isEditMode={isEditMode} />
 
       <CanvasHost
-        model={model}
-        layoutModel={layoutModel}
+        editor={editor}
         debug={debug}
-        onResize={setHostSize} // 👈 추가
+        onResize={setHostSize}
+        overlayHudVisible={overlayHudVisible}
       />
 
       <RightPanel
@@ -50,6 +81,14 @@ export default function App() {
         hostWidth={hostSize.width}
         hostHeight={hostSize.height}
       />
+
+      {isDataModalOpen ? (
+        <ModelDataModal
+          model={workingModel}
+          layoutModel={workingLayoutModel}
+          onClose={() => setIsDataModalOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

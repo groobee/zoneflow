@@ -91,6 +91,36 @@ export function createUniverseLayoutModel(
   };
 }
 
+export function createZoneLayout(input: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): ZoneLayout {
+  const { x, y, width, height } = input;
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    anchors: {
+      inlet: {
+        point: {
+          x: 0,
+          y: height / 2,
+        },
+      },
+      outlet: {
+        point: {
+          x: width,
+          y: height / 2,
+        },
+      },
+    },
+  };
+}
+
 export function getZoneLayout(
   layoutModel: UniverseLayoutModel,
   zoneId: ZoneId

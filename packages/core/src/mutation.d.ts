@@ -1,0 +1,31 @@
+import type { UniverseModel, Zone, ZoneAction, ZoneId, ZoneType, Layout, Path, PathId, ZoneRef } from "./types";
+export type CreateZoneInput = {
+    id: ZoneId;
+    name: string;
+    parentZoneId?: ZoneId | null;
+    zoneType?: ZoneType;
+    action?: ZoneAction;
+    layout?: Layout;
+    meta?: Record<string, unknown>;
+};
+export type CreatePathInput = {
+    id: PathId;
+    key: string;
+    name: string;
+    target?: ZoneRef | null;
+    rule?: Path["rule"];
+    layout?: Layout;
+    meta?: Record<string, unknown>;
+};
+export declare function createZone(model: UniverseModel, input: CreateZoneInput): UniverseModel;
+export declare function updateZone(model: UniverseModel, zoneId: ZoneId, patch: Partial<Omit<Zone, "id">>): UniverseModel;
+export declare function updateZoneLayout(model: UniverseModel, zoneId: ZoneId, patch: Partial<Layout>): UniverseModel;
+export declare function moveZone(model: UniverseModel, zoneId: ZoneId, nextParentZoneId: ZoneId | null): UniverseModel;
+export declare function collectSubtreeZoneIds(model: UniverseModel, zoneId: ZoneId): ZoneId[];
+export declare function removeZone(model: UniverseModel, zoneId: ZoneId): UniverseModel;
+export declare function addPath(model: UniverseModel, zoneId: ZoneId, input: CreatePathInput): UniverseModel;
+export declare function updatePath(model: UniverseModel, zoneId: ZoneId, pathId: PathId, patch: Partial<Path>): UniverseModel;
+export declare function updatePathLayout(model: UniverseModel, zoneId: ZoneId, pathId: PathId, patch: Partial<Layout>): UniverseModel;
+export declare function removePath(model: UniverseModel, zoneId: ZoneId, pathId: PathId): UniverseModel;
+export declare function setPathTarget(model: UniverseModel, zoneId: ZoneId, pathId: PathId, target: ZoneRef | null): UniverseModel;
+export declare function reorderPaths(model: UniverseModel, zoneId: ZoneId, nextPathIds: PathId[]): UniverseModel;

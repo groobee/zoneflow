@@ -40,6 +40,24 @@ export const selectStyle: React.CSSProperties = {
   padding: "6px 10px",
 };
 
+export const buttonStyle: React.CSSProperties = {
+  background: "#111827",
+  color: "#e5e7eb",
+  border: "1px solid rgba(148, 163, 184, 0.25)",
+  borderRadius: 8,
+  padding: "7px 12px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+export const primaryButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  background: "#2563eb",
+  borderColor: "#2563eb",
+  color: "#eff6ff",
+};
+
 export const panelBaseStyle: React.CSSProperties = {
   background: "#0b1220",
   color: "#cbd5e1",

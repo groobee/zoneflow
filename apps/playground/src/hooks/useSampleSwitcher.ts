@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { UniverseModel, UniverseLayoutModel } from "@zoneflow/core";
 
 import {
@@ -29,17 +30,47 @@ const SAMPLE_MAP: Record<SampleType, SampleSet> = {
   },
 };
 
+function cloneSampleSet(sampleType: SampleType): SampleSet {
+  return structuredClone(SAMPLE_MAP[sampleType]);
+}
+
 export function useSampleSwitcher(initial: SampleType = "small") {
   const [sampleType, setSampleType] = useState<SampleType>(initial);
+  const [sample, setSample] = useState<SampleSet>(() => cloneSampleSet(initial));
 
-  const { model, layoutModel } = useMemo(() => {
-    return SAMPLE_MAP[sampleType];
-  }, [sampleType]);
+  const handleSampleTypeChange = (nextSampleType: SampleType) => {
+    setSampleType(nextSampleType);
+    setSample(cloneSampleSet(nextSampleType));
+  };
+
+  const setLayoutModel: Dispatch<SetStateAction<UniverseLayoutModel>> = (
+    nextLayoutModel
+  ) => {
+    setSample((prev) => ({
+      ...prev,
+      layoutModel:
+        typeof nextLayoutModel === "function"
+          ? nextLayoutModel(prev.layoutModel)
+          : nextLayoutModel,
+    }));
+  };
+
+  const setModel: Dispatch<SetStateAction<UniverseModel>> = (nextModel) => {
+    setSample((prev) => ({
+      ...prev,
+      model:
+        typeof nextModel === "function"
+          ? nextModel(prev.model)
+          : nextModel,
+    }));
+  };
 
   return {
     sampleType,
-    setSampleType,
-    model,
-    layoutModel,
+    setSampleType: handleSampleTypeChange,
+    model: sample.model,
+    layoutModel: sample.layoutModel,
+    setModel,
+    setLayoutModel,
   };
 }

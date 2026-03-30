@@ -1,4 +1,5 @@
 import type {
+  AnchorLayout,
   PathId,
   Point,
   UniverseLayoutModel,
@@ -15,10 +16,22 @@ import type {
   ZoneVisualNode,
 } from "../types";
 
-const DEFAULT_PATH_NODE_WIDTH = 120;
-const DEFAULT_PATH_NODE_HEIGHT = 32;
-const DEFAULT_PATH_NODE_OFFSET_X = 32;
-const DEFAULT_PATH_NODE_GAP_Y = 40;
+export const DEFAULT_PATH_NODE_WIDTH = 120;
+export const DEFAULT_PATH_NODE_HEIGHT = 32;
+export const DEFAULT_PATH_NODE_OFFSET_X = 32;
+export const DEFAULT_PATH_NODE_GAP_Y = 40;
+
+function typedEntries<TKey extends string, TValue>(
+  record: Record<TKey, TValue>
+): Array<[TKey, TValue]> {
+  return Object.entries(record) as Array<[TKey, TValue]>;
+}
+
+function typedValues<TKey extends string, TValue>(
+  record: Record<TKey, TValue>
+): TValue[] {
+  return Object.values(record) as TValue[];
+}
 
 function rectFromLayout(layout: {
   x: number;
@@ -97,22 +110,25 @@ function resolveLayout(
     return worldPos;
   }
 
-  for (const [zoneId, layout] of Object.entries(layoutModel.zoneLayoutsById)) {
-    const typedZoneId = zoneId as ZoneId;
+  for (const [typedZoneId, layout] of typedEntries(layoutModel.zoneLayoutsById)) {
     const worldPos = resolveZonePosition(typedZoneId);
-
-    const resolvedAnchors = Object.fromEntries(
-      Object.entries(layout.anchors).map(([anchorKey, anchor]) => [
-        anchorKey,
-        {
-          point: {
-            x: worldPos.x + anchor.point.x,
-            y: worldPos.y + anchor.point.y,
-          },
-          rect: resolveAnchorRect(worldPos, anchor.rect),
+    const anchors = layout.anchors as Record<"inlet" | "outlet", AnchorLayout>;
+    const resolvedAnchors = {
+      inlet: {
+        point: {
+          x: worldPos.x + anchors.inlet.point.x,
+          y: worldPos.y + anchors.inlet.point.y,
         },
-      ])
-    ) as UniverseLayoutModel["zoneLayoutsById"][ZoneId]["anchors"];
+        rect: resolveAnchorRect(worldPos, anchors.inlet.rect),
+      },
+      outlet: {
+        point: {
+          x: worldPos.x + anchors.outlet.point.x,
+          y: worldPos.y + anchors.outlet.point.y,
+        },
+        rect: resolveAnchorRect(worldPos, anchors.outlet.rect),
+      },
+    };
 
     resolvedZoneLayouts[typedZoneId] = {
       ...layout,
@@ -122,8 +138,8 @@ function resolveLayout(
     };
   }
 
-  for (const [pathId, pathLayout] of Object.entries(layoutModel.pathLayoutsById)) {
-    resolvedPathLayouts[pathId as PathId] = {
+  for (const [pathId, pathLayout] of typedEntries(layoutModel.pathLayoutsById)) {
+    resolvedPathLayouts[pathId] = {
       ...pathLayout,
     };
   }
@@ -186,8 +202,7 @@ function createZoneVisualNodes(params: {
   const { model, layoutModel } = params;
   const result: Record<ZoneId, ZoneVisualNode> = {};
 
-  for (const [zoneId, zone] of Object.entries(model.zonesById)) {
-    const typedZoneId = zoneId as ZoneId;
+  for (const [typedZoneId, zone] of typedEntries(model.zonesById)) {
     const zoneLayout = layoutModel.zoneLayoutsById[typedZoneId];
     if (!zoneLayout) continue;
 
@@ -211,11 +226,11 @@ function createPathVisualNodes(params: {
   const { model, layoutModel, zonesById } = params;
   const result: Record<PathId, PathVisualNode> = {};
 
-  for (const zone of Object.values(model.zonesById)) {
+  for (const zone of typedValues(model.zonesById)) {
     const sourceZoneVisual = zonesById[zone.id];
     if (!sourceZoneVisual) continue;
 
-    zone.pathIds.forEach((pathId, index) => {
+    zone.pathIds.forEach((pathId: PathId, index: number) => {
       const path = zone.pathsById[pathId];
       if (!path) return;
 
@@ -261,11 +276,11 @@ function createEdgeVisuals(params: {
   const { model, zonesById, pathsById } = params;
   const result: Record<PathId, EdgeVisual[]> = {};
 
-  for (const zone of Object.values(model.zonesById)) {
+  for (const zone of typedValues(model.zonesById)) {
     const sourceZoneVisual = zonesById[zone.id];
     if (!sourceZoneVisual) continue;
 
-    zone.pathIds.forEach((pathId) => {
+    zone.pathIds.forEach((pathId: PathId) => {
       const pathVisual = pathsById[pathId];
       if (!pathVisual) return;
 
