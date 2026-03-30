@@ -4,6 +4,14 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git@github-groobee:groobee/zoneflow.git",
+    "directory": "packages/editor-dom"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "files": ["dist"],
   "dependencies": {
     "@zoneflow/core": "workspace:*",

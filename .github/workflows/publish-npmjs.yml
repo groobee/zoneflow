@@ -1,0 +1,77 @@
+name: Publish Zoneflow Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist_tag:
+        description: npm dist-tag to publish with
+        required: false
+        default: latest
+        type: string
+      access:
+        description: npm access level
+        required: false
+        default: restricted
+        type: choice
+        options:
+          - restricted
+          - public
+      dry_run:
+        description: Run publish in dry-run mode
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-npmjs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+          scope: "@zoneflow"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm -r --filter "./packages/*" type-check
+
+      - name: Build packages
+        run: pnpm -r --filter "./packages/*" build
+
+      - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            pnpm -r --filter "./packages/*" publish \
+              --no-git-checks \
+              --dry-run \
+              --access "${{ inputs.access }}" \
+              --tag "${{ inputs.dist_tag }}"
+          else
+            pnpm -r --filter "./packages/*" publish \
+              --no-git-checks \
+              --access "${{ inputs.access }}" \
+              --tag "${{ inputs.dist_tag }}"
+          fi
