@@ -38,6 +38,7 @@ type Props = {
   isEditMode: boolean;
   gridSnapEnabled: boolean;
   gridSnapSize: 8 | 12 | 16 | 24;
+  gridVisible: boolean;
   onDraftModelChange: (nextModel: UniverseModel) => void;
   onDraftLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   debug: DebugState;
@@ -63,6 +64,7 @@ export function CanvasHost({
   isEditMode,
   gridSnapEnabled,
   gridSnapSize,
+  gridVisible,
   onDraftModelChange,
   onDraftLayoutModelChange,
   debug,
@@ -204,6 +206,10 @@ export function CanvasHost({
         model={model}
         layoutModel={layoutModel}
         viewport={debug.viewport}
+        grid={{
+          enabled: gridVisible,
+          size: gridSnapSize,
+        }}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         zoneMoveEditor={zoneMoveEditor}

@@ -46,6 +46,7 @@ export default function App() {
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [gridSnapEnabled, setGridSnapEnabled] = useState(true);
   const [gridSnapSize, setGridSnapSize] = useState<8 | 12 | 16 | 24>(16);
+  const [gridVisible, setGridVisible] = useState(false);
 
   const isEditMode = draftModel !== null && draftLayoutModel !== null;
   const workingModel = draftModel ?? model;
@@ -83,7 +84,9 @@ export default function App() {
         isEditMode={isEditMode}
         gridSnapEnabled={gridSnapEnabled}
         gridSnapSize={gridSnapSize}
+        gridVisible={gridVisible}
         onToggleGridSnap={() => setGridSnapEnabled((current) => !current)}
+        onToggleGridVisible={() => setGridVisible((current) => !current)}
         onGridSnapSizeChange={setGridSnapSize}
         onStartEdit={handleStartEdit}
         onApplyEdit={handleApplyEdit}
@@ -102,6 +105,7 @@ export default function App() {
         onResize={setHostSize}
         gridSnapEnabled={gridSnapEnabled}
         gridSnapSize={gridSnapSize}
+        gridVisible={gridVisible}
       />
 
       <RightPanel

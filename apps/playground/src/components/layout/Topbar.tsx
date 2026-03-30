@@ -13,7 +13,9 @@ type Props = {
   isEditMode: boolean;
   gridSnapEnabled: boolean;
   gridSnapSize: 8 | 12 | 16 | 24;
+  gridVisible: boolean;
   onToggleGridSnap: () => void;
+  onToggleGridVisible: () => void;
   onGridSnapSizeChange: (value: 8 | 12 | 16 | 24) => void;
   onStartEdit: () => void;
   onApplyEdit: () => void;
@@ -27,13 +29,17 @@ export function Topbar({
   isEditMode,
   gridSnapEnabled,
   gridSnapSize,
+  gridVisible,
   onToggleGridSnap,
+  onToggleGridVisible,
   onGridSnapSizeChange,
   onStartEdit,
   onApplyEdit,
   onCancelEdit,
   onOpenDataModal,
 }: Props) {
+  const isGridSizeEnabled = gridSnapEnabled || gridVisible;
+
   return (
     <header style={topbarStyle}>
       <div style={controlGroupStyle}>
@@ -56,14 +62,21 @@ export function Topbar({
         >
           Snap {gridSnapEnabled ? "On" : "Off"}
         </button>
+        <button
+          type="button"
+          style={gridVisible ? primaryButtonStyle : buttonStyle}
+          onClick={onToggleGridVisible}
+        >
+          Grid {gridVisible ? "On" : "Off"}
+        </button>
         <select
           style={{
             ...selectStyle,
-            opacity: gridSnapEnabled ? 1 : 0.56,
-            cursor: gridSnapEnabled ? "pointer" : "not-allowed",
+            opacity: isGridSizeEnabled ? 1 : 0.56,
+            cursor: isGridSizeEnabled ? "pointer" : "not-allowed",
           }}
           value={gridSnapSize}
-          disabled={!gridSnapEnabled}
+          disabled={!isGridSizeEnabled}
           onChange={(e) =>
             onGridSnapSizeChange(Number(e.target.value) as 8 | 12 | 16 | 24)
           }
