@@ -16,6 +16,7 @@ import {
 import {
   UniverseCanvas,
   type CanvasExternalDropPayload,
+  type EditorTransactionMeta,
   type PathLabelEventPayload,
   type ZoneMoveEditorConfig,
 } from "@zoneflow/react";
@@ -41,6 +42,11 @@ type Props = {
   gridVisible: boolean;
   onDraftModelChange: (nextModel: UniverseModel) => void;
   onDraftLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
+  onEditorTransactionStart: (transaction: EditorTransactionMeta) => void;
+  onEditorTransactionCommit: (transaction: EditorTransactionMeta) => void;
+  onEditorTransactionCancel: (transaction: EditorTransactionMeta) => void;
+  canUndo: boolean;
+  onUndo: () => void;
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
 };
@@ -67,6 +73,11 @@ export function CanvasHost({
   gridVisible,
   onDraftModelChange,
   onDraftLayoutModelChange,
+  onEditorTransactionStart,
+  onEditorTransactionCommit,
+  onEditorTransactionCancel,
+  canUndo,
+  onUndo,
   debug,
   onResize,
 }: Props) {
@@ -171,6 +182,13 @@ export function CanvasHost({
         },
         onModelChange: onDraftModelChange,
         onLayoutModelChange: onDraftLayoutModelChange,
+        onTransactionStart: onEditorTransactionStart,
+        onTransactionCommit: onEditorTransactionCommit,
+        onTransactionCancel: onEditorTransactionCancel,
+        history: {
+          canUndo,
+          onUndo,
+        },
         externalDrop: {
           enabled: true,
           onDrop: handlePaletteZoneDrop,

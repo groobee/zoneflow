@@ -106,6 +106,41 @@ export type CanvasExternalDropPayload = {
   frame: RendererFrame | null;
 };
 
+export type EditorTransactionMeta =
+  | {
+      kind: "move-zone";
+      zoneIds: ZoneId[];
+    }
+  | {
+      kind: "move-zone-group";
+      zoneIds: ZoneId[];
+    }
+  | {
+      kind: "move-path";
+      pathIds: PathId[];
+    }
+  | {
+      kind: "move-path-group";
+      pathIds: PathId[];
+    }
+  | {
+      kind: "resize-zone";
+      zoneIds: ZoneId[];
+    }
+  | {
+      kind: "resize-path";
+      pathIds: PathId[];
+    }
+  | {
+      kind: "create-path";
+      sourceZoneId: ZoneId;
+    }
+  | {
+      kind: "retarget-path";
+      pathIds: PathId[];
+      sourceZoneId: ZoneId;
+    };
+
 export type ZoneMoveEditorConfig = {
   enabled?: boolean;
   includeRoot?: boolean;
@@ -121,6 +156,13 @@ export type ZoneMoveEditorConfig = {
   onPathLabelClick?: (event: PathLabelEventPayload) => void;
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
   onPathLabelContextMenu?: (event: PathLabelEventPayload) => void;
+  onTransactionStart?: (transaction: EditorTransactionMeta) => void;
+  onTransactionCommit?: (transaction: EditorTransactionMeta) => void;
+  onTransactionCancel?: (transaction: EditorTransactionMeta) => void;
+  history?: {
+    canUndo?: boolean;
+    onUndo?: () => void;
+  };
   externalDrop?: {
     enabled?: boolean;
     onDrop: (event: CanvasExternalDropPayload) => void;
@@ -185,14 +227,19 @@ type LongPressState = {
 };
 
 type DeleteConfirmState = {
+  kind: "target";
   target: MoveEditorTarget;
+} | {
+  kind: "zone-selection";
+  zoneIds: ZoneId[];
+} | {
+  kind: "path-selection";
+  pathIds: PathId[];
 };
 
 type DeleteUndoState = {
   targetKey: string;
   label: string;
-  previousModel: UniverseModel;
-  previousLayoutModel: UniverseLayoutModel;
 };
 
 type MarqueeSelectionState = {
@@ -296,6 +343,61 @@ function resolveDeleteButtonPosition(target: MoveEditorTarget) {
 
 function resolveDeleteTargetLabel(target: MoveEditorTarget) {
   return target.kind === "zone" ? `존 "${target.label}"` : `패스 "${target.label}"`;
+}
+
+function resolveDeleteSelectionLabel(params: {
+  kind: "zone" | "path";
+  count: number;
+}) {
+  const { kind, count } = params;
+  return kind === "zone" ? `존 ${count}개` : `패스 ${count}개`;
+}
+
+function resolveDragTransactionMeta(drag: DragState): EditorTransactionMeta {
+  if (drag.origin.kind === "zone-group") {
+    return {
+      kind: "move-zone-group",
+      zoneIds: Object.keys(drag.origin.originsByZoneId) as ZoneId[],
+    };
+  }
+
+  if (drag.origin.kind === "path-group") {
+    return {
+      kind: "move-path-group",
+      pathIds: Object.keys(drag.origin.originsByPathId) as PathId[],
+    };
+  }
+
+  return drag.target.kind === "zone"
+    ? {
+        kind: "move-zone",
+        zoneIds: [drag.target.zoneId],
+      }
+    : {
+        kind: "move-path",
+        pathIds: [drag.target.pathId],
+      };
+}
+
+function collectTopLevelSelectedZoneIds(
+  model: UniverseModel,
+  zoneIds: ZoneId[]
+): ZoneId[] {
+  const selectedSet = new Set(zoneIds);
+
+  return zoneIds.filter((zoneId) => {
+    let currentParentId = model.zonesById[zoneId]?.parentZoneId ?? null;
+
+    while (currentParentId) {
+      if (selectedSet.has(currentParentId)) {
+        return false;
+      }
+
+      currentParentId = model.zonesById[currentParentId]?.parentZoneId ?? null;
+    }
+
+    return true;
+  });
 }
 
 function resolvePathLabelEventPayload(params: {
@@ -869,6 +971,7 @@ export function ZoneMoveEditorOverlay(props: {
   const longPressRef = useRef<LongPressState | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const deleteUndoTimerRef = useRef<number | null>(null);
+  const activeTransactionRef = useRef<EditorTransactionMeta | null>(null);
   const suppressedPathLabelClickRef = useRef<{
     targetKey: string | null;
     until: number;
@@ -885,6 +988,9 @@ export function ZoneMoveEditorOverlay(props: {
     gridSnap: editor?.gridSnap,
     onModelChange: editor?.onModelChange,
     onLayoutModelChange: editor?.onLayoutModelChange,
+    onTransactionStart: editor?.onTransactionStart,
+    onTransactionCommit: editor?.onTransactionCommit,
+    onTransactionCancel: editor?.onTransactionCancel,
     onExclusionStateChange,
   });
 
@@ -898,6 +1004,9 @@ export function ZoneMoveEditorOverlay(props: {
       gridSnap: editor?.gridSnap,
       onModelChange: editor?.onModelChange,
       onLayoutModelChange: editor?.onLayoutModelChange,
+      onTransactionStart: editor?.onTransactionStart,
+      onTransactionCommit: editor?.onTransactionCommit,
+      onTransactionCancel: editor?.onTransactionCancel,
       onExclusionStateChange,
     };
   }, [model, layoutModel, camera, frame, editor, onExclusionStateChange]);
@@ -912,6 +1021,7 @@ export function ZoneMoveEditorOverlay(props: {
 
   useEffect(() => {
     if (editor?.enabled) return;
+    cancelTransaction();
     dragRef.current = null;
     resizeRef.current = null;
     pathResizeRef.current = null;
@@ -943,6 +1053,7 @@ export function ZoneMoveEditorOverlay(props: {
       if (deleteUndoTimerRef.current !== null) {
         window.clearTimeout(deleteUndoTimerRef.current);
       }
+      cancelTransaction();
     };
   }, []);
 
@@ -951,6 +1062,13 @@ export function ZoneMoveEditorOverlay(props: {
     if (model.zonesById[editingZoneId]) return;
     setEditingZoneId(null);
   }, [editingZoneId, model]);
+
+  useEffect(() => {
+    if (!deleteUndoState) return;
+    if (editor?.history?.canUndo ?? false) return;
+    clearDeleteUndoTimer();
+    setDeleteUndoState(null);
+  }, [deleteUndoState, editor?.history?.canUndo]);
 
   useEffect(() => {
     setSelectedZoneIds((current) =>
@@ -974,6 +1092,26 @@ export function ZoneMoveEditorOverlay(props: {
     editor?.deleteInteraction?.longPressMs ?? DELETE_LONG_PRESS_MS;
   const deleteUndoMs = editor?.deleteInteraction?.undoMs ?? DELETE_UNDO_MS;
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
+
+  const startTransaction = (transaction: EditorTransactionMeta) => {
+    if (activeTransactionRef.current) return;
+    activeTransactionRef.current = transaction;
+    latestRef.current.onTransactionStart?.(transaction);
+  };
+
+  const commitTransaction = () => {
+    const transaction = activeTransactionRef.current;
+    if (!transaction) return;
+    activeTransactionRef.current = null;
+    latestRef.current.onTransactionCommit?.(transaction);
+  };
+
+  const cancelTransaction = () => {
+    const transaction = activeTransactionRef.current;
+    if (!transaction) return;
+    activeTransactionRef.current = null;
+    latestRef.current.onTransactionCancel?.(transaction);
+  };
 
   const cancelLongPress = () => {
     if (longPressTimerRef.current !== null) {
@@ -1028,8 +1166,6 @@ export function ZoneMoveEditorOverlay(props: {
       pushDeleteUndoState({
         targetKey: target.key,
         label: resolveDeleteTargetLabel(target),
-        previousModel,
-        previousLayoutModel,
       });
       setEditingZoneId((current) => (current === target.zoneId ? null : current));
     } else {
@@ -1044,8 +1180,6 @@ export function ZoneMoveEditorOverlay(props: {
       pushDeleteUndoState({
         targetKey: target.key,
         label: resolveDeleteTargetLabel(target),
-        previousModel,
-        previousLayoutModel,
       });
     }
 
@@ -1053,6 +1187,98 @@ export function ZoneMoveEditorOverlay(props: {
     setDeleteArmedTargetKey(null);
     setSelectedTargetKey(null);
     setHoveredTargetKey(null);
+  };
+
+  const commitDeleteZoneSelection = (zoneIds: ZoneId[]) => {
+    if (zoneIds.length === 0) return;
+
+    const previousModel = latestRef.current.model;
+    const previousLayoutModel = latestRef.current.layoutModel;
+    const topLevelZoneIds = collectTopLevelSelectedZoneIds(previousModel, zoneIds);
+
+    let nextModel = previousModel;
+    for (const zoneId of topLevelZoneIds) {
+      nextModel = removeZone(nextModel, zoneId);
+    }
+
+    const nextLayoutModel = pruneLayoutModel(nextModel, previousLayoutModel);
+
+    latestRef.current.onModelChange?.(nextModel);
+    latestRef.current.onLayoutModelChange?.(nextLayoutModel);
+    pushDeleteUndoState({
+      targetKey: `selection:zones:${topLevelZoneIds.join(",")}`,
+      label: resolveDeleteSelectionLabel({
+        kind: "zone",
+        count: topLevelZoneIds.length,
+      }),
+    });
+    setSelectedZoneIds([]);
+    setSelectedTargetKey(null);
+    setHoveredTargetKey(null);
+    setDeleteArmedTargetKey(null);
+    setDeleteConfirmState(null);
+    setEditingZoneId((current) =>
+      current && topLevelZoneIds.includes(current) ? null : current
+    );
+  };
+
+  const commitDeletePathSelection = (pathIds: PathId[]) => {
+    if (pathIds.length === 0) return;
+
+    const previousModel = latestRef.current.model;
+    const previousLayoutModel = latestRef.current.layoutModel;
+    let nextModel = previousModel;
+
+    for (const pathId of pathIds) {
+      const sourceZoneId = findPathSourceZoneId(nextModel, pathId);
+      if (!sourceZoneId) continue;
+      nextModel = removePath(nextModel, sourceZoneId, pathId);
+    }
+
+    const nextLayoutModel = pruneLayoutModel(nextModel, previousLayoutModel);
+
+    latestRef.current.onModelChange?.(nextModel);
+    latestRef.current.onLayoutModelChange?.(nextLayoutModel);
+    pushDeleteUndoState({
+      targetKey: `selection:paths:${pathIds.join(",")}`,
+      label: resolveDeleteSelectionLabel({
+        kind: "path",
+        count: pathIds.length,
+      }),
+    });
+    setSelectedPathIds([]);
+    setSelectedTargetKey(null);
+    setHoveredTargetKey(null);
+    setDeleteArmedTargetKey(null);
+    setDeleteConfirmState(null);
+  };
+
+  const requestDeleteZoneSelection = () => {
+    if (selectedZoneIds.length < 2) return;
+
+    if (shouldConfirmDelete) {
+      setDeleteConfirmState({
+        kind: "zone-selection",
+        zoneIds: [...selectedZoneIds],
+      });
+      return;
+    }
+
+    commitDeleteZoneSelection(selectedZoneIds);
+  };
+
+  const requestDeletePathSelection = () => {
+    if (selectedPathIds.length < 2) return;
+
+    if (shouldConfirmDelete) {
+      setDeleteConfirmState({
+        kind: "path-selection",
+        pathIds: [...selectedPathIds],
+      });
+      return;
+    }
+
+    commitDeletePathSelection(selectedPathIds);
   };
 
   useEffect(() => {
@@ -1204,6 +1430,8 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
+      commitTransaction();
+
       dragRef.current = null;
       resizeRef.current = null;
       pathResizeRef.current = null;
@@ -1325,6 +1553,7 @@ export function ZoneMoveEditorOverlay(props: {
         event.preventDefault();
 
         if (!drag.hasMoved) {
+          startTransaction(resolveDragTransactionMeta(drag));
           dragRef.current = {
             ...drag,
             hasMoved: true,
@@ -1530,6 +1759,13 @@ export function ZoneMoveEditorOverlay(props: {
   }, [model, selectedZoneTargets]);
 
   const canRunPathSelectionCommands = selectedPathTargets.length >= 2;
+  const selectedTarget = useMemo(
+    () =>
+      selectedTargetKey
+        ? targets.find((target) => target.key === selectedTargetKey) ?? null
+        : null,
+    [selectedTargetKey, targets]
+  );
 
   const dropTargetZoneId = useMemo(() => {
     if (
@@ -1721,6 +1957,98 @@ export function ZoneMoveEditorOverlay(props: {
 
     latestRef.current.onLayoutModelChange(nextLayoutModel);
   };
+
+  const requestDeleteCurrentSelection = () => {
+    if (deleteConfirmState) return;
+
+    if (selectedZoneIds.length > 1) {
+      requestDeleteZoneSelection();
+      return;
+    }
+
+    if (selectedPathIds.length > 1) {
+      requestDeletePathSelection();
+      return;
+    }
+
+    if (selectedZoneIds.length === 1) {
+      const target =
+        targets.find(
+          (candidate) =>
+            candidate.kind === "zone" && candidate.zoneId === selectedZoneIds[0]
+        ) ??
+        (selectedTarget?.kind === "zone" ? selectedTarget : null);
+
+      if (!target) return;
+      if (shouldConfirmDelete) {
+        setDeleteConfirmState({ kind: "target", target });
+      } else {
+        commitDeleteTarget(target);
+      }
+      return;
+    }
+
+    if (selectedPathIds.length === 1) {
+      const target =
+        targets.find(
+          (candidate) =>
+            candidate.kind === "path" && candidate.pathId === selectedPathIds[0]
+        ) ??
+        (selectedTarget?.kind === "path" ? selectedTarget : null);
+
+      if (!target) return;
+      if (shouldConfirmDelete) {
+        setDeleteConfirmState({ kind: "target", target });
+      } else {
+        commitDeleteTarget(target);
+      }
+      return;
+    }
+
+    if (!selectedTarget) return;
+    if (shouldConfirmDelete) {
+      setDeleteConfirmState({ kind: "target", target: selectedTarget });
+    } else {
+      commitDeleteTarget(selectedTarget);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+
+      const target = event.target as HTMLElement | null;
+      const isEditableTarget =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT");
+
+      if (isEditableTarget) return;
+
+      const hasSelection =
+        selectedZoneIds.length > 0 ||
+        selectedPathIds.length > 0 ||
+        selectedTarget !== null;
+
+      if (!hasSelection) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      requestDeleteCurrentSelection();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    deleteConfirmState,
+    requestDeleteCurrentSelection,
+    selectedPathIds,
+    selectedTarget,
+    selectedZoneIds,
+  ]);
 
   if (!editor?.enabled || !frame) return null;
 
@@ -2064,6 +2392,27 @@ export function ZoneMoveEditorOverlay(props: {
                 {label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                requestDeleteZoneSelection();
+              }}
+              style={{
+                border: "1px solid rgba(239, 68, 68, 0.38)",
+                background: "rgba(239, 68, 68, 0.16)",
+                color: "#fecaca",
+                borderRadius: 999,
+                padding: "6px 10px",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              삭제
+            </button>
           </div>
         ) : null}
 
@@ -2149,6 +2498,219 @@ export function ZoneMoveEditorOverlay(props: {
                 {label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                requestDeletePathSelection();
+              }}
+              style={{
+                border: "1px solid rgba(239, 68, 68, 0.38)",
+                background: "rgba(239, 68, 68, 0.16)",
+                color: "#fecaca",
+                borderRadius: 999,
+                padding: "6px 10px",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              삭제
+            </button>
+          </div>
+        ) : null}
+
+        {deleteConfirmState?.kind === "zone-selection" &&
+        selectionBounds &&
+        deleteConfirmState.zoneIds.length > 1 ? (
+          <div
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            style={{
+              position: "absolute",
+              left: `${clamp(selectionBounds.x + selectionBounds.width / 2, 120, overlayWidth - 120)}px`,
+              top: `${Math.max(72, selectionBounds.y - 88)}px`,
+              transform: "translate(-50%, -100%)",
+              minWidth: 196,
+              padding: "12px 12px 10px",
+              borderRadius: 14,
+              border: "1px solid rgba(15, 23, 42, 0.12)",
+              background: "rgba(255, 255, 255, 0.98)",
+              boxShadow: "0 18px 32px rgba(15, 23, 42, 0.18)",
+              pointerEvents: "auto",
+              zIndex: 13,
+              animation: shouldAnimateDeleteUi
+                ? DELETE_ICON_POP_ANIMATION
+                : undefined,
+            }}
+          >
+            <div
+              style={{
+                color: "#0f172a",
+                fontSize: 12,
+                fontWeight: 700,
+                marginBottom: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {resolveDeleteSelectionLabel({
+                kind: "zone",
+                count: deleteConfirmState.zoneIds.length,
+              })}{" "}
+              삭제할까요?
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDeleteConfirmState(null);
+                }}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.3)",
+                  background: "#ffffff",
+                  color: "#334155",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  commitDeleteZoneSelection(deleteConfirmState.zoneIds);
+                }}
+                style={{
+                  border: "1px solid rgba(239, 68, 68, 0.86)",
+                  background: "#ef4444",
+                  color: "#fff7f7",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {deleteConfirmState?.kind === "path-selection" &&
+        pathSelectionBounds &&
+        deleteConfirmState.pathIds.length > 1 ? (
+          <div
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            style={{
+              position: "absolute",
+              left: `${clamp(pathSelectionBounds.x + pathSelectionBounds.width / 2, 120, overlayWidth - 120)}px`,
+              top: `${Math.max(72, pathSelectionBounds.y - 88)}px`,
+              transform: "translate(-50%, -100%)",
+              minWidth: 196,
+              padding: "12px 12px 10px",
+              borderRadius: 14,
+              border: "1px solid rgba(15, 23, 42, 0.12)",
+              background: "rgba(255, 255, 255, 0.98)",
+              boxShadow: "0 18px 32px rgba(15, 23, 42, 0.18)",
+              pointerEvents: "auto",
+              zIndex: 13,
+              animation: shouldAnimateDeleteUi
+                ? DELETE_ICON_POP_ANIMATION
+                : undefined,
+            }}
+          >
+            <div
+              style={{
+                color: "#0f172a",
+                fontSize: 12,
+                fontWeight: 700,
+                marginBottom: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {resolveDeleteSelectionLabel({
+                kind: "path",
+                count: deleteConfirmState.pathIds.length,
+              })}{" "}
+              삭제할까요?
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDeleteConfirmState(null);
+                }}
+                style={{
+                  border: "1px solid rgba(148, 163, 184, 0.3)",
+                  background: "#ffffff",
+                  color: "#334155",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  commitDeletePathSelection(deleteConfirmState.pathIds);
+                }}
+                style={{
+                  border: "1px solid rgba(239, 68, 68, 0.86)",
+                  background: "#ef4444",
+                  color: "#fff7f7",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                삭제
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -2331,7 +2893,9 @@ export function ZoneMoveEditorOverlay(props: {
           const cornerResizeHandleRect = getCornerResizeHandleRect(target.rect);
           const deleteButtonPosition = resolveDeleteButtonPosition(target);
           const isDeleteArmed = deleteArmedTargetKey === target.key;
-          const isDeleteConfirmOpen = deleteConfirmState?.target.key === target.key;
+          const isDeleteConfirmOpen =
+            deleteConfirmState?.kind === "target" &&
+            deleteConfirmState.target.key === target.key;
           const pathVisual =
             target.kind === "path"
               ? frame.pipeline.graphLayout.pathsById[target.pathId]
@@ -2487,7 +3051,9 @@ export function ZoneMoveEditorOverlay(props: {
                   current === target.key ? current : null
                 );
                 setDeleteConfirmState((current) =>
-                  current?.target.key === target.key ? current : null
+                  current?.kind === "target" && current.target.key === target.key
+                    ? current
+                    : null
                 );
 
                 if (target.kind === "zone") {
@@ -2574,6 +3140,10 @@ export function ZoneMoveEditorOverlay(props: {
                       currentScreenPoint,
                       hasMoved: false,
                     };
+                    startTransaction({
+                      kind: "create-path",
+                      sourceZoneId: target.zoneId,
+                    });
 
                     pathCreateRef.current = nextState;
                     setCreatingPath(nextState);
@@ -2628,6 +3198,11 @@ export function ZoneMoveEditorOverlay(props: {
                       currentScreenPoint,
                       hasMoved: false,
                     };
+                    startTransaction({
+                      kind: "retarget-path",
+                      pathIds: [target.pathId],
+                      sourceZoneId: pathVisual.sourceZoneId,
+                    });
 
                     pathRetargetRef.current = nextState;
                     setRetargetingPath(nextState);
@@ -2696,6 +3271,10 @@ export function ZoneMoveEditorOverlay(props: {
                       startClientX: event.clientX,
                       startClientY: event.clientY,
                     };
+                    startTransaction({
+                      kind: "resize-zone",
+                      zoneIds: [target.zoneId],
+                    });
 
                     setDraggingTarget(target);
                     setIsResizing(true);
@@ -2761,6 +3340,10 @@ export function ZoneMoveEditorOverlay(props: {
                       startClientX: event.clientX,
                       startClientY: event.clientY,
                     };
+                    startTransaction({
+                      kind: "resize-path",
+                      pathIds: [target.pathId],
+                    });
 
                     setDraggingTarget(target);
                     setIsResizing(true);
@@ -2812,7 +3395,7 @@ export function ZoneMoveEditorOverlay(props: {
                     event.preventDefault();
                     event.stopPropagation();
                     if (shouldConfirmDelete) {
-                      setDeleteConfirmState({ target });
+                      setDeleteConfirmState({ kind: "target", target });
                       return;
                     }
 
@@ -3107,10 +3690,7 @@ export function ZoneMoveEditorOverlay(props: {
               event.preventDefault();
               event.stopPropagation();
               clearDeleteUndoTimer();
-              latestRef.current.onModelChange?.(deleteUndoState.previousModel);
-              latestRef.current.onLayoutModelChange?.(
-                deleteUndoState.previousLayoutModel
-              );
+              editor.history?.onUndo?.();
               setDeleteUndoState(null);
             }}
             style={{
@@ -3121,8 +3701,10 @@ export function ZoneMoveEditorOverlay(props: {
               padding: "6px 12px",
               fontSize: 11,
               fontWeight: 800,
-              cursor: "pointer",
+              cursor: editor.history?.canUndo ? "pointer" : "not-allowed",
+              opacity: editor.history?.canUndo ? 1 : 0.56,
             }}
+            disabled={!editor.history?.canUndo}
           >
             되돌리기
           </button>

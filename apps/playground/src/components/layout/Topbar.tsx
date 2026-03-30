@@ -17,6 +17,10 @@ type Props = {
   onToggleGridSnap: () => void;
   onToggleGridVisible: () => void;
   onGridSnapSizeChange: (value: 8 | 12 | 16 | 24) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onStartEdit: () => void;
   onApplyEdit: () => void;
   onCancelEdit: () => void;
@@ -33,6 +37,10 @@ export function Topbar({
   onToggleGridSnap,
   onToggleGridVisible,
   onGridSnapSizeChange,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   onStartEdit,
   onApplyEdit,
   onCancelEdit,
@@ -94,6 +102,32 @@ export function Topbar({
         </button>
         {isEditMode ? (
           <>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                opacity: canUndo ? 1 : 0.56,
+                cursor: canUndo ? "pointer" : "not-allowed",
+              }}
+              disabled={!canUndo}
+              onClick={onUndo}
+              title="Cmd/Ctrl+Z"
+            >
+              되돌리기
+            </button>
+            <button
+              type="button"
+              style={{
+                ...buttonStyle,
+                opacity: canRedo ? 1 : 0.56,
+                cursor: canRedo ? "pointer" : "not-allowed",
+              }}
+              disabled={!canRedo}
+              onClick={onRedo}
+              title="Shift+Cmd/Ctrl+Z"
+            >
+              다시하기
+            </button>
             <button type="button" style={buttonStyle} onClick={onCancelEdit}>
               취소
             </button>
