@@ -58,6 +58,13 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function midpoint(a: Point, b: Point): Point {
+  return {
+    x: roundCoordinate((a.x + b.x) / 2),
+    y: roundCoordinate((a.y + b.y) / 2),
+  };
+}
+
 function containsPoint(rect: Rect, point: Point): boolean {
   return (
     point.x >= rect.x &&
@@ -283,6 +290,9 @@ export function createPathFromOutputAnchorDrag(params: {
 
   const sourceZone = model.zonesById[sourceZoneId];
   const sourceVisual = frame.pipeline.graphLayout.zonesById[sourceZoneId];
+  const targetVisual = targetZoneId
+    ? frame.pipeline.graphLayout.zonesById[targetZoneId]
+    : undefined;
   if (!sourceZone || !sourceVisual) return undefined;
   if (!isZoneOutputEnabled(sourceZone)) return undefined;
   if (targetZoneId && !isZoneInputEnabled(model.zonesById[targetZoneId])) {
@@ -292,9 +302,13 @@ export function createPathFromOutputAnchorDrag(params: {
   const pathId = createPathId();
   const nextPathIndex = sourceZone.pathIds.length;
   const sourceOutlet = sourceVisual.anchors.outlet.point;
+  const targetInlet = targetVisual?.anchors.inlet?.point;
+  const desiredCenter = targetInlet
+    ? midpoint(sourceOutlet, targetInlet)
+    : dropWorldPoint;
   const desiredRect = {
-    x: snapCoordinate(dropWorldPoint.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
-    y: snapCoordinate(dropWorldPoint.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
+    x: snapCoordinate(desiredCenter.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
+    y: snapCoordinate(desiredCenter.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
   };
   const routeOffset = {
     x: roundCoordinate(desiredRect.x - (sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X)),

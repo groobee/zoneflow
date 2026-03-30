@@ -3,6 +3,8 @@ export * from "./pathCreateEditor";
 export {
   alignPathsByMode,
   alignZonesByMode,
+  commitZoneGroupReparentAtCurrentPosition,
+  commitZoneReparentAtCurrentPosition,
   distributePathsByMode,
   distributeZonesByMode,
   resolveGroupPathDragOrigin,

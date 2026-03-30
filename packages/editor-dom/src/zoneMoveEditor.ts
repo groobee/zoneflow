@@ -1282,3 +1282,58 @@ export function commitZoneReparentAtCurrentPosition(params: {
 }
 
 export const reparentZoneAtCurrentPosition = commitZoneReparentAtCurrentPosition;
+
+export function commitZoneGroupReparentAtCurrentPosition(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+}): {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  reparentedZoneIds: ZoneId[];
+  didReparent: boolean;
+} {
+  const { model, layoutModel, zoneIds } = params;
+  const uniqueZoneIds = Array.from(new Set(zoneIds)).filter((zoneId) =>
+    Boolean(model.zonesById[zoneId])
+  );
+
+  if (uniqueZoneIds.length === 0) {
+    return {
+      model,
+      layoutModel,
+      reparentedZoneIds: [],
+      didReparent: false,
+    };
+  }
+
+  const sortedZoneIds = [...uniqueZoneIds].sort(
+    (a, b) => getZoneDepth(model, a) - getZoneDepth(model, b)
+  );
+
+  let nextModel = model;
+  let nextLayoutModel = layoutModel;
+  const reparentedZoneIds: ZoneId[] = [];
+
+  for (const zoneId of sortedZoneIds) {
+    const result = commitZoneReparentAtCurrentPosition({
+      model: nextModel,
+      layoutModel: nextLayoutModel,
+      zoneId,
+    });
+
+    nextModel = result.model;
+    nextLayoutModel = result.layoutModel;
+
+    if (result.didReparent) {
+      reparentedZoneIds.push(zoneId);
+    }
+  }
+
+  return {
+    model: nextModel,
+    layoutModel: nextLayoutModel,
+    reparentedZoneIds,
+    didReparent: reparentedZoneIds.length > 0,
+  };
+}

@@ -18,6 +18,7 @@ import {
   alignPathsByMode,
   alignZonesByMode,
   createPathFromOutputAnchorDrag,
+  commitZoneGroupReparentAtCurrentPosition,
   commitZoneReparentAtCurrentPosition,
   distributePathsByMode,
   distributeZonesByMode,
@@ -1355,15 +1356,21 @@ export function ZoneMoveEditorOverlay(props: {
       if (
         drag?.target.kind === "zone" &&
         drag.hasMoved &&
-        drag.origin.kind !== "zone-group" &&
         !resize &&
         !pathResize
       ) {
-        const reparented = commitZoneReparentAtCurrentPosition({
-          model: latestRef.current.model,
-          layoutModel: latestRef.current.layoutModel,
-          zoneId: drag.target.zoneId,
-        });
+        const reparented =
+          drag.origin.kind === "zone-group"
+            ? commitZoneGroupReparentAtCurrentPosition({
+                model: latestRef.current.model,
+                layoutModel: latestRef.current.layoutModel,
+                zoneIds: Object.keys(drag.origin.originsByZoneId) as ZoneId[],
+              })
+            : commitZoneReparentAtCurrentPosition({
+                model: latestRef.current.model,
+                layoutModel: latestRef.current.layoutModel,
+                zoneId: drag.target.zoneId,
+              });
 
         if (reparented.didReparent) {
           latestRef.current.onModelChange?.(reparented.model);
@@ -1813,27 +1820,34 @@ export function ZoneMoveEditorOverlay(props: {
     [selectedTargetKey, targets]
   );
 
-  const dropTargetZoneId = useMemo(() => {
-    if (
-      isResizing ||
-      draggingTarget?.kind !== "zone" ||
-      draggingZoneGroupIds.length > 1
-    ) {
-      return null;
+  const dropTargetZoneIds = useMemo(() => {
+    if (isResizing || draggingTarget?.kind !== "zone") {
+      return [];
     }
 
-    const resolved = resolveZoneReparentCandidate({
-      model,
-      layoutModel,
-      zoneId: draggingTarget.zoneId,
-    });
+    const zoneIdsToEvaluate =
+      draggingZoneGroupIds.length > 0
+        ? draggingZoneGroupIds
+        : [draggingTarget.zoneId];
+    const nextZoneIds = new Set<ZoneId>();
 
-    if (resolved.candidateParentZoneId === resolved.currentParentZoneId) {
-      return null;
+    for (const zoneId of zoneIdsToEvaluate) {
+      const resolved = resolveZoneReparentCandidate({
+        model,
+        layoutModel,
+        zoneId,
+      });
+
+      if (
+        resolved.candidateParentZoneId !== null &&
+        resolved.candidateParentZoneId !== resolved.currentParentZoneId
+      ) {
+        nextZoneIds.add(resolved.candidateParentZoneId);
+      }
     }
 
-    return resolved.candidateParentZoneId;
-  }, [draggingTarget, draggingZoneGroupIds.length, isResizing, layoutModel, model]);
+    return Array.from(nextZoneIds);
+  }, [draggingTarget, draggingZoneGroupIds, isResizing, layoutModel, model]);
 
   const openZoneEditor = (zoneId: ZoneId, targetKey: string) => {
     if (editor?.onZoneEditClick) {
@@ -2135,12 +2149,27 @@ export function ZoneMoveEditorOverlay(props: {
     editingPathState && editingPathSourceZone
       ? editingPathSourceZone.pathsById[editingPathState.pathId]
       : undefined;
-  const dropTargetRect = dropTargetZoneId
-    ? frame.pipeline.graphLayout.zonesById[dropTargetZoneId]?.rect
-    : undefined;
-  const dropTargetScreenRect = dropTargetRect
-    ? toScreenRect(dropTargetRect, camera)
-    : undefined;
+  const dropTargetScreenRects = dropTargetZoneIds
+    .map((zoneId) => {
+      const rect = frame.pipeline.graphLayout.zonesById[zoneId]?.rect;
+
+      if (!rect) {
+        return null;
+      }
+
+      return {
+        zoneId,
+        rect: toScreenRect(rect, camera),
+      };
+    })
+    .filter(
+      (
+        value
+      ): value is {
+        zoneId: ZoneId;
+        rect: Rect;
+      } => value !== null
+    );
   const pathCreateSourceAnchorRect =
     creatingPath
       ? resolveZoneAnchorScreenRect({
@@ -3043,14 +3072,15 @@ export function ZoneMoveEditorOverlay(props: {
           </div>
         ) : null}
 
-        {dropTargetScreenRect && dropTargetZoneId ? (
+        {dropTargetScreenRects.map(({ zoneId, rect }) => (
           <div
+            key={`drop-target-${zoneId}`}
             style={{
               position: "absolute",
-              left: `${dropTargetScreenRect.x}px`,
-              top: `${dropTargetScreenRect.y}px`,
-              width: `${dropTargetScreenRect.width}px`,
-              height: `${dropTargetScreenRect.height}px`,
+              left: `${rect.x}px`,
+              top: `${rect.y}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
               borderRadius: 22,
               border: "2px solid rgba(34, 197, 94, 0.95)",
               background: "rgba(34, 197, 94, 0.08)",
@@ -3075,7 +3105,7 @@ export function ZoneMoveEditorOverlay(props: {
               DROP TARGET
             </div>
           </div>
-        ) : null}
+        ))}
 
         {targets.map((target) => {
           const isDragging = draggingTarget?.key === target.key;
