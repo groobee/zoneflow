@@ -1,24 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
-  createZone,
-  createZoneId,
-  createZoneLayout,
-  findPathSourceZoneId,
-  setZoneLayout,
-  type PathId,
-  type UniverseLayoutModel,
-  type UniverseModel,
-  type ZoneId,
-} from "@zoneflow/core";
-import {
-  resolveZonePlacementAtWorldRect,
-} from "@zoneflow/editor-dom";
-import {
-  UniverseCanvas,
+  createZoneFromDropTemplate,
+  UniverseEditorCanvas,
   type CanvasExternalDropPayload,
-  type EditorTransactionMeta,
-  type PathLabelEventPayload,
-  type ZoneMoveEditorConfig,
+  type UniverseEditorController,
 } from "@zoneflow/react";
 import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
@@ -34,59 +19,17 @@ import {
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 
 type Props = {
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  isEditMode: boolean;
-  gridSnapEnabled: boolean;
-  gridSnapSize: 8 | 12 | 16 | 24;
-  gridVisible: boolean;
-  onDraftModelChange: (nextModel: UniverseModel) => void;
-  onDraftLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
-  onEditorTransactionStart: (transaction: EditorTransactionMeta) => void;
-  onEditorTransactionCommit: (transaction: EditorTransactionMeta) => void;
-  onEditorTransactionCancel: (transaction: EditorTransactionMeta) => void;
-  canUndo: boolean;
-  onUndo: () => void;
+  editor: UniverseEditorController;
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
 };
 
-function roundCoordinate(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function snapCoordinate(
-  value: number,
-  enabled: boolean,
-  size: 8 | 12 | 16 | 24
-): number {
-  if (!enabled) return roundCoordinate(value);
-  return roundCoordinate(Math.round(value / size) * size);
-}
-
 export function CanvasHost({
-  model,
-  layoutModel,
-  isEditMode,
-  gridSnapEnabled,
-  gridSnapSize,
-  gridVisible,
-  onDraftModelChange,
-  onDraftLayoutModelChange,
-  onEditorTransactionStart,
-  onEditorTransactionCommit,
-  onEditorTransactionCancel,
-  canUndo,
-  onUndo,
+  editor,
   debug,
   onResize,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [editingPath, setEditingPath] = useState<{
-    pathId: PathId;
-    sourceZoneId: ZoneId;
-  } | null>(null);
-  const [editingZoneId, setEditingZoneId] = useState<ZoneId | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -105,156 +48,76 @@ export function CanvasHost({
     return () => observer.disconnect();
   }, [onResize]);
 
-  useEffect(() => {
-    if (isEditMode) return;
-    setEditingPath(null);
-    setEditingZoneId(null);
-  }, [isEditMode]);
-
-  useEffect(() => {
-    if (!editingZoneId) return;
-    if (model.zonesById[editingZoneId]) return;
-    setEditingZoneId(null);
-  }, [editingZoneId, model]);
-
-  useEffect(() => {
-    if (!editingPath) return;
-    const sourceZoneId = findPathSourceZoneId(model, editingPath.pathId);
-    if (sourceZoneId && sourceZoneId === editingPath.sourceZoneId) return;
-    setEditingPath(null);
-  }, [editingPath, model]);
-
   const handlePaletteZoneDrop = (event: CanvasExternalDropPayload) => {
     const template = readPaletteZoneDragData(event.dataTransfer);
     if (!template) return;
 
-    const worldRect = {
-      x: snapCoordinate(
-        event.worldPoint.x - template.width / 2,
-        gridSnapEnabled,
-        gridSnapSize
-      ),
-      y: snapCoordinate(
-        event.worldPoint.y - template.height / 2,
-        gridSnapEnabled,
-        gridSnapSize
-      ),
-      width: template.width,
-      height: template.height,
-    };
-    const placement = resolveZonePlacementAtWorldRect({
-      model,
-      layoutModel,
-      worldRect,
-    });
-    const zoneId = createZoneId();
-    const nextModel = createZone(model, {
-      id: zoneId,
-      name: template.label,
-      parentZoneId: placement.parentZoneId,
-      zoneType: template.zoneType,
-      action: template.action,
-      inputDisabled: template.inputDisabled,
-      outputDisabled: template.outputDisabled,
-      meta: template.meta,
-    });
-    const nextLayoutModel = setZoneLayout(
-      layoutModel,
-      zoneId,
-      createZoneLayout({
-        x: placement.x,
-        y: placement.y,
+    const next = createZoneFromDropTemplate({
+      model: editor.model,
+      layoutModel: editor.layoutModel,
+      worldPoint: event.worldPoint,
+      gridSnapEnabled: editor.gridSnapEnabled,
+      gridSnapSize: editor.gridSnapSize,
+      template: {
+        name: template.label,
+        zoneType: template.zoneType,
         width: template.width,
         height: template.height,
-      })
-    );
+        action: template.action,
+        inputDisabled: template.inputDisabled,
+        outputDisabled: template.outputDisabled,
+        meta: template.meta,
+      },
+    });
 
-    onDraftModelChange(nextModel);
-    onDraftLayoutModelChange(nextLayoutModel);
+    editor.updateDraftModel(next.model);
+    editor.updateDraftLayoutModel(next.layoutModel);
   };
-
-  const zoneMoveEditor: ZoneMoveEditorConfig | undefined = isEditMode
-    ? {
-        enabled: true,
-        gridSnap: {
-          enabled: gridSnapEnabled,
-          size: gridSnapSize,
-        },
-        onModelChange: onDraftModelChange,
-        onLayoutModelChange: onDraftLayoutModelChange,
-        onTransactionStart: onEditorTransactionStart,
-        onTransactionCommit: onEditorTransactionCommit,
-        onTransactionCancel: onEditorTransactionCancel,
-        history: {
-          canUndo,
-          onUndo,
-        },
-        externalDrop: {
-          enabled: true,
-          onDrop: handlePaletteZoneDrop,
-        },
-        deleteInteraction: {
-          animation: true,
-          confirm: true,
-        },
-        renderZoneEditButton: (props) => (
-          <PlaygroundZoneEditButton {...props} />
-        ),
-        onZoneEditClick: (zoneId: ZoneId) => {
-          setEditingZoneId(zoneId);
-        },
-        onPathLabelDoubleClick: ({
-          pathId,
-          sourceZoneId,
-        }: PathLabelEventPayload) => {
-          setEditingPath({ pathId, sourceZoneId });
-        },
-        onPathLabelContextMenu: ({
-          pathId,
-          sourceZoneId,
-        }: PathLabelEventPayload) => {
-          setEditingPath({ pathId, sourceZoneId });
-        },
-      }
-    : undefined;
 
   return (
     <main ref={ref} style={canvasHostStyle}>
-      <UniverseCanvas
-        model={model}
-        layoutModel={layoutModel}
+      <UniverseEditorCanvas
+        editor={editor}
         viewport={debug.viewport}
-        grid={{
-          enabled: gridVisible,
-          size: gridSnapSize,
-        }}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
-        zoneMoveEditor={zoneMoveEditor}
+        editorConfig={{
+          externalDrop: {
+            enabled: true,
+            onDrop: handlePaletteZoneDrop,
+          },
+          deleteInteraction: {
+            animation: true,
+            confirm: true,
+          },
+          renderZoneEditButton: (props) => (
+            <PlaygroundZoneEditButton {...props} />
+          ),
+          renderZoneEditor: (props) =>
+            props.onModelChange ? (
+              <PlaygroundZoneEditor
+                model={props.model}
+                zoneId={props.zoneId}
+                onModelChange={props.onModelChange}
+                onClose={props.closeEditor}
+              />
+            ) : null,
+          renderPathEditor: (props) =>
+            props.onModelChange ? (
+              <PlaygroundPathEditor
+                model={props.model}
+                pathId={props.pathId}
+                sourceZoneId={props.sourceZoneId}
+                onModelChange={props.onModelChange}
+                onClose={props.closeEditor}
+              />
+            ) : null,
+        }}
         debug={{
           enabled: debug.enabled,
           layers: debug.layers,
         }}
       />
-      {editingPath ? (
-        <PlaygroundPathEditor
-          key={`${editingPath.sourceZoneId}:${editingPath.pathId}`}
-          model={model}
-          pathId={editingPath.pathId}
-          sourceZoneId={editingPath.sourceZoneId}
-          onModelChange={onDraftModelChange}
-          onClose={() => setEditingPath(null)}
-        />
-      ) : null}
-      {editingZoneId ? (
-        <PlaygroundZoneEditor
-          key={editingZoneId}
-          model={model}
-          zoneId={editingZoneId}
-          onModelChange={onDraftModelChange}
-          onClose={() => setEditingZoneId(null)}
-        />
-      ) : null}
     </main>
   );
 }

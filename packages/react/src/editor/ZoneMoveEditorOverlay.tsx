@@ -85,6 +85,18 @@ export type ZoneEditorRenderProps = {
   closeEditor: () => void;
 };
 
+export type PathEditorRenderProps = {
+  pathId: PathId;
+  path: Path;
+  sourceZoneId: ZoneId;
+  sourceZone: Zone;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  onModelChange?: (nextModel: UniverseModel) => void;
+  onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
+  closeEditor: () => void;
+};
+
 export type PathLabelEventPayload = {
   pathId: PathId;
   sourceZoneId: ZoneId;
@@ -152,6 +164,7 @@ export type ZoneMoveEditorConfig = {
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   renderZoneEditButton?: (props: ZoneEditorButtonRenderProps) => ReactNode;
   renderZoneEditor?: (props: ZoneEditorRenderProps) => ReactNode;
+  renderPathEditor?: (props: PathEditorRenderProps) => ReactNode;
   onZoneEditClick?: (zoneId: ZoneId) => void;
   onPathLabelClick?: (event: PathLabelEventPayload) => void;
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
@@ -955,6 +968,10 @@ export function ZoneMoveEditorOverlay(props: {
   const [deleteConfirmState, setDeleteConfirmState] = useState<DeleteConfirmState | null>(null);
   const [deleteUndoState, setDeleteUndoState] = useState<DeleteUndoState | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<ZoneId | null>(null);
+  const [editingPathState, setEditingPathState] = useState<{
+    pathId: PathId;
+    sourceZoneId: ZoneId;
+  } | null>(null);
   const [creatingPath, setCreatingPath] = useState<PathCreateDragState | null>(null);
   const [pathCreateTargetZoneId, setPathCreateTargetZoneId] = useState<ZoneId | null>(null);
   const [retargetingPath, setRetargetingPath] = useState<PathRetargetDragState | null>(null);
@@ -1045,6 +1062,7 @@ export function ZoneMoveEditorOverlay(props: {
     setDeleteConfirmState(null);
     setDeleteUndoState(null);
     setEditingZoneId(null);
+    setEditingPathState(null);
     onExclusionStateChange?.(undefined);
   }, [editor?.enabled, onExclusionStateChange]);
 
@@ -1062,6 +1080,13 @@ export function ZoneMoveEditorOverlay(props: {
     if (model.zonesById[editingZoneId]) return;
     setEditingZoneId(null);
   }, [editingZoneId, model]);
+
+  useEffect(() => {
+    if (!editingPathState) return;
+    const sourceZoneId = findPathSourceZoneId(model, editingPathState.pathId);
+    if (sourceZoneId && sourceZoneId === editingPathState.sourceZoneId) return;
+    setEditingPathState(null);
+  }, [editingPathState, model]);
 
   useEffect(() => {
     if (!deleteUndoState) return;
@@ -1799,6 +1824,23 @@ export function ZoneMoveEditorOverlay(props: {
     setSelectedTargetKey(targetKey);
   };
 
+  const openPathEditor = (
+    payload: PathLabelEventPayload,
+    targetKey: string,
+    trigger?: (event: PathLabelEventPayload) => void
+  ) => {
+    if (trigger) {
+      trigger(payload);
+    } else if (editor?.renderPathEditor) {
+      setEditingPathState({
+        pathId: payload.pathId,
+        sourceZoneId: payload.sourceZoneId,
+      });
+    }
+
+    setSelectedTargetKey(targetKey);
+  };
+
   const runZoneSelectionCommand = (
     command:
       | "align-left"
@@ -2060,6 +2102,13 @@ export function ZoneMoveEditorOverlay(props: {
     (typeof window === "undefined" ? 0 : window.innerWidth);
 
   const editingZone = editingZoneId ? model.zonesById[editingZoneId] : undefined;
+  const editingPathSourceZone = editingPathState
+    ? model.zonesById[editingPathState.sourceZoneId]
+    : undefined;
+  const editingPath =
+    editingPathState && editingPathSourceZone
+      ? editingPathSourceZone.pathsById[editingPathState.pathId]
+      : undefined;
   const dropTargetRect = dropTargetZoneId
     ? frame.pipeline.graphLayout.zonesById[dropTargetZoneId]?.rect
     : undefined;
@@ -2931,7 +2980,8 @@ export function ZoneMoveEditorOverlay(props: {
               isResizingTarget);
           const shouldShowPathEditTrigger =
             target.kind === "path" &&
-            (!!editor.onPathLabelClick ||
+            (!!editor.renderPathEditor ||
+              !!editor.onPathLabelClick ||
               !!editor.onPathLabelDoubleClick ||
               !!editor.onPathLabelContextMenu) &&
             !isDeleteArmed &&
@@ -3576,10 +3626,12 @@ export function ZoneMoveEditorOverlay(props: {
                     });
                     if (!payload) return;
                     const trigger = editor.onPathLabelDoubleClick ?? editor.onPathLabelClick;
-                    trigger?.(payload);
+                    openPathEditor(payload, target.key, trigger);
                   }}
                   onContextMenu={(event) => {
-                    if (!editor.onPathLabelContextMenu) return;
+                    if (!editor.onPathLabelContextMenu && !editor.renderPathEditor) {
+                      return;
+                    }
 
                     event.preventDefault();
                     event.stopPropagation();
@@ -3592,7 +3644,7 @@ export function ZoneMoveEditorOverlay(props: {
                       clientY: event.clientY,
                     });
                     if (!payload) return;
-                    editor.onPathLabelContextMenu(payload);
+                    openPathEditor(payload, target.key, editor.onPathLabelContextMenu);
                   }}
                   style={{
                     position: "absolute",
@@ -3721,6 +3773,22 @@ export function ZoneMoveEditorOverlay(props: {
             onLayoutModelChange: editor.onLayoutModelChange,
             closeEditor: () => {
               setEditingZoneId(null);
+            },
+          })
+        : null}
+
+      {editingPath && editingPathSourceZone && editor.renderPathEditor
+        ? editor.renderPathEditor({
+            pathId: editingPath.id,
+            path: editingPath,
+            sourceZoneId: editingPathSourceZone.id,
+            sourceZone: editingPathSourceZone,
+            model,
+            layoutModel,
+            onModelChange: editor.onModelChange,
+            onLayoutModelChange: editor.onLayoutModelChange,
+            closeEditor: () => {
+              setEditingPathState(null);
             },
           })
         : null}

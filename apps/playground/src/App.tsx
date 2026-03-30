@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useUniverseEditorSession } from "@zoneflow/react";
+import { useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
 import { shellStyle } from "./components/layout/layout.styles";
@@ -35,7 +35,7 @@ export default function App() {
     setLayoutModel,
   } =
     useSampleSwitcher("small");
-  const editorSession = useUniverseEditorSession({
+  const editor = useUniverseEditor({
     model,
     layoutModel,
     setModel,
@@ -47,16 +47,12 @@ export default function App() {
     height: 0,
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
-  const [gridSnapEnabled, setGridSnapEnabled] = useState(true);
-  const [gridSnapSize, setGridSnapSize] = useState<8 | 12 | 16 | 24>(16);
-  const [gridVisible, setGridVisible] = useState(false);
-
-  const isEditMode = editorSession.isEditMode;
-  const workingModel = editorSession.model;
-  const workingLayoutModel = editorSession.layoutModel;
+  const isEditMode = editor.isEditMode;
+  const workingModel = editor.model;
+  const workingLayoutModel = editor.layoutModel;
 
   const handleSampleTypeChange = (nextSampleType: "small" | "large") => {
-    editorSession.resetForSampleChange();
+    editor.resetForSampleChange();
     setSampleType(nextSampleType);
   };
 
@@ -65,40 +61,15 @@ export default function App() {
       <Topbar
         sampleType={sampleType}
         setSampleType={handleSampleTypeChange}
-        isEditMode={isEditMode}
-        gridSnapEnabled={gridSnapEnabled}
-        gridSnapSize={gridSnapSize}
-        gridVisible={gridVisible}
-        onToggleGridSnap={() => setGridSnapEnabled((current) => !current)}
-        onToggleGridVisible={() => setGridVisible((current) => !current)}
-        onGridSnapSizeChange={setGridSnapSize}
-        canUndo={editorSession.canUndo}
-        canRedo={editorSession.canRedo}
-        onUndo={editorSession.undo}
-        onRedo={editorSession.redo}
-        onStartEdit={editorSession.startEdit}
-        onApplyEdit={editorSession.applyEdit}
-        onCancelEdit={editorSession.cancelEdit}
+        editor={editor}
         onOpenDataModal={() => setIsDataModalOpen(true)}
       />
       <LeftPanel isEditMode={isEditMode} />
 
       <CanvasHost
-        model={workingModel}
-        layoutModel={workingLayoutModel}
-        isEditMode={isEditMode}
-        onDraftModelChange={editorSession.updateDraftModel}
-        onDraftLayoutModelChange={editorSession.updateDraftLayoutModel}
-        onEditorTransactionStart={editorSession.beginTransaction}
-        onEditorTransactionCommit={editorSession.commitTransaction}
-        onEditorTransactionCancel={editorSession.cancelTransaction}
-        canUndo={editorSession.canUndo}
-        onUndo={editorSession.undo}
+        editor={editor}
         debug={debug}
         onResize={setHostSize}
-        gridSnapEnabled={gridSnapEnabled}
-        gridSnapSize={gridSnapSize}
-        gridVisible={gridVisible}
       />
 
       <RightPanel
