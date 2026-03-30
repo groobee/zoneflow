@@ -41,40 +41,8 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
-function ensureArrowMarker(svg: SVGSVGElement, color: string) {
-  const defs = createSvgElement("defs");
-  const marker = createSvgElement("marker");
-  marker.setAttribute("id", "zoneflow-debug-arrow");
-  marker.setAttribute("markerWidth", "12");
-  marker.setAttribute("markerHeight", "12");
-  marker.setAttribute("refX", "10");
-  marker.setAttribute("refY", "6");
-  marker.setAttribute("orient", "auto");
-  marker.setAttribute("markerUnits", "strokeWidth");
-
-  const arrow = createSvgElement("path");
-  arrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
-  arrow.setAttribute("fill", color);
-
-  marker.appendChild(arrow);
-  defs.appendChild(marker);
-
-  const inboundMarker = createSvgElement("marker");
-  inboundMarker.setAttribute("id", "zoneflow-debug-arrow-inbound");
-  inboundMarker.setAttribute("markerWidth", "12");
-  inboundMarker.setAttribute("markerHeight", "12");
-  inboundMarker.setAttribute("refX", "12");
-  inboundMarker.setAttribute("refY", "6");
-  inboundMarker.setAttribute("orient", "0");
-  inboundMarker.setAttribute("markerUnits", "strokeWidth");
-
-  const inboundArrow = createSvgElement("path");
-  inboundArrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
-  inboundArrow.setAttribute("fill", color);
-
-  inboundMarker.appendChild(inboundArrow);
-  defs.appendChild(inboundMarker);
-  svg.appendChild(defs);
+function getEdgeColor(kind: "zone-to-path" | "path-to-zone") {
+  return kind === "zone-to-path" ? "#2563eb" : "#0f766e";
 }
 
 function getBezierCurvePathD(params: {
@@ -91,6 +59,19 @@ function getBezierCurvePathD(params: {
   const control2X = target.x - handle * direction;
 
   return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function getChevronPathD(params: {
+  target: { x: number; y: number };
+  direction: 1 | -1;
+}) {
+  const { target, direction } = params;
+  const tipX = target.x - direction * 6;
+  const baseX = tipX - direction * 7;
+  const topY = target.y - 4;
+  const bottomY = target.y + 4;
+
+  return `M ${baseX} ${topY} L ${tipX} ${target.y} L ${baseX} ${bottomY}`;
 }
 
 function filterPipelineForExclusion(input: DebugDrawInput) {
@@ -406,12 +387,11 @@ function drawEdges(root: HTMLElement, pipeline: any) {
   svg.style.overflow = "visible";
   svg.style.pointerEvents = "none";
 
-  ensureArrowMarker(svg, "#0f172a");
-
   Object.values(edgesByPathId)
     .flatMap((edges: any) => edges)
     .forEach((edge: any) => {
       const path = createSvgElement("path");
+      const stroke = getEdgeColor(edge.kind);
 
       path.setAttribute(
         "d",
@@ -421,26 +401,34 @@ function drawEdges(root: HTMLElement, pipeline: any) {
         })
       );
       path.setAttribute("fill", "none");
-      path.setAttribute(
-        "stroke",
-        edge.kind === "zone-to-path"
-          ? "#2563eb"
-          : "#ef4444"
-      );
+      path.setAttribute("stroke", stroke);
       path.setAttribute(
         "stroke-width",
         edge.kind === "zone-to-path" ? "2" : "2.4"
       );
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
-      path.setAttribute(
-        "marker-end",
-        edge.kind === "path-to-zone"
-          ? "url(#zoneflow-debug-arrow-inbound)"
-          : "url(#zoneflow-debug-arrow)"
-      );
 
       svg.appendChild(path);
+
+      const chevron = createSvgElement("path");
+      chevron.setAttribute(
+        "d",
+        getChevronPathD({
+          target: edge.target,
+          direction: edge.kind === "path-to-zone" ? 1 : edge.target.x >= edge.source.x ? 1 : -1,
+        })
+      );
+      chevron.setAttribute("fill", "none");
+      chevron.setAttribute("stroke", stroke);
+      chevron.setAttribute(
+        "stroke-width",
+        edge.kind === "zone-to-path" ? "1.7" : "1.95"
+      );
+      chevron.setAttribute("stroke-linecap", "round");
+      chevron.setAttribute("stroke-linejoin", "round");
+
+      svg.appendChild(chevron);
     });
 
   root.appendChild(svg);

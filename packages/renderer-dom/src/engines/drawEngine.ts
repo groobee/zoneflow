@@ -64,40 +64,8 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
-function ensureArrowMarker(svg: SVGSVGElement, color: string) {
-  const defs = createSvgElement("defs");
-  const marker = createSvgElement("marker");
-  marker.setAttribute("id", "zoneflow-arrow");
-  marker.setAttribute("markerWidth", "12");
-  marker.setAttribute("markerHeight", "12");
-  marker.setAttribute("refX", "10");
-  marker.setAttribute("refY", "6");
-  marker.setAttribute("orient", "auto");
-  marker.setAttribute("markerUnits", "strokeWidth");
-
-  const arrow = createSvgElement("path");
-  arrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
-  arrow.setAttribute("fill", color);
-
-  marker.appendChild(arrow);
-  defs.appendChild(marker);
-
-  const inboundMarker = createSvgElement("marker");
-  inboundMarker.setAttribute("id", "zoneflow-arrow-inbound");
-  inboundMarker.setAttribute("markerWidth", "12");
-  inboundMarker.setAttribute("markerHeight", "12");
-  inboundMarker.setAttribute("refX", "12");
-  inboundMarker.setAttribute("refY", "6");
-  inboundMarker.setAttribute("orient", "0");
-  inboundMarker.setAttribute("markerUnits", "strokeWidth");
-
-  const inboundArrow = createSvgElement("path");
-  inboundArrow.setAttribute("d", "M 0 0 L 12 6 L 0 12 z");
-  inboundArrow.setAttribute("fill", color);
-
-  inboundMarker.appendChild(inboundArrow);
-  defs.appendChild(inboundMarker);
-  svg.appendChild(defs);
+function getEdgeColor(kind: "zone-to-path" | "path-to-zone", themePathEdge: string) {
+  return kind === "zone-to-path" ? themePathEdge : "#0f766e";
 }
 
 function getBezierCurvePathD(params: {
@@ -114,6 +82,19 @@ function getBezierCurvePathD(params: {
   const control2X = target.x - handle * direction;
 
   return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function getChevronPathD(params: {
+  target: { x: number; y: number };
+  direction: 1 | -1;
+}) {
+  const { target, direction } = params;
+  const tipX = target.x - direction * 6;
+  const baseX = tipX - direction * 7;
+  const topY = target.y - 4;
+  const bottomY = target.y + 4;
+
+  return `M ${baseX} ${topY} L ${tipX} ${target.y} L ${baseX} ${bottomY}`;
 }
 
 function computeSceneBounds(input: RendererDrawInput): Rect {
@@ -454,6 +435,7 @@ function drawEdges(params: {
     if (!visibility?.shouldRenderEdge) continue;
 
     for (const edge of edges) {
+      const stroke = getEdgeColor(edge.kind, input.theme.pathEdge);
       const path = createSvgElement("path");
       path.setAttribute(
         "d",
@@ -463,7 +445,7 @@ function drawEdges(params: {
         })
       );
       path.setAttribute("fill", "none");
-      path.setAttribute("stroke", input.theme.pathEdge);
+      path.setAttribute("stroke", stroke);
       path.setAttribute(
         "stroke-width",
         edge.kind === "path-to-zone" ? "2.25" : "1.85"
@@ -471,13 +453,26 @@ function drawEdges(params: {
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
       path.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
-      path.setAttribute(
-        "marker-end",
-        edge.kind === "path-to-zone"
-          ? "url(#zoneflow-arrow-inbound)"
-          : "url(#zoneflow-arrow)"
-      );
       svg.appendChild(path);
+
+      const chevron = createSvgElement("path");
+      chevron.setAttribute(
+        "d",
+        getChevronPathD({
+          target: edge.target,
+          direction: edge.kind === "path-to-zone" ? 1 : edge.target.x >= edge.source.x ? 1 : -1,
+        })
+      );
+      chevron.setAttribute("fill", "none");
+      chevron.setAttribute("stroke", stroke);
+      chevron.setAttribute(
+        "stroke-width",
+        edge.kind === "path-to-zone" ? "1.95" : "1.7"
+      );
+      chevron.setAttribute("stroke-linecap", "round");
+      chevron.setAttribute("stroke-linejoin", "round");
+      chevron.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
+      svg.appendChild(chevron);
     }
   }
 }
@@ -675,7 +670,6 @@ export const domDrawEngine: DrawEngine = {
       pointerEvents: "none",
       zIndex: 20,
     });
-    ensureArrowMarker(edgeSvg, theme.pathEdge);
 
     applyStyles(zoneLayer, {
       position: "absolute",
