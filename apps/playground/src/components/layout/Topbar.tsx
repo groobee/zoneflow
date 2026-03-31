@@ -10,12 +10,14 @@ import {
 } from "./layout.styles";
 
 type Props = {
-  sampleType: "small" | "large";
-  setSampleType: (value: "small" | "large") => void;
+  sampleType: "small" | "large" | "custom";
+  setSampleType: (value: "small" | "large" | "custom") => void;
   editor: UniverseEditorController;
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
   onOpenDataModal: () => void;
+  onExportFile: () => void;
+  onImportFile: () => void;
 };
 
 export function Topbar({
@@ -25,6 +27,8 @@ export function Topbar({
   overlayHudVisible,
   onToggleOverlayHud,
   onOpenDataModal,
+  onExportFile,
+  onImportFile,
 }: Props) {
   return (
     <DefaultEditorToolbar
@@ -34,14 +38,25 @@ export function Topbar({
         <select
           style={selectStyle}
           value={sampleType}
-          onChange={(e) => setSampleType(e.target.value as "small" | "large")}
+          onChange={(e) =>
+            setSampleType(e.target.value as "small" | "large" | "custom")
+          }
         >
           <option value="small">Small sample</option>
           <option value="large">Large sample</option>
+          {sampleType === "custom" ? (
+            <option value="custom">Loaded file</option>
+          ) : null}
         </select>
       }
       trailing={
         <>
+          <button type="button" style={buttonStyle} onClick={onImportFile}>
+            불러오기
+          </button>
+          <button type="button" style={buttonStyle} onClick={onExportFile}>
+            저장
+          </button>
           <button type="button" style={buttonStyle} onClick={onToggleOverlayHud}>
             HUD {overlayHudVisible ? "On" : "Off"}
           </button>

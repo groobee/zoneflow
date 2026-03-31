@@ -8,6 +8,7 @@ export * from "./traversal";
 export * from "./validation";
 export * from "./mutation";
 export * from "./layout";
+export * from "./document";
 export * from "./ids";
 export * from "./remap";
 export * from "./clone";

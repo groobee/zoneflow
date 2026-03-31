@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  parseZoneflowDocument,
+  serializeZoneflowDocument,
+} from "@zoneflow/core";
 import { useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
@@ -29,6 +33,7 @@ export default function App() {
   const {
     sampleType,
     setSampleType,
+    setCustomSample,
     model,
     layoutModel,
     setModel,
@@ -48,17 +53,73 @@ export default function App() {
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isEditMode = editor.isEditMode;
   const workingModel = editor.model;
   const workingLayoutModel = editor.layoutModel;
 
-  const handleSampleTypeChange = (nextSampleType: "small" | "large") => {
+  const handleSampleTypeChange = (nextSampleType: "small" | "large" | "custom") => {
+    if (nextSampleType === "custom") {
+      return;
+    }
+
     editor.resetForSampleChange();
     setSampleType(nextSampleType);
   };
 
+  const handleExportFile = () => {
+    const payload = serializeZoneflowDocument({
+      model: workingModel,
+      layoutModel: workingLayoutModel,
+    });
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const safeUniverseId = workingModel.universeId.replace(/[^a-zA-Z0-9-_]+/g, "-");
+
+    anchor.href = url;
+    anchor.download = `${safeUniverseId || "zoneflow-universe"}.zoneflow.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    try {
+      const payload = await file.text();
+      const documentBundle = parseZoneflowDocument(payload);
+
+      editor.resetForSampleChange();
+      setCustomSample({
+        model: documentBundle.model,
+        layoutModel: documentBundle.layoutModel,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown import error";
+      window.alert(`Zoneflow 파일을 불러오지 못했습니다.\\n\\n${message}`);
+    }
+  };
+
   return (
     <div style={shellStyle}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.zoneflow.json,application/json"
+        style={{ display: "none" }}
+        onChange={handleImportFileChange}
+      />
       <Topbar
         sampleType={sampleType}
         setSampleType={handleSampleTypeChange}
@@ -66,6 +127,8 @@ export default function App() {
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
         onOpenDataModal={() => setIsDataModalOpen(true)}
+        onExportFile={handleExportFile}
+        onImportFile={handleImportClick}
       />
       <LeftPanel isEditMode={isEditMode} />
 
