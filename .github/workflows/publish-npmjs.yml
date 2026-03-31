@@ -4,25 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       dist_tag:
-        description: npm dist-tag to publish with
+        description: 배포할 npm dist-tag
         required: false
         default: latest
         type: string
       access:
-        description: npm access level
+        description: npm 접근 수준
         required: false
-        default: restricted
+        default: public
         type: choice
         options:
           - restricted
           - public
       dry_run:
-        description: Run publish in dry-run mode
+        description: 실제 배포 없이 검증만 실행
         required: false
         default: true
         type: boolean
       release_type:
-        description: Automatic version bump type
+        description: 자동 버전 증가 방식
         required: false
         default: patch
         type: choice
@@ -32,12 +32,12 @@ on:
           - major
           - prerelease
       release_version:
-        description: Explicit version override. Leave empty to auto-bump from npm.
+        description: 직접 지정할 배포 버전. 비우면 npm 기준으로 자동 증가
         required: false
         default: ""
         type: string
       prerelease_id:
-        description: Prerelease identifier when release_type is prerelease
+        description: prerelease 선택 시 사용할 식별자
         required: false
         default: rc
         type: string
