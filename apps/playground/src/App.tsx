@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import {
+  createUniverseId,
+  createUniverseLayoutModel,
   parseZoneflowDocument,
   serializeZoneflowDocument,
 } from "@zoneflow/core";
@@ -57,6 +59,24 @@ export default function App() {
   const isEditMode = editor.isEditMode;
   const workingModel = editor.model;
   const workingLayoutModel = editor.layoutModel;
+
+  const handleCreateNewDocument = () => {
+    const universeId = createUniverseId();
+
+    editor.resetForSampleChange();
+    setCustomSample({
+      model: {
+        version: "1.0.0",
+        universeId,
+        rootZoneIds: [],
+        zonesById: {},
+      },
+      layoutModel: createUniverseLayoutModel({
+        universeId,
+        version: "1.0.0",
+      }),
+    });
+  };
 
   const handleSampleTypeChange = (nextSampleType: "small" | "large" | "custom") => {
     if (nextSampleType === "custom") {
@@ -127,6 +147,7 @@ export default function App() {
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
         onOpenDataModal={() => setIsDataModalOpen(true)}
+        onCreateNewDocument={handleCreateNewDocument}
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
       />

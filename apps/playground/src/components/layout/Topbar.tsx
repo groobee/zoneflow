@@ -16,6 +16,7 @@ type Props = {
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
   onOpenDataModal: () => void;
+  onCreateNewDocument: () => void;
   onExportFile: () => void;
   onImportFile: () => void;
 };
@@ -27,6 +28,7 @@ export function Topbar({
   overlayHudVisible,
   onToggleOverlayHud,
   onOpenDataModal,
+  onCreateNewDocument,
   onExportFile,
   onImportFile,
 }: Props) {
@@ -51,6 +53,9 @@ export function Topbar({
       }
       trailing={
         <>
+          <button type="button" style={buttonStyle} onClick={onCreateNewDocument}>
+            새 문서
+          </button>
           <button type="button" style={buttonStyle} onClick={onImportFile}>
             불러오기
           </button>
