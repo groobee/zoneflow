@@ -6,13 +6,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git@github-groobee:groobee/zoneflow.git"
+    "url": "https://github.com/groobee/zoneflow.git"
   },
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r dev",
     "type-check": "pnpm -r type-check",
-    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules packages/*/dist apps/*/dist && find . -name tsconfig.tsbuildinfo -delete && find . -name .vite -type d -exec rm -rf {} +"
+    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules packages/*/dist apps/*/dist && find . -name tsconfig.tsbuildinfo -delete && find . -name .vite -type d -exec rm -rf {} +",
+    "release:version": "node ./scripts/release-version.mjs --write"
   },
   "devDependencies": {
     "typescript": "~5.9.3"

@@ -21,6 +21,26 @@ on:
         required: false
         default: true
         type: boolean
+      release_type:
+        description: Automatic version bump type
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+      release_version:
+        description: Explicit version override. Leave empty to auto-bump from npm.
+        required: false
+        default: ""
+        type: string
+      prerelease_id:
+        description: Prerelease identifier when release_type is prerelease
+        required: false
+        default: rc
+        type: string
 
 permissions:
   contents: read
@@ -31,12 +51,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -57,6 +79,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve release version
+        id: release-version
+        run: |
+          version_args=(
+            --write
+            --source registry
+            --bump "${{ inputs.release_type }}"
+            --prerelease-id "${{ inputs.prerelease_id }}"
+          )
+
+          if [ -n "${{ inputs.release_version }}" ]; then
+            version_args+=(--version "${{ inputs.release_version }}")
+          fi
+
+          next_version=$(node ./scripts/release-version.mjs "${version_args[@]}")
+          echo "next_version=${next_version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release version: ${next_version}"
+
       - name: Type check
         run: pnpm -r --filter "./packages/*" type-check
 
@@ -72,6 +112,7 @@ jobs:
 
       - name: Publish packages
         run: |
+          echo "Publishing version ${{ steps.release-version.outputs.next_version }}"
           shopt -s nullglob
           tarballs=(./.npm-packages/*.tgz)
 
