@@ -97,11 +97,11 @@ jobs:
           echo "next_version=${next_version}" >> "$GITHUB_OUTPUT"
           echo "Resolved release version: ${next_version}"
 
-      - name: Type check
-        run: pnpm -r --filter "./packages/*" type-check
-
       - name: Build packages
         run: pnpm -r --filter "./packages/*" build
+
+      - name: Type check
+        run: pnpm -r --filter "./packages/*" type-check
 
       - name: Pack packages
         run: |

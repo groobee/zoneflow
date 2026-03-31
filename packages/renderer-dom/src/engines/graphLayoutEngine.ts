@@ -21,18 +21,6 @@ export const DEFAULT_PATH_NODE_HEIGHT = 32;
 export const DEFAULT_PATH_NODE_OFFSET_X = 32;
 export const DEFAULT_PATH_NODE_GAP_Y = 40;
 
-function typedEntries<TKey extends string, TValue>(
-  record: Record<TKey, TValue>
-): Array<[TKey, TValue]> {
-  return Object.entries(record) as Array<[TKey, TValue]>;
-}
-
-function typedValues<TKey extends string, TValue>(
-  record: Record<TKey, TValue>
-): TValue[] {
-  return Object.values(record) as TValue[];
-}
-
 function rectFromLayout(layout: {
   x: number;
   y: number;
@@ -110,7 +98,10 @@ function resolveLayout(
     return worldPos;
   }
 
-  for (const [typedZoneId, layout] of typedEntries(layoutModel.zoneLayoutsById)) {
+  const zoneLayoutIds = Object.keys(layoutModel.zoneLayoutsById) as ZoneId[];
+
+  for (const typedZoneId of zoneLayoutIds) {
+    const layout = layoutModel.zoneLayoutsById[typedZoneId];
     const worldPos = resolveZonePosition(typedZoneId);
     const anchors = layout.anchors as Record<"inlet" | "outlet", AnchorLayout>;
     const resolvedAnchors = {
@@ -138,7 +129,10 @@ function resolveLayout(
     };
   }
 
-  for (const [pathId, pathLayout] of typedEntries(layoutModel.pathLayoutsById)) {
+  const pathLayoutIds = Object.keys(layoutModel.pathLayoutsById) as PathId[];
+
+  for (const pathId of pathLayoutIds) {
+    const pathLayout = layoutModel.pathLayoutsById[pathId];
     resolvedPathLayouts[pathId] = {
       ...pathLayout,
     };
@@ -202,7 +196,10 @@ function createZoneVisualNodes(params: {
   const { model, layoutModel } = params;
   const result: Record<ZoneId, ZoneVisualNode> = {};
 
-  for (const [typedZoneId, zone] of typedEntries(model.zonesById)) {
+  const zoneIds = Object.keys(model.zonesById) as ZoneId[];
+
+  for (const typedZoneId of zoneIds) {
+    const zone = model.zonesById[typedZoneId];
     const zoneLayout = layoutModel.zoneLayoutsById[typedZoneId];
     if (!zoneLayout) continue;
 
@@ -226,7 +223,10 @@ function createPathVisualNodes(params: {
   const { model, layoutModel, zonesById } = params;
   const result: Record<PathId, PathVisualNode> = {};
 
-  for (const zone of typedValues(model.zonesById)) {
+  const zoneIds = Object.keys(model.zonesById) as ZoneId[];
+
+  for (const zoneId of zoneIds) {
+    const zone = model.zonesById[zoneId];
     const sourceZoneVisual = zonesById[zone.id];
     if (!sourceZoneVisual) continue;
 
@@ -276,7 +276,10 @@ function createEdgeVisuals(params: {
   const { model, zonesById, pathsById } = params;
   const result: Record<PathId, EdgeVisual[]> = {};
 
-  for (const zone of typedValues(model.zonesById)) {
+  const zoneIds = Object.keys(model.zonesById) as ZoneId[];
+
+  for (const zoneId of zoneIds) {
+    const zone = model.zonesById[zoneId];
     const sourceZoneVisual = zonesById[zone.id];
     if (!sourceZoneVisual) continue;
 
