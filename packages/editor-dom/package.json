@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git@github-groobee:groobee/zoneflow.git",
+    "url": "https://github.com/groobee/zoneflow.git",
     "directory": "packages/editor-dom"
   },
   "publishConfig": {
