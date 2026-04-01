@@ -187,6 +187,68 @@ path slot:
 />
 ```
 
+## 테마 주입
+
+렌더러와 editor overlay는 각각 다른 계층으로 테마를 받을 수 있습니다.
+
+```tsx
+<DefaultEditorToolbar
+  editor={editor}
+  theme={{
+    hud: {
+      panelBackground: "rgba(9, 15, 28, 0.92)",
+      buttonActiveBackground: "#0f766e",
+      buttonActiveBorder: "1px solid rgba(45, 212, 191, 0.42)",
+    },
+  }}
+/>
+
+<UniverseEditorCanvas
+  editor={editor}
+  theme={{
+    zoneContainerBorder: "#334155",
+    zoneActionBorder: "#0f766e",
+    pathEdge: "#475569",
+    pathInboundEdge: "#0f766e",
+    surface: {
+      chrome: {
+        accentFade: "rgba(226, 232, 240, 0.08)",
+      },
+      zone: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.98) 100%)",
+      },
+      path: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)",
+      },
+    },
+  }}
+  editorConfig={{
+    theme: {
+      overlay: {
+        helpPanel: {
+          background: "rgba(6, 12, 24, 0.9)",
+        },
+        connectTarget: {
+          badgeBackground: "#0f766e",
+        },
+        dropTarget: {
+          badgeBackground: "#2563eb",
+        },
+      },
+    },
+  }}
+/>
+```
+
+- `theme`
+  - renderer/viewer 카드, 앵커, 선, 상태 배지 테마
+- `editorConfig.theme`
+  - editor overlay, HUD, preview, 선택 하이라이트 테마
+- `DefaultEditorToolbar.theme`
+  - 기본 toolbar 테마
+
 ## 파일 저장 / 불러오기
 
 문서 저장과 불러오기는 `@zoneflow/core`의 문서 API를 사용하는 것이 맞습니다.

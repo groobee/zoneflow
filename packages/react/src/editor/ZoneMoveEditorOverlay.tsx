@@ -72,6 +72,7 @@ export type ZoneEditorButtonRenderProps = {
   rect: Rect;
   isSelected: boolean;
   isEditing: boolean;
+  theme?: ZoneflowEditorTheme;
   openEditor: () => void;
   closeEditor: () => void;
 };
@@ -556,6 +557,9 @@ function intersectsRect(a: Rect, b: Rect): boolean {
 }
 
 function renderDefaultZoneEditButton(props: ZoneEditorButtonRenderProps) {
+  const tone = props.isEditing
+    ? props.theme?.overlay.editButton.active
+    : props.theme?.overlay.editButton.idle;
   return (
     <button
       type="button"
@@ -570,12 +574,12 @@ function renderDefaultZoneEditButton(props: ZoneEditorButtonRenderProps) {
         top: -12,
         padding: "5px 10px",
         borderRadius: 999,
-        border: "1px solid rgba(37, 99, 235, 0.28)",
-        background: props.isEditing ? "#2563eb" : "rgba(255, 255, 255, 0.96)",
-        color: props.isEditing ? "#eff6ff" : "#0f172a",
+        border: tone?.border,
+        background: tone?.background,
+        color: tone?.color,
         fontSize: 11,
         fontWeight: 700,
-        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+        boxShadow: tone?.shadow,
         cursor: "pointer",
         pointerEvents: "auto",
       }}
@@ -592,7 +596,13 @@ function renderZoneFallback(
   switch (slot) {
     case "title":
       return (
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: context.theme.zoneTitle,
+          }}
+        >
           {context.zone.name}
         </div>
       );
@@ -602,7 +612,7 @@ function renderZoneFallback(
           style={{
             fontSize: 10,
             fontWeight: 700,
-            color: "#64748b",
+            color: context.theme.zoneSubtext,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
           }}
@@ -619,8 +629,8 @@ function renderZoneFallback(
             height: "100%",
             padding: "0 10px",
             borderRadius: 999,
-            background: "#eff6ff",
-            color: "#1d4ed8",
+            background: context.theme.zoneBadgeBg,
+            color: context.theme.selection,
             fontSize: 11,
             fontWeight: 700,
             boxSizing: "border-box",
@@ -631,7 +641,13 @@ function renderZoneFallback(
       );
     case "body":
       return (
-        <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.45 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: context.theme.zoneSubtext,
+            lineHeight: 1.45,
+          }}
+        >
           {context.zone.childZoneIds.length} child zones
         </div>
       );
@@ -642,7 +658,7 @@ function renderZoneFallback(
             display: "flex",
             justifyContent: "space-between",
             fontSize: 10,
-            color: "#94a3b8",
+            color: context.theme.zoneSubtext,
             fontWeight: 600,
           }}
         >
@@ -728,7 +744,7 @@ function renderPathFallback(
           style={{
             fontSize: 12,
             fontWeight: 700,
-            color: "#111827",
+            color: context.theme.pathLabel,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -743,7 +759,7 @@ function renderPathFallback(
           style={{
             fontSize: 10,
             fontWeight: 700,
-            color: "#7c3aed",
+            color: context.theme.pathInboundEdge,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
           }}
@@ -763,7 +779,7 @@ function renderPathFallback(
                 ? context.theme.status.warning.color
                 : targetDisplay.status === "unconfigured"
                   ? context.theme.status.info.color
-                  : "#64748b",
+                  : context.theme.zoneSubtext,
             fontWeight: targetDisplay.status === "resolved" ? 600 : 700,
           }}
         >
@@ -773,7 +789,13 @@ function renderPathFallback(
       );
     case "body":
       return (
-        <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: context.theme.zoneSubtext,
+            lineHeight: 1.4,
+          }}
+        >
           {context.path.rule
             ? context.path.rule.payload
               ? JSON.stringify(context.path.rule.payload)
@@ -829,7 +851,9 @@ function renderZonePreview(props: PreviewHostProps) {
         height: `${worldRect.height}px`,
         borderRadius: zoneVisual.zone.zoneType === "action" ? 18 : 22,
         border: `1px solid ${
-          zoneVisual.zone.zoneType === "action" ? "#93c5fd" : "#cbd5e1"
+          zoneVisual.zone.zoneType === "action"
+            ? editorTheme.preview.zoneActionBorder
+            : editorTheme.preview.zoneContainerBorder
         }`,
         overflow: "hidden",
       }}
@@ -923,7 +947,7 @@ function renderPathPreview(props: PreviewHostProps) {
         width: `${worldRect.width}px`,
         height: `${worldRect.height}px`,
         borderRadius: 16,
-        border: "1px solid #334155",
+        border: `1px solid ${editorTheme.preview.pathEdge}`,
         overflow: "hidden",
       }}
     >
@@ -1015,6 +1039,56 @@ export function ZoneMoveEditorOverlay(props: {
       background: resolvedEditorTheme.hud.buttonActiveBackground,
       border: resolvedEditorTheme.hud.buttonActiveBorder,
       color: resolvedEditorTheme.hud.buttonActiveText,
+    }),
+    [resolvedEditorTheme]
+  );
+  const floatingToolbarButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      border: resolvedEditorTheme.overlay.floatingToolbar.buttonBorder,
+      background: resolvedEditorTheme.overlay.floatingToolbar.buttonBackground,
+      color: resolvedEditorTheme.overlay.floatingToolbar.buttonText,
+      borderRadius: 999,
+      padding: "6px 10px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+    }),
+    [resolvedEditorTheme]
+  );
+  const floatingToolbarDangerButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      ...floatingToolbarButtonStyle,
+      border: resolvedEditorTheme.overlay.floatingToolbar.dangerButtonBorder,
+      background: resolvedEditorTheme.overlay.floatingToolbar.dangerButtonBackground,
+      color: resolvedEditorTheme.overlay.floatingToolbar.dangerButtonText,
+      fontWeight: 800,
+    }),
+    [floatingToolbarButtonStyle, resolvedEditorTheme]
+  );
+  const dialogSecondaryButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      border: resolvedEditorTheme.overlay.dialog.secondaryButton.border,
+      background: resolvedEditorTheme.overlay.dialog.secondaryButton.background,
+      color: resolvedEditorTheme.overlay.dialog.secondaryButton.color,
+      borderRadius: 999,
+      padding: "6px 10px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+    }),
+    [resolvedEditorTheme]
+  );
+  const dialogDangerButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      border: resolvedEditorTheme.overlay.dialog.dangerButton.border,
+      background: resolvedEditorTheme.overlay.dialog.dangerButton.background,
+      color: resolvedEditorTheme.overlay.dialog.dangerButton.color,
+      borderRadius: 999,
+      padding: "6px 10px",
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: "pointer",
     }),
     [resolvedEditorTheme]
   );
@@ -2393,11 +2467,19 @@ export function ZoneMoveEditorOverlay(props: {
               y1={pathCreateSourceAnchorRect.y + pathCreateSourceAnchorRect.height / 2}
               x2={creatingPath.currentScreenPoint.x}
               y2={creatingPath.currentScreenPoint.y}
-              stroke={pathCreateTargetZoneId ? "#0f766e" : "#0f172a"}
-              strokeWidth={2.5}
-              strokeDasharray={pathCreateTargetZoneId ? "0" : "6 6"}
+              stroke={
+                pathCreateTargetZoneId
+                  ? resolvedEditorTheme.overlay.guide.validStroke
+                  : resolvedEditorTheme.overlay.guide.invalidStroke
+              }
+              strokeWidth={resolvedEditorTheme.overlay.guide.strokeWidth}
+              strokeDasharray={
+                pathCreateTargetZoneId
+                  ? "0"
+                  : resolvedEditorTheme.overlay.guide.invalidDashArray
+              }
               strokeLinecap="round"
-              opacity={0.92}
+              opacity={resolvedEditorTheme.overlay.guide.opacity}
             />
           </svg>
         ) : null}
@@ -2418,11 +2500,19 @@ export function ZoneMoveEditorOverlay(props: {
               y1={pathRetargetSourceAnchorRect.y + pathRetargetSourceAnchorRect.height / 2}
               x2={retargetingPath.currentScreenPoint.x}
               y2={retargetingPath.currentScreenPoint.y}
-              stroke={retargetPathTargetZoneId ? "#0f766e" : "#0f172a"}
-              strokeWidth={2.5}
-              strokeDasharray={retargetPathTargetZoneId ? "0" : "6 6"}
+              stroke={
+                retargetPathTargetZoneId
+                  ? resolvedEditorTheme.overlay.guide.validStroke
+                  : resolvedEditorTheme.overlay.guide.invalidStroke
+              }
+              strokeWidth={resolvedEditorTheme.overlay.guide.strokeWidth}
+              strokeDasharray={
+                retargetPathTargetZoneId
+                  ? "0"
+                  : resolvedEditorTheme.overlay.guide.invalidDashArray
+              }
               strokeLinecap="round"
-              opacity={0.92}
+              opacity={resolvedEditorTheme.overlay.guide.opacity}
             />
           </svg>
         ) : null}
@@ -2434,14 +2524,14 @@ export function ZoneMoveEditorOverlay(props: {
             top: 16,
             padding: "8px 10px",
             borderRadius: 12,
-            background: "rgba(15, 23, 42, 0.88)",
-            border: "1px solid rgba(148, 163, 184, 0.22)",
-            color: "#e2e8f0",
+            background: resolvedEditorTheme.overlay.helpPanel.background,
+            border: resolvedEditorTheme.overlay.helpPanel.border,
+            color: resolvedEditorTheme.overlay.helpPanel.titleText,
             fontSize: 12,
             fontWeight: 700,
             lineHeight: 1.2,
             letterSpacing: "0.04em",
-            boxShadow: "0 12px 24px rgba(2, 6, 23, 0.18)",
+            boxShadow: resolvedEditorTheme.overlay.helpPanel.shadow,
           }}
         >
           EDIT MODE
@@ -2451,7 +2541,7 @@ export function ZoneMoveEditorOverlay(props: {
               fontSize: 11,
               fontWeight: 500,
               letterSpacing: 0,
-              color: "#94a3b8",
+              color: resolvedEditorTheme.overlay.helpPanel.mutedText,
             }}
           >
             Drag nodes to move them. Shift-click zones or paths to multi-select,
@@ -2654,10 +2744,10 @@ export function ZoneMoveEditorOverlay(props: {
               gap: 8,
               padding: "8px 10px",
               borderRadius: 14,
-              border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "rgba(15, 23, 42, 0.94)",
-              color: "#e2e8f0",
-              boxShadow: "0 18px 30px rgba(2, 6, 23, 0.22)",
+              border: resolvedEditorTheme.overlay.floatingToolbar.border,
+              background: resolvedEditorTheme.overlay.floatingToolbar.background,
+              color: resolvedEditorTheme.overlay.floatingToolbar.buttonText,
+              boxShadow: resolvedEditorTheme.overlay.floatingToolbar.shadow,
               pointerEvents: "auto",
             }}
           >
@@ -2666,7 +2756,7 @@ export function ZoneMoveEditorOverlay(props: {
                 fontSize: 11,
                 fontWeight: 800,
                 letterSpacing: "0.04em",
-                color: "#bfdbfe",
+                color: resolvedEditorTheme.overlay.floatingToolbar.zoneLabelText,
                 paddingRight: 4,
                 whiteSpace: "nowrap",
               }}
@@ -2706,19 +2796,14 @@ export function ZoneMoveEditorOverlay(props: {
                   );
                 }}
                 style={{
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  ...floatingToolbarButtonStyle,
                   background: canRunZoneSelectionCommands
-                    ? "rgba(255, 255, 255, 0.08)"
-                    : "rgba(255, 255, 255, 0.04)",
+                    ? floatingToolbarButtonStyle.background
+                    : resolvedEditorTheme.overlay.floatingToolbar.background,
                   color: canRunZoneSelectionCommands
-                    ? "#f8fafc"
-                    : "rgba(226, 232, 240, 0.48)",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 700,
+                    ? floatingToolbarButtonStyle.color
+                    : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                   cursor: canRunZoneSelectionCommands ? "pointer" : "not-allowed",
-                  whiteSpace: "nowrap",
                 }}
                 title={
                   canRunZoneSelectionCommands
@@ -2737,15 +2822,7 @@ export function ZoneMoveEditorOverlay(props: {
                 requestDeleteZoneSelection();
               }}
               style={{
-                border: "1px solid rgba(239, 68, 68, 0.38)",
-                background: "rgba(239, 68, 68, 0.16)",
-                color: "#fecaca",
-                borderRadius: 999,
-                padding: "6px 10px",
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                ...floatingToolbarDangerButtonStyle,
               }}
             >
               삭제
@@ -2765,10 +2842,10 @@ export function ZoneMoveEditorOverlay(props: {
               gap: 8,
               padding: "8px 10px",
               borderRadius: 14,
-              border: "1px solid rgba(148, 163, 184, 0.18)",
-              background: "rgba(15, 23, 42, 0.94)",
-              color: "#e2e8f0",
-              boxShadow: "0 18px 30px rgba(2, 6, 23, 0.22)",
+              border: resolvedEditorTheme.overlay.floatingToolbar.border,
+              background: resolvedEditorTheme.overlay.floatingToolbar.background,
+              color: resolvedEditorTheme.overlay.floatingToolbar.buttonText,
+              boxShadow: resolvedEditorTheme.overlay.floatingToolbar.shadow,
               pointerEvents: "auto",
             }}
           >
@@ -2777,7 +2854,7 @@ export function ZoneMoveEditorOverlay(props: {
                 fontSize: 11,
                 fontWeight: 800,
                 letterSpacing: "0.04em",
-                color: "#c7d2fe",
+                color: resolvedEditorTheme.overlay.floatingToolbar.pathLabelText,
                 paddingRight: 4,
                 whiteSpace: "nowrap",
               }}
@@ -2817,19 +2894,14 @@ export function ZoneMoveEditorOverlay(props: {
                   );
                 }}
                 style={{
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  ...floatingToolbarButtonStyle,
                   background: canRunPathSelectionCommands
-                    ? "rgba(255, 255, 255, 0.08)"
-                    : "rgba(255, 255, 255, 0.04)",
+                    ? floatingToolbarButtonStyle.background
+                    : resolvedEditorTheme.overlay.floatingToolbar.background,
                   color: canRunPathSelectionCommands
-                    ? "#f8fafc"
-                    : "rgba(226, 232, 240, 0.48)",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 700,
+                    ? floatingToolbarButtonStyle.color
+                    : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                   cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
-                  whiteSpace: "nowrap",
                 }}
               >
                 {label}
@@ -2843,15 +2915,7 @@ export function ZoneMoveEditorOverlay(props: {
                 requestDeletePathSelection();
               }}
               style={{
-                border: "1px solid rgba(239, 68, 68, 0.38)",
-                background: "rgba(239, 68, 68, 0.16)",
-                color: "#fecaca",
-                borderRadius: 999,
-                padding: "6px 10px",
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                ...floatingToolbarDangerButtonStyle,
               }}
             >
               삭제
@@ -2879,9 +2943,9 @@ export function ZoneMoveEditorOverlay(props: {
               minWidth: 196,
               padding: "12px 12px 10px",
               borderRadius: 14,
-              border: "1px solid rgba(15, 23, 42, 0.12)",
-              background: "rgba(255, 255, 255, 0.98)",
-              boxShadow: "0 18px 32px rgba(15, 23, 42, 0.18)",
+              border: resolvedEditorTheme.overlay.dialog.border,
+              background: resolvedEditorTheme.overlay.dialog.background,
+              boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
               pointerEvents: "auto",
               zIndex: 13,
               animation: shouldAnimateDeleteUi
@@ -2891,7 +2955,7 @@ export function ZoneMoveEditorOverlay(props: {
           >
             <div
               style={{
-                color: "#0f172a",
+                color: resolvedEditorTheme.overlay.dialog.titleText,
                 fontSize: 12,
                 fontWeight: 700,
                 marginBottom: 10,
@@ -2918,16 +2982,7 @@ export function ZoneMoveEditorOverlay(props: {
                   event.stopPropagation();
                   setDeleteConfirmState(null);
                 }}
-                style={{
-                  border: "1px solid rgba(148, 163, 184, 0.3)",
-                  background: "#ffffff",
-                  color: "#334155",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
+                style={dialogSecondaryButtonStyle}
               >
                 취소
               </button>
@@ -2938,16 +2993,7 @@ export function ZoneMoveEditorOverlay(props: {
                   event.stopPropagation();
                   commitDeleteZoneSelection(deleteConfirmState.zoneIds);
                 }}
-                style={{
-                  border: "1px solid rgba(239, 68, 68, 0.86)",
-                  background: "#ef4444",
-                  color: "#fff7f7",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
+                style={dialogDangerButtonStyle}
               >
                 삭제
               </button>
@@ -2975,9 +3021,9 @@ export function ZoneMoveEditorOverlay(props: {
               minWidth: 196,
               padding: "12px 12px 10px",
               borderRadius: 14,
-              border: "1px solid rgba(15, 23, 42, 0.12)",
-              background: "rgba(255, 255, 255, 0.98)",
-              boxShadow: "0 18px 32px rgba(15, 23, 42, 0.18)",
+              border: resolvedEditorTheme.overlay.dialog.border,
+              background: resolvedEditorTheme.overlay.dialog.background,
+              boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
               pointerEvents: "auto",
               zIndex: 13,
               animation: shouldAnimateDeleteUi
@@ -2987,7 +3033,7 @@ export function ZoneMoveEditorOverlay(props: {
           >
             <div
               style={{
-                color: "#0f172a",
+                color: resolvedEditorTheme.overlay.dialog.titleText,
                 fontSize: 12,
                 fontWeight: 700,
                 marginBottom: 10,
@@ -3014,16 +3060,7 @@ export function ZoneMoveEditorOverlay(props: {
                   event.stopPropagation();
                   setDeleteConfirmState(null);
                 }}
-                style={{
-                  border: "1px solid rgba(148, 163, 184, 0.3)",
-                  background: "#ffffff",
-                  color: "#334155",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
+                style={dialogSecondaryButtonStyle}
               >
                 취소
               </button>
@@ -3034,16 +3071,7 @@ export function ZoneMoveEditorOverlay(props: {
                   event.stopPropagation();
                   commitDeletePathSelection(deleteConfirmState.pathIds);
                 }}
-                style={{
-                  border: "1px solid rgba(239, 68, 68, 0.86)",
-                  background: "#ef4444",
-                  color: "#fff7f7",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
+                style={dialogDangerButtonStyle}
               >
                 삭제
               </button>
@@ -3059,9 +3087,9 @@ export function ZoneMoveEditorOverlay(props: {
               top: `${marqueeRect.y}px`,
               width: `${marqueeRect.width}px`,
               height: `${marqueeRect.height}px`,
-              border: "1.5px dashed rgba(37, 99, 235, 0.94)",
-              background: "rgba(59, 130, 246, 0.12)",
-              boxShadow: "0 0 0 1px rgba(191, 219, 254, 0.28) inset",
+              border: resolvedEditorTheme.overlay.marquee.border,
+              background: resolvedEditorTheme.overlay.marquee.background,
+              boxShadow: resolvedEditorTheme.overlay.marquee.boxShadow,
               borderRadius: 12,
               pointerEvents: "none",
             }}
@@ -3077,9 +3105,9 @@ export function ZoneMoveEditorOverlay(props: {
               width: `${pathCreateTargetAnchorRect.width}px`,
               height: `${pathCreateTargetAnchorRect.height}px`,
               borderRadius: 999,
-              border: "2px solid rgba(13, 148, 136, 0.92)",
-              background: "rgba(45, 212, 191, 0.18)",
-              boxShadow: "0 0 0 1px rgba(153, 246, 228, 0.22) inset",
+              border: resolvedEditorTheme.overlay.connectTarget.border,
+              background: resolvedEditorTheme.overlay.connectTarget.background,
+              boxShadow: resolvedEditorTheme.overlay.connectTarget.boxShadow,
             }}
           >
             <div
@@ -3089,12 +3117,12 @@ export function ZoneMoveEditorOverlay(props: {
                 top: -12,
                 padding: "4px 8px",
                 borderRadius: 999,
-                background: "#0f766e",
-                color: "#f0fdfa",
+                background: resolvedEditorTheme.overlay.connectTarget.badgeBackground,
+                color: resolvedEditorTheme.overlay.connectTarget.badgeColor,
                 fontSize: 10,
                 fontWeight: 800,
                 letterSpacing: "0.08em",
-                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+                boxShadow: resolvedEditorTheme.overlay.connectTarget.badgeShadow,
               }}
             >
               CONNECT
@@ -3111,9 +3139,9 @@ export function ZoneMoveEditorOverlay(props: {
               width: `${pathRetargetTargetAnchorRect.width}px`,
               height: `${pathRetargetTargetAnchorRect.height}px`,
               borderRadius: 999,
-              border: "2px solid rgba(13, 148, 136, 0.92)",
-              background: "rgba(45, 212, 191, 0.18)",
-              boxShadow: "0 0 0 1px rgba(153, 246, 228, 0.22) inset",
+              border: resolvedEditorTheme.overlay.connectTarget.border,
+              background: resolvedEditorTheme.overlay.connectTarget.background,
+              boxShadow: resolvedEditorTheme.overlay.connectTarget.boxShadow,
             }}
           >
             <div
@@ -3123,12 +3151,12 @@ export function ZoneMoveEditorOverlay(props: {
                 top: -12,
                 padding: "4px 8px",
                 borderRadius: 999,
-                background: "#0f766e",
-                color: "#f0fdfa",
+                background: resolvedEditorTheme.overlay.connectTarget.badgeBackground,
+                color: resolvedEditorTheme.overlay.connectTarget.badgeColor,
                 fontSize: 10,
                 fontWeight: 800,
                 letterSpacing: "0.08em",
-                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+                boxShadow: resolvedEditorTheme.overlay.connectTarget.badgeShadow,
               }}
             >
               RECONNECT
@@ -3146,9 +3174,9 @@ export function ZoneMoveEditorOverlay(props: {
               width: `${rect.width}px`,
               height: `${rect.height}px`,
               borderRadius: 22,
-              border: "2px solid rgba(34, 197, 94, 0.95)",
-              background: "rgba(34, 197, 94, 0.08)",
-              boxShadow: "0 0 0 1px rgba(134, 239, 172, 0.24) inset",
+              border: resolvedEditorTheme.overlay.dropTarget.border,
+              background: resolvedEditorTheme.overlay.dropTarget.background,
+              boxShadow: resolvedEditorTheme.overlay.dropTarget.boxShadow,
             }}
           >
             <div
@@ -3158,12 +3186,12 @@ export function ZoneMoveEditorOverlay(props: {
                 top: -12,
                 padding: "4px 8px",
                 borderRadius: 999,
-                background: "#16a34a",
-                color: "#f0fdf4",
+                background: resolvedEditorTheme.overlay.dropTarget.badgeBackground,
+                color: resolvedEditorTheme.overlay.dropTarget.badgeColor,
                 fontSize: 10,
                 fontWeight: 800,
                 letterSpacing: "0.08em",
-                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+                boxShadow: resolvedEditorTheme.overlay.dropTarget.badgeShadow,
               }}
             >
               DROP TARGET
@@ -3558,10 +3586,10 @@ export function ZoneMoveEditorOverlay(props: {
                     top: `${pathOutputAnchorLocalRect?.y ?? 0}px`,
                     width: `${pathOutputAnchorLocalRect?.width ?? 0}px`,
                     height: `${pathOutputAnchorLocalRect?.height ?? 0}px`,
-                    border: "1px solid rgba(13, 148, 136, 0.92)",
+                    border: resolvedEditorTheme.overlay.handles.connect.border,
                     borderRadius: 999,
-                    background: "#f0fdfa",
-                    boxShadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+                    background: resolvedEditorTheme.overlay.handles.connect.background,
+                    boxShadow: resolvedEditorTheme.overlay.handles.connect.shadow,
                     cursor: "crosshair",
                     pointerEvents: "auto",
                     touchAction: "none",
@@ -3574,7 +3602,7 @@ export function ZoneMoveEditorOverlay(props: {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: "#0f766e",
+                      color: resolvedEditorTheme.overlay.handles.connect.color,
                       fontSize: 13,
                       fontWeight: 900,
                       lineHeight: 1,
@@ -3630,10 +3658,10 @@ export function ZoneMoveEditorOverlay(props: {
                     bottom: -7,
                     width: 18,
                     height: 18,
-                    border: "1px solid rgba(14, 165, 233, 0.92)",
+                    border: resolvedEditorTheme.overlay.handles.zoneResize.border,
                     borderRadius: 999,
-                    background: "#eff6ff",
-                    boxShadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+                    background: resolvedEditorTheme.overlay.handles.zoneResize.background,
+                    boxShadow: resolvedEditorTheme.overlay.handles.zoneResize.shadow,
                     cursor: "nwse-resize",
                     pointerEvents: "auto",
                     touchAction: "none",
@@ -3646,8 +3674,8 @@ export function ZoneMoveEditorOverlay(props: {
                       bottom: 3,
                       width: 7,
                       height: 7,
-                      borderRight: "2px solid #0f172a",
-                      borderBottom: "2px solid #0f172a",
+                      borderRight: `2px solid ${resolvedEditorTheme.overlay.handles.zoneResize.color}`,
+                      borderBottom: `2px solid ${resolvedEditorTheme.overlay.handles.zoneResize.color}`,
                     }}
                   />
                 </button>
@@ -3699,10 +3727,10 @@ export function ZoneMoveEditorOverlay(props: {
                     top: `${cornerResizeHandleRect.y}px`,
                     width: `${cornerResizeHandleRect.size}px`,
                     height: `${cornerResizeHandleRect.size}px`,
-                    border: "1px solid rgba(51, 65, 85, 0.92)",
+                    border: resolvedEditorTheme.overlay.handles.pathResize.border,
                     borderRadius: 999,
-                    background: "#f8fafc",
-                    boxShadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+                    background: resolvedEditorTheme.overlay.handles.pathResize.background,
+                    boxShadow: resolvedEditorTheme.overlay.handles.pathResize.shadow,
                     cursor: "nwse-resize",
                     pointerEvents: "auto",
                     touchAction: "none",
@@ -3715,8 +3743,8 @@ export function ZoneMoveEditorOverlay(props: {
                       bottom: 3,
                       width: 7,
                       height: 7,
-                      borderRight: "2px solid #0f172a",
-                      borderBottom: "2px solid #0f172a",
+                      borderRight: `2px solid ${resolvedEditorTheme.overlay.handles.pathResize.color}`,
+                      borderBottom: `2px solid ${resolvedEditorTheme.overlay.handles.pathResize.color}`,
                     }}
                   />
                 </button>
@@ -3746,11 +3774,11 @@ export function ZoneMoveEditorOverlay(props: {
                     top: `${deleteButtonPosition.y}px`,
                     width: 24,
                     height: 24,
-                    border: "1px solid rgba(239, 68, 68, 0.42)",
+                    border: resolvedEditorTheme.overlay.handles.delete.border,
                     borderRadius: 999,
-                    background: "#ef4444",
-                    color: "#fff7f7",
-                    boxShadow: "0 10px 20px rgba(127, 29, 29, 0.22)",
+                    background: resolvedEditorTheme.overlay.handles.delete.background,
+                    color: resolvedEditorTheme.overlay.handles.delete.color,
+                    boxShadow: resolvedEditorTheme.overlay.handles.delete.shadow,
                     cursor: "pointer",
                     pointerEvents: "auto",
                     fontSize: 14,
@@ -3782,9 +3810,9 @@ export function ZoneMoveEditorOverlay(props: {
                     minWidth: 196,
                     padding: "12px 12px 10px",
                     borderRadius: 14,
-                    border: "1px solid rgba(15, 23, 42, 0.12)",
-                    background: "rgba(255, 255, 255, 0.98)",
-                    boxShadow: "0 18px 32px rgba(15, 23, 42, 0.18)",
+                    border: resolvedEditorTheme.overlay.dialog.border,
+                    background: resolvedEditorTheme.overlay.dialog.background,
+                    boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
                     pointerEvents: "auto",
                     zIndex: 4,
                     animation: shouldAnimateDeleteUi
@@ -3794,7 +3822,7 @@ export function ZoneMoveEditorOverlay(props: {
                 >
                   <div
                     style={{
-                      color: "#0f172a",
+                      color: resolvedEditorTheme.overlay.dialog.titleText,
                       fontSize: 12,
                       fontWeight: 700,
                       marginBottom: 10,
@@ -3817,16 +3845,7 @@ export function ZoneMoveEditorOverlay(props: {
                         event.stopPropagation();
                         setDeleteConfirmState(null);
                       }}
-                      style={{
-                        border: "1px solid rgba(148, 163, 184, 0.3)",
-                        background: "#ffffff",
-                        color: "#334155",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
+                      style={dialogSecondaryButtonStyle}
                     >
                       취소
                     </button>
@@ -3837,16 +3856,7 @@ export function ZoneMoveEditorOverlay(props: {
                         event.stopPropagation();
                         commitDeleteTarget(target);
                       }}
-                      style={{
-                        border: "1px solid rgba(239, 68, 68, 0.86)",
-                        background: "#ef4444",
-                        color: "#fff7f7",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 11,
-                        fontWeight: 800,
-                        cursor: "pointer",
-                      }}
+                      style={dialogDangerButtonStyle}
                     >
                       삭제
                     </button>
@@ -3882,6 +3892,7 @@ export function ZoneMoveEditorOverlay(props: {
                       rect: target.rect,
                       isSelected: visualState === "selected",
                       isEditing: isEditingZone,
+                      theme: resolvedEditorTheme,
                       openEditor: () => {
                         openZoneEditor(target.zoneId, target.key);
                       },
@@ -3964,7 +3975,7 @@ export function ZoneMoveEditorOverlay(props: {
                       fontSize: 10,
                       fontWeight: 800,
                       letterSpacing: "0.08em",
-                      boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+                      boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
                       ...getTargetBadgeStyle(visualState, resolvedEditorTheme),
                     }}
                   >
@@ -3977,11 +3988,11 @@ export function ZoneMoveEditorOverlay(props: {
                       bottom: 8,
                       padding: "3px 7px",
                       borderRadius: 999,
-                      background: "rgba(255, 255, 255, 0.84)",
-                      color: "#0f172a",
+                      background: resolvedEditorTheme.overlay.metaChip.background,
+                      color: resolvedEditorTheme.overlay.metaChip.color,
                       fontSize: 10,
                       fontWeight: 700,
-                      boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
+                      boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
                     }}
                   >
                     {isResizingTarget ? "RESIZE" : isDragging ? "MOVING" : "DRAG"}
@@ -4005,10 +4016,10 @@ export function ZoneMoveEditorOverlay(props: {
             gap: 12,
             padding: "12px 14px",
             borderRadius: 16,
-            border: "1px solid rgba(15, 23, 42, 0.08)",
-            background: "rgba(15, 23, 42, 0.94)",
-            color: "#f8fafc",
-            boxShadow: "0 18px 36px rgba(15, 23, 42, 0.28)",
+            border: resolvedEditorTheme.overlay.toast.border,
+            background: resolvedEditorTheme.overlay.toast.background,
+            color: resolvedEditorTheme.overlay.toast.text,
+            boxShadow: resolvedEditorTheme.overlay.toast.shadow,
             pointerEvents: "auto",
             zIndex: 12,
             animation: shouldAnimateDeleteUi
@@ -4035,9 +4046,9 @@ export function ZoneMoveEditorOverlay(props: {
               setDeleteUndoState(null);
             }}
             style={{
-              border: "1px solid rgba(96, 165, 250, 0.78)",
-              background: "#2563eb",
-              color: "#eff6ff",
+              border: resolvedEditorTheme.overlay.toast.actionButton.border,
+              background: resolvedEditorTheme.overlay.toast.actionButton.background,
+              color: resolvedEditorTheme.overlay.toast.actionButton.color,
               borderRadius: 999,
               padding: "6px 12px",
               fontSize: 11,

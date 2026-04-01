@@ -26,6 +26,7 @@ export type ZoneflowTheme = {
     chrome: {
       overlay: string;
       glow: string;
+      accentFade: string;
     };
     zone: {
       background: string;

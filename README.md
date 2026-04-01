@@ -232,6 +232,65 @@ export function ZoneflowScreen() {
 
 도메인 규칙은 라이브러리 안에 넣지 말고, 이 주입 계층에서 처리하는 쪽이 맞습니다.
 
+## 테마 주입
+
+`@zoneflow/react`는 렌더러 테마와 editor HUD/preview 테마를 각각 주입할 수 있습니다.
+
+```tsx
+<DefaultEditorToolbar
+  editor={editor}
+  theme={{
+    hud: {
+      panelBackground: "rgba(9, 15, 28, 0.92)",
+      buttonActiveBackground: "#0f766e",
+      buttonActiveBorder: "1px solid rgba(45, 212, 191, 0.42)",
+    },
+  }}
+/>
+
+<UniverseEditorCanvas
+  editor={editor}
+  theme={{
+    zoneContainerBorder: "#334155",
+    zoneActionBorder: "#0f766e",
+    pathEdge: "#475569",
+    pathInboundEdge: "#0f766e",
+    surface: {
+      zone: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.98) 100%)",
+      },
+      path: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)",
+      },
+    },
+  }}
+  editorConfig={{
+    theme: {
+      overlay: {
+        helpPanel: {
+          background: "rgba(6, 12, 24, 0.9)",
+        },
+        connectTarget: {
+          badgeBackground: "#0f766e",
+        },
+        dropTarget: {
+          badgeBackground: "#2563eb",
+        },
+      },
+    },
+  }}
+/>
+```
+
+- `theme`
+  - renderer/viewer chrome 테마
+- `editorConfig.theme`
+  - editor overlay, HUD, preview, selection UI 테마
+- `DefaultEditorToolbar.theme`
+  - 기본 툴바 테마
+
 ## 파일 저장 / 불러오기
 
 `@zoneflow/core`에는 zoneflow 문서 포맷이 포함되어 있습니다.

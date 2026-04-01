@@ -26,6 +26,7 @@ export const defaultTheme: ZoneflowTheme = {
         "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(255,255,255,0.08) 42%, rgba(255,255,255,0) 100%)",
       glow:
         "radial-gradient(circle, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.22) 36%, rgba(255,255,255,0) 72%)",
+      accentFade: "rgba(255,255,255,0.04)",
     },
     zone: {
       background:

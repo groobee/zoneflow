@@ -628,7 +628,7 @@ function createSurfaceChrome(params: {
     height: "44px",
     borderTopLeftRadius: radius,
     borderTopRightRadius: radius,
-    background: `linear-gradient(90deg, ${accent} 0%, rgba(255,255,255,0.04) 72%)`,
+    background: `linear-gradient(90deg, ${accent} 0%, ${theme.surface.chrome.accentFade} 72%)`,
     opacity: topBandOpacity,
     pointerEvents: "none",
   });
