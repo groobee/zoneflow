@@ -313,6 +313,14 @@ const DELETE_UNDO_MS = 5000;
 const DELETE_SHAKE_ANIMATION = "zoneflow-delete-shake 180ms ease-in-out infinite alternate";
 const DELETE_ICON_POP_ANIMATION = "zoneflow-delete-pop 160ms ease-out";
 const DELETE_TOAST_IN_ANIMATION = "zoneflow-delete-toast-in 180ms ease-out";
+const OVERLAY_Z_INDEX = {
+  pathStatusBadge: 2,
+  itemDialog: 4,
+  toast: 12,
+  selectionDialog: 13,
+  floatingToolbar: 24,
+  root: 30,
+} as const;
 
 function createPreviewHost(): HTMLElement {
   return typeof document === "undefined"
@@ -723,7 +731,7 @@ function renderPathStatusBadge(
         lineHeight: 1,
         fontWeight: 700,
         pointerEvents: "none",
-        zIndex: 2,
+        zIndex: OVERLAY_Z_INDEX.pathStatusBadge,
       }}
     >
       {isMissing ? "⚠" : "?"}
@@ -2331,7 +2339,7 @@ export function ZoneMoveEditorOverlay(props: {
         position: "absolute",
         inset: 0,
         pointerEvents: "auto",
-        zIndex: 30,
+        zIndex: OVERLAY_Z_INDEX.root,
       }}
     >
       {shouldAnimateDeleteUi ? (
@@ -2749,6 +2757,7 @@ export function ZoneMoveEditorOverlay(props: {
               color: resolvedEditorTheme.overlay.floatingToolbar.buttonText,
               boxShadow: resolvedEditorTheme.overlay.floatingToolbar.shadow,
               pointerEvents: "auto",
+              zIndex: OVERLAY_Z_INDEX.floatingToolbar,
             }}
           >
             <span
@@ -2847,6 +2856,7 @@ export function ZoneMoveEditorOverlay(props: {
               color: resolvedEditorTheme.overlay.floatingToolbar.buttonText,
               boxShadow: resolvedEditorTheme.overlay.floatingToolbar.shadow,
               pointerEvents: "auto",
+              zIndex: OVERLAY_Z_INDEX.floatingToolbar,
             }}
           >
             <span
@@ -2947,7 +2957,7 @@ export function ZoneMoveEditorOverlay(props: {
               background: resolvedEditorTheme.overlay.dialog.background,
               boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
               pointerEvents: "auto",
-              zIndex: 13,
+              zIndex: OVERLAY_Z_INDEX.selectionDialog,
               animation: shouldAnimateDeleteUi
                 ? DELETE_ICON_POP_ANIMATION
                 : undefined,
@@ -3025,7 +3035,7 @@ export function ZoneMoveEditorOverlay(props: {
               background: resolvedEditorTheme.overlay.dialog.background,
               boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
               pointerEvents: "auto",
-              zIndex: 13,
+              zIndex: OVERLAY_Z_INDEX.selectionDialog,
               animation: shouldAnimateDeleteUi
                 ? DELETE_ICON_POP_ANIMATION
                 : undefined,
@@ -3814,7 +3824,7 @@ export function ZoneMoveEditorOverlay(props: {
                     background: resolvedEditorTheme.overlay.dialog.background,
                     boxShadow: resolvedEditorTheme.overlay.dialog.shadow,
                     pointerEvents: "auto",
-                    zIndex: 4,
+                    zIndex: OVERLAY_Z_INDEX.itemDialog,
                     animation: shouldAnimateDeleteUi
                       ? DELETE_ICON_POP_ANIMATION
                       : undefined,
@@ -4021,7 +4031,7 @@ export function ZoneMoveEditorOverlay(props: {
             color: resolvedEditorTheme.overlay.toast.text,
             boxShadow: resolvedEditorTheme.overlay.toast.shadow,
             pointerEvents: "auto",
-            zIndex: 12,
+            zIndex: 가OVERLAY_Z_INDEX.toast,
             animation: shouldAnimateDeleteUi
               ? DELETE_TOAST_IN_ANIMATION
               : undefined,

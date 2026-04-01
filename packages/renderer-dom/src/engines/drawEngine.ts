@@ -23,6 +23,14 @@ import {
 } from "@zoneflow/core";
 
 const SCENE_PADDING = 64;
+const RENDER_Z_INDEX = {
+  zoneBase: 1,
+  pathNode: 1,
+  pathStatusBadge: 2,
+  zoneLayer: 10,
+  edgeLayer: 20,
+  pathLayer: 30,
+} as const;
 
 function applyStyles(
   el: HTMLElement | SVGElement,
@@ -136,7 +144,7 @@ function createPathStatusBadge(params: {
     lineHeight: "1",
     fontWeight: "700",
     pointerEvents: "none",
-    zIndex: 2,
+    zIndex: RENDER_Z_INDEX.pathStatusBadge,
   });
 
   owner.appendChild(badge);
@@ -792,7 +800,7 @@ export const domDrawEngine: DrawEngine = {
       height: `${sceneBounds.height}px`,
       overflow: "visible",
       pointerEvents: "none",
-      zIndex: 20,
+      zIndex: RENDER_Z_INDEX.edgeLayer,
     });
 
     applyStyles(zoneLayer, {
@@ -801,7 +809,7 @@ export const domDrawEngine: DrawEngine = {
       top: "0",
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
-      zIndex: 10,
+      zIndex: RENDER_Z_INDEX.zoneLayer,
     });
 
     applyStyles(pathLayer, {
@@ -810,7 +818,7 @@ export const domDrawEngine: DrawEngine = {
       top: "0",
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
-      zIndex: 30,
+      zIndex: RENDER_Z_INDEX.pathLayer,
     });
 
     worldRoot.appendChild(edgeSvg);
@@ -847,7 +855,7 @@ export const domDrawEngine: DrawEngine = {
         height: `${zoneVisual.rect.height}px`,
         opacity: getOpacity(visibility.emphasis),
         overflow: "visible",
-        zIndex: zoneDepth + 1,
+        zIndex: zoneDepth + RENDER_Z_INDEX.zoneBase,
       });
 
       applyStyles(zoneBodyEl, {
@@ -933,7 +941,7 @@ export const domDrawEngine: DrawEngine = {
         boxSizing: "border-box",
         boxShadow: theme.surface.path.shadow,
         opacity: getOpacity(visibility.emphasis),
-        zIndex: 1,
+        zIndex: RENDER_Z_INDEX.pathNode,
         overflow: "hidden",
       });
 

@@ -40,6 +40,8 @@ const ZOOM_STEP = 1.1;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const FIT_TO_VIEW_PADDING = 64;
+const VIEWER_OVERLAY_HUD_Z_INDEX = 20;
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -287,7 +289,7 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
             background: resolvedEditorTheme.hud.panelBackground,
             boxShadow: resolvedEditorTheme.hud.panelShadow,
             pointerEvents: "auto",
-            zIndex: 20,
+            zIndex: VIEWER_OVERLAY_HUD_Z_INDEX,
           }}
         >
           {editorConfig?.overlayControls?.showFitToView !== false ? (
