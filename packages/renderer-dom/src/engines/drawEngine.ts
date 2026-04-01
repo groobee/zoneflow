@@ -74,6 +74,73 @@ function resolvePathDisplayName(params: {
   return params.rule === null ? "Empty" : "Untitled";
 }
 
+function resolvePathTargetDisplay(params: {
+  model: PathComponentRendererContext["model"];
+  pathVisual: PathComponentRendererContext["pathVisual"];
+}) {
+  const targetZoneId = params.pathVisual.targetZoneId;
+
+  if (!targetZoneId) {
+    return {
+      label: "—",
+      status: "unconfigured" as const,
+    };
+  }
+
+  const targetZone = params.model.zonesById[targetZoneId];
+  if (!targetZone) {
+    return {
+      label: "—",
+      status: "missing" as const,
+    };
+  }
+
+  return {
+    label: targetZone.name,
+    status: "resolved" as const,
+  };
+}
+
+function createPathStatusBadge(params: {
+  owner: HTMLElement;
+  status: "unconfigured" | "missing";
+}) {
+  const { owner, status } = params;
+  const badge = document.createElement("div");
+
+  const isMissing = status === "missing";
+  badge.title = isMissing ? "Broken path target" : "Path target not set";
+  badge.setAttribute(
+    "aria-label",
+    isMissing ? "Broken path target" : "Path target not set"
+  );
+  badge.textContent = isMissing ? "⚠" : "?";
+
+  applyStyles(badge, {
+    position: "absolute",
+    right: "10px",
+    top: "10px",
+    width: "22px",
+    height: "22px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "999px",
+    border: "1px solid rgba(217, 119, 6, 0.24)",
+    background:
+      "linear-gradient(180deg, rgba(255,251,235,0.98) 0%, rgba(254,243,199,0.98) 100%)",
+    color: "#b45309",
+    boxShadow: "0 6px 14px rgba(180, 83, 9, 0.16)",
+    fontSize: "12px",
+    lineHeight: "1",
+    fontWeight: "700",
+    pointerEvents: "none",
+    zIndex: 2,
+  });
+
+  owner.appendChild(badge);
+}
+
 function getOpacity(emphasis: VisibilityEmphasis): number {
   switch (emphasis) {
     case "strong":
@@ -266,10 +333,11 @@ function renderPathFallback(
   };
 
   if (slot === "label") {
-    host.textContent = resolvePathDisplayName({
+    const title = resolvePathDisplayName({
       name: context.path.name,
       rule: context.path.rule,
     });
+    host.textContent = title;
     applyStyles(host, {
       ...base,
       fontSize: "12px",
@@ -291,11 +359,22 @@ function renderPathFallback(
   }
 
   if (slot === "target") {
-    host.textContent = context.pathVisual.targetZoneId ?? "unresolved";
+    const targetDisplay = resolvePathTargetDisplay({
+      model: context.model,
+      pathVisual: context.pathVisual,
+    });
+
+    host.textContent = targetDisplay.label;
     applyStyles(host, {
       ...base,
-      color: context.theme.zoneSubtext,
+      color:
+        targetDisplay.status === "missing"
+          ? "#b45309"
+          : targetDisplay.status === "unconfigured"
+            ? "#b45309"
+            : context.theme.zoneSubtext,
       fontSize: "11px",
+      fontWeight: targetDisplay.status === "resolved" ? 500 : 700,
     });
     return;
   }
@@ -869,6 +948,18 @@ export const domDrawEngine: DrawEngine = {
       });
 
       pathEl.appendChild(pathChromeEl);
+
+      const targetDisplay = resolvePathTargetDisplay({
+        model: input.model,
+        pathVisual,
+      });
+
+      if (targetDisplay.status !== "resolved") {
+        createPathStatusBadge({
+          owner: pathEl,
+          status: targetDisplay.status,
+        });
+      }
 
       for (const slot of Object.keys(componentLayout?.slots ?? {}) as PathComponentSlotName[]) {
         createPathSlotHost({

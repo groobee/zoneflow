@@ -712,10 +712,69 @@ function renderZoneFallback(
   }
 }
 
+function resolvePathTargetDisplay(context: PathComponentRendererContext) {
+  const targetZoneId = context.pathVisual.targetZoneId;
+  if (!targetZoneId) {
+    return {
+      label: "—",
+      status: "unconfigured" as const,
+    };
+  }
+
+  const targetZone = context.model.zonesById[targetZoneId];
+  if (!targetZone) {
+    return {
+      label: "—",
+      status: "missing" as const,
+    };
+  }
+
+  return {
+    label: targetZone.name,
+    status: "resolved" as const,
+  };
+}
+
+function renderPathStatusBadge(status: "unconfigured" | "missing") {
+  const isMissing = status === "missing";
+
+  return (
+    <div
+      title={isMissing ? "Broken path target" : "Path target not set"}
+      aria-label={isMissing ? "Broken path target" : "Path target not set"}
+      style={{
+        position: "absolute",
+        right: 10,
+        top: 10,
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 999,
+        border: "1px solid rgba(217, 119, 6, 0.24)",
+        background:
+          "linear-gradient(180deg, rgba(255,251,235,0.98) 0%, rgba(254,243,199,0.98) 100%)",
+        color: "#b45309",
+        boxShadow: "0 6px 14px rgba(180, 83, 9, 0.16)",
+        fontSize: 12,
+        lineHeight: 1,
+        fontWeight: 700,
+        pointerEvents: "none",
+        zIndex: 2,
+      }}
+    >
+      {isMissing ? "⚠" : "?"}
+    </div>
+  );
+}
+
 function renderPathFallback(
   slot: PathComponentSlotName,
   context: PathComponentRendererContext
 ) {
+  const targetDisplay = resolvePathTargetDisplay(context);
+
   switch (slot) {
     case "label":
       return (
@@ -753,12 +812,17 @@ function renderPathFallback(
             display: "flex",
             justifyContent: "space-between",
             fontSize: 10,
-            color: "#64748b",
-            fontWeight: 600,
+            color:
+              targetDisplay.status === "missing"
+                ? "#b45309"
+                : targetDisplay.status === "unconfigured"
+                  ? "#b45309"
+                  : "#64748b",
+            fontWeight: targetDisplay.status === "resolved" ? 600 : 700,
           }}
         >
           <span>next</span>
-          <span>{context.pathVisual.targetZoneId ?? "unresolved"}</span>
+          <span>{targetDisplay.label}</span>
         </div>
       );
     case "body":
@@ -896,6 +960,7 @@ function renderPathPreview(props: PreviewHostProps) {
     theme: previewTheme,
     textScale: "md",
   };
+  const targetDisplay = resolvePathTargetDisplay(context);
 
   return (
     <div
@@ -910,6 +975,9 @@ function renderPathPreview(props: PreviewHostProps) {
         overflow: "hidden",
       }}
     >
+      {targetDisplay.status !== "resolved"
+        ? renderPathStatusBadge(targetDisplay.status)
+        : null}
       {(Object.keys(componentLayout.slots) as PathComponentSlotName[]).map(
         (slot) => {
           const slotRect = componentLayout.slots[slot];

@@ -19,6 +19,29 @@ function summarizePayload(value: unknown) {
   return text.length > 88 ? `${text.slice(0, 85)}...` : text;
 }
 
+function resolvePathTargetDisplay(params: PathSlotComponentProps["mount"]["context"]) {
+  const targetZoneId = params.pathVisual.targetZoneId;
+  if (!targetZoneId) {
+    return {
+      label: "—",
+      status: "unconfigured" as const,
+    };
+  }
+
+  const targetZone = params.model.zonesById[targetZoneId];
+  if (!targetZone) {
+    return {
+      label: "—",
+      status: "missing" as const,
+    };
+  }
+
+  return {
+    label: targetZone.name,
+    status: "resolved" as const,
+  };
+}
+
 function resolveZoneBadgeTone(actionType?: string) {
   if (!actionType) {
     return {
@@ -304,9 +327,7 @@ export const pathComponents: PathSlotComponentMap = {
   },
 
   target({ mount }: PathSlotComponentProps) {
-    const targetName = mount.context.pathVisual.targetZoneId
-      ? mount.context.model.zonesById[mount.context.pathVisual.targetZoneId]?.name
-      : "Unresolved";
+    const targetDisplay = resolvePathTargetDisplay(mount.context);
 
     return (
       <Pathed
@@ -335,12 +356,32 @@ export const pathComponents: PathSlotComponentMap = {
             alignItems: "center",
             gap: 6,
             minWidth: 0,
-            color: "#334155",
+            color:
+              targetDisplay.status === "missing"
+                ? "#b45309"
+                : targetDisplay.status === "unconfigured"
+                  ? "#b45309"
+                  : "#334155",
             fontSize: 10,
             fontWeight: 700,
           }}
         >
-          <span style={{ color: "#60a5fa" }}>→</span>
+          <span
+            style={{
+              color:
+                targetDisplay.status === "missing"
+                  ? "#f59e0b"
+                  : targetDisplay.status === "unconfigured"
+                    ? "#f59e0b"
+                    : "#60a5fa",
+            }}
+          >
+            {targetDisplay.status === "missing"
+              ? "⚠"
+              : targetDisplay.status === "unconfigured"
+                ? "?"
+                : "→"}
+          </span>
           <span
             style={{
               overflow: "hidden",
@@ -348,7 +389,7 @@ export const pathComponents: PathSlotComponentMap = {
               whiteSpace: "nowrap",
             }}
           >
-            {targetName}
+            {targetDisplay.label}
           </span>
         </span>
       </Pathed>
