@@ -20,10 +20,11 @@ Zoneflow는 `Zone`과 `Path`를 중심으로 워크플로우를 표현하고 편
 
 - `@zoneflow/core`
 - `@zoneflow/react`
+- `@zoneflow/themes`
 - `@zoneflow/renderer-dom`
 - `@zoneflow/editor-dom`
 
-일반적인 앱 개발에서는 `@zoneflow/core`, `@zoneflow/react`만 직접 사용하고, 나머지 두 패키지는 하위 레이어로 두는 편이 맞습니다.
+일반적인 앱 개발에서는 `@zoneflow/core`, `@zoneflow/react`를 직접 사용하고, `@zoneflow/themes`는 선택적으로 프리셋 테마를 가져올 때 추가하면 됩니다. 나머지 저수준 패키지는 하위 레이어로 두는 편이 맞습니다.
 
 ## 설치
 

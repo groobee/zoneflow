@@ -20,6 +20,14 @@ function summarizePayload(value: unknown) {
   return text.length > 88 ? `${text.slice(0, 85)}...` : text;
 }
 
+function isNocturneVariant(variant: Variant) {
+  return variant === "dark" || variant === "party";
+}
+
+function isSerifVariant(variant: Variant) {
+  return variant === "sunset" || variant === "korean-culture";
+}
+
 function resolvePathTargetDisplay(params: PathSlotComponentProps["mount"]["context"]) {
   const targetZoneId = params.pathVisual.targetZoneId;
   if (!targetZoneId) {
@@ -38,6 +46,7 @@ function zoneTitleStyle(
 ): React.CSSProperties {
   switch (variant) {
     case "sunset":
+    case "korean-culture":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
@@ -48,6 +57,7 @@ function zoneTitleStyle(
         letterSpacing: "-0.01em",
       };
     case "ocean":
+    case "light":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
@@ -57,7 +67,8 @@ function zoneTitleStyle(
         lineHeight: 1.1,
         letterSpacing: "-0.03em",
       };
-    case "midnight":
+    case "dark":
+    case "party":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
@@ -69,6 +80,15 @@ function zoneTitleStyle(
         textTransform: "uppercase",
       };
   }
+  return {
+    margin: 0,
+    color: context.theme.zoneTitle,
+    fontFamily: sans,
+    fontSize: 15,
+    fontWeight: 760,
+    lineHeight: 1.1,
+    letterSpacing: "-0.03em",
+  };
 }
 
 function pathLabelStyle(
@@ -77,6 +97,7 @@ function pathLabelStyle(
 ): React.CSSProperties {
   switch (variant) {
     case "sunset":
+    case "korean-culture":
       return {
         color: context.theme.pathLabel,
         fontSize: 14,
@@ -88,6 +109,7 @@ function pathLabelStyle(
         whiteSpace: "nowrap",
       };
     case "ocean":
+    case "light":
       return {
         color: context.theme.pathLabel,
         fontSize: 13,
@@ -98,7 +120,8 @@ function pathLabelStyle(
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
       };
-    case "midnight":
+    case "dark":
+    case "party":
       return {
         color: context.theme.pathLabel,
         fontSize: 12,
@@ -111,6 +134,16 @@ function pathLabelStyle(
         whiteSpace: "nowrap",
       };
   }
+  return {
+    color: context.theme.pathLabel,
+    fontSize: 13,
+    fontWeight: 760,
+    letterSpacing: "-0.03em",
+    fontFamily: sans,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
 }
 
 function createZoneComponents(variant: Variant): ZoneSlotComponentMap {
@@ -135,11 +168,11 @@ function createZoneComponents(variant: Variant): ZoneSlotComponentMap {
               alignItems: "center",
               gap: 6,
               height: "100%",
-              padding: variant === "midnight" ? "0 8px" : "0 10px",
+              padding: isNocturneVariant(variant) ? "0 8px" : "0 10px",
               borderRadius: 999,
               border: `1px solid ${mount.context.theme.zoneContainerBorder}`,
               background:
-                variant === "midnight"
+                isNocturneVariant(variant)
                   ? "rgba(2, 6, 23, 0.42)"
                   : "rgba(255, 255, 255, 0.68)",
               color: mount.context.theme.zoneSubtext,
@@ -190,7 +223,7 @@ function createZoneComponents(variant: Variant): ZoneSlotComponentMap {
                 : mount.context.theme.zoneTitle,
               fontSize: 11,
               fontWeight: 700,
-              fontFamily: variant === "sunset" ? serif : sans,
+              fontFamily: isSerifVariant(variant) ? serif : sans,
               boxSizing: "border-box",
             }}
           >
@@ -213,7 +246,7 @@ function createZoneComponents(variant: Variant): ZoneSlotComponentMap {
           <div
             style={{
               color: mount.context.theme.zoneSubtext,
-              fontSize: variant === "midnight" ? 10 : 11,
+              fontSize: isNocturneVariant(variant) ? 10 : 11,
               lineHeight: 1.45,
             }}
           >
@@ -242,7 +275,7 @@ function createZoneComponents(variant: Variant): ZoneSlotComponentMap {
                   borderRadius: 12,
                   border: `1px solid ${mount.context.theme.zoneContainerBorder}`,
                   background:
-                    variant === "midnight"
+                    isNocturneVariant(variant)
                       ? "rgba(2, 6, 23, 0.32)"
                       : "rgba(248, 250, 252, 0.96)",
                 }}
@@ -343,7 +376,7 @@ function createPathComponents(variant: Variant): PathSlotComponentMap {
               color: mount.context.theme.pathInboundEdge,
               fontSize: 10,
               fontWeight: 800,
-              letterSpacing: variant === "midnight" ? "0.08em" : "0.06em",
+              letterSpacing: isNocturneVariant(variant) ? "0.08em" : "0.06em",
               textTransform: "uppercase",
               fontFamily: mono,
               boxSizing: "border-box",
@@ -430,7 +463,7 @@ function createPathComponents(variant: Variant): PathSlotComponentMap {
               padding: "8px 10px",
               borderRadius: 11,
               background:
-                variant === "midnight"
+                isNocturneVariant(variant)
                   ? "rgba(2, 6, 23, 0.32)"
                   : "rgba(248, 250, 252, 0.98)",
               border: `1px solid ${mount.context.theme.zoneContainerBorder}`,

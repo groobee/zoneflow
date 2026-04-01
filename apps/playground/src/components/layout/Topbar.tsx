@@ -77,7 +77,10 @@ export function Topbar({
           >
             <option value="sunset">Theme: Sunset</option>
             <option value="ocean">Theme: Ocean</option>
-            <option value="midnight">Theme: Midnight</option>
+            <option value="dark">Theme: Dark</option>
+            <option value="light">Theme: Light</option>
+            <option value="party">Theme: Party</option>
+            <option value="korean-culture">Theme: Korean Culture</option>
           </select>
           <select
             style={themedSelectStyle}

@@ -11,6 +11,7 @@ export default defineConfig({
       "@zoneflow/editor-dom": path.resolve(__dirname, "../../packages/editor-dom/src/index.ts"),
       "@zoneflow/renderer-dom": path.resolve(__dirname, "../../packages/renderer-dom/src/index.ts"),
       "@zoneflow/react": path.resolve(__dirname, "../../packages/react/src/index.ts"),
+      "@zoneflow/themes": path.resolve(__dirname, "../../packages/themes/src/index.ts"),
     }
   }
 });

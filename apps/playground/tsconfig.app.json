@@ -9,6 +9,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../packages/react" }
+    { "path": "../../packages/react" },
+    { "path": "../../packages/themes" }
   ]
 }
