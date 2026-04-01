@@ -32,6 +32,14 @@ Zoneflow는 `Zone`과 `Path`를 중심으로 워크플로우를 표현하고 편
 pnpm add @zoneflow/core @zoneflow/react react react-dom
 ```
 
+## 예제 앱
+
+- `apps/starter`
+  - 기본적인 활용 예제
+  - `DefaultEditorToolbar + UniverseEditorCanvas + 간단한 sample model`만 포함합니다
+- `apps/playground`
+  - 테마, 샘플, import/export, 디버그, 편집 기능을 모두 보여주는 확장 예제
+
 ## 핵심 개념
 
 ### 1. 모델과 레이아웃은 분리됩니다
