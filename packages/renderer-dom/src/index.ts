@@ -1,4 +1,5 @@
 export * from "./theme";
+export * from "./themes/defaultTheme";
 export * from "./types";
 export * from "./anchors";
 export * from "./pipeline";

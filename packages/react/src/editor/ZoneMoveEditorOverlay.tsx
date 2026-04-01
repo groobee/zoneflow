@@ -50,7 +50,6 @@ import type {
   RendererExclusionState,
   RendererFrame,
   Rect,
-  ZoneflowTheme,
   ZoneComponentMount,
   ZoneComponentRendererContext,
   ZoneComponentSlotName,
@@ -59,6 +58,11 @@ import type {
   PathSlotComponentMap,
   ZoneSlotComponentMap,
 } from "../slots/slotComponents";
+import {
+  resolveEditorTheme,
+  type ZoneflowEditorTheme,
+  type ZoneflowEditorThemeInput,
+} from "./theme";
 
 export type ZoneEditorButtonRenderProps = {
   zoneId: ZoneId;
@@ -204,6 +208,7 @@ export type ZoneMoveEditorConfig = {
     longPressMs?: number;
     undoMs?: number;
   };
+  theme?: ZoneflowEditorThemeInput;
 };
 
 type DragState = {
@@ -287,42 +292,18 @@ type PreviewHostProps = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   target: MoveEditorTarget;
+  editorTheme: ZoneflowEditorTheme;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
 };
 
 type TargetVisualState = "idle" | "hover" | "selected" | "dragging";
 
-const previewHostStyle: CSSProperties = {
+const previewHostBaseStyle: CSSProperties = {
   position: "absolute",
   pointerEvents: "none",
-  background: "rgba(255, 255, 255, 0.74)",
   boxSizing: "border-box",
-  boxShadow: "0 18px 36px rgba(15, 23, 42, 0.22)",
   opacity: 1,
-};
-
-const previewTheme: ZoneflowTheme = {
-  background: "#020617",
-  zoneTitle: "#0f172a",
-  zoneSubtext: "#64748b",
-  zoneContainerBorder: "#cbd5e1",
-  zoneActionBorder: "#93c5fd",
-  zoneBadgeBg: "#eff6ff",
-  pathLabel: "#111827",
-  pathEdge: "#334155",
-  selection: "#2563eb",
-  density: {
-    zone: {
-      detail: 1.2,
-      near: 0.85,
-      mid: 0.55,
-    },
-    path: {
-      full: 1,
-      chip: 0.7,
-    },
-  },
 };
 
 const DRAG_START_DISTANCE = 4;
@@ -509,68 +490,28 @@ function getTargetVisualState(params: {
 
 function getTargetOutlineStyle(
   target: MoveEditorTarget,
-  visualState: TargetVisualState
+  visualState: TargetVisualState,
+  editorTheme: ZoneflowEditorTheme
 ): CSSProperties {
   const isZone = target.kind === "zone";
-
-  if (visualState === "dragging") {
-    return {
-      border: "2px solid rgba(37, 99, 235, 0.95)",
-      background: "rgba(37, 99, 235, 0.12)",
-      boxShadow: "0 0 0 1px rgba(147, 197, 253, 0.35) inset",
-      borderRadius: isZone ? 18 : 14,
-    };
-  }
-
-  if (visualState === "selected") {
-    return {
-      border: "2px solid rgba(14, 165, 233, 0.9)",
-      background: "rgba(14, 165, 233, 0.08)",
-      boxShadow: "0 0 0 1px rgba(125, 211, 252, 0.28) inset",
-      borderRadius: isZone ? 18 : 14,
-    };
-  }
-
-  if (visualState === "hover") {
-    return {
-      border: "1px dashed rgba(125, 211, 252, 0.88)",
-      background: "rgba(14, 165, 233, 0.05)",
-      borderRadius: isZone ? 18 : 14,
-    };
-  }
+  const tone = editorTheme.targetOutline[visualState];
 
   return {
-    border: "1px dashed rgba(148, 163, 184, 0.34)",
-    background: "rgba(15, 23, 42, 0.02)",
+    border: tone.border,
+    background: tone.background,
+    boxShadow: tone.boxShadow,
     borderRadius: isZone ? 18 : 14,
   };
 }
 
-function getTargetBadgeStyle(visualState: TargetVisualState): CSSProperties {
-  if (visualState === "dragging") {
-    return {
-      background: "#2563eb",
-      color: "#eff6ff",
-    };
-  }
-
-  if (visualState === "selected") {
-    return {
-      background: "#0f172a",
-      color: "#e2e8f0",
-    };
-  }
-
-  if (visualState === "hover") {
-    return {
-      background: "rgba(15, 23, 42, 0.9)",
-      color: "#e2e8f0",
-    };
-  }
-
+function getTargetBadgeStyle(
+  visualState: TargetVisualState,
+  editorTheme: ZoneflowEditorTheme
+): CSSProperties {
+  const tone = editorTheme.targetBadge[visualState];
   return {
-    background: "rgba(15, 23, 42, 0.72)",
-    color: "#cbd5e1",
+    background: tone.background,
+    color: tone.color,
   };
 }
 
@@ -735,8 +676,14 @@ function resolvePathTargetDisplay(context: PathComponentRendererContext) {
   };
 }
 
-function renderPathStatusBadge(status: "unconfigured" | "missing") {
+function renderPathStatusBadge(
+  status: "unconfigured" | "missing",
+  editorTheme: ZoneflowEditorTheme
+) {
   const isMissing = status === "missing";
+  const tone = isMissing
+    ? editorTheme.preview.status.warning
+    : editorTheme.preview.status.info;
 
   return (
     <div
@@ -752,11 +699,10 @@ function renderPathStatusBadge(status: "unconfigured" | "missing") {
         alignItems: "center",
         justifyContent: "center",
         borderRadius: 999,
-        border: "1px solid rgba(217, 119, 6, 0.24)",
-        background:
-          "linear-gradient(180deg, rgba(255,251,235,0.98) 0%, rgba(254,243,199,0.98) 100%)",
-        color: "#b45309",
-        boxShadow: "0 6px 14px rgba(180, 83, 9, 0.16)",
+        border: tone.border,
+        background: tone.background,
+        color: tone.color,
+        boxShadow: tone.shadow,
         fontSize: 12,
         lineHeight: 1,
         fontWeight: 700,
@@ -814,9 +760,9 @@ function renderPathFallback(
             fontSize: 10,
             color:
               targetDisplay.status === "missing"
-                ? "#b45309"
+                ? context.theme.status.warning.color
                 : targetDisplay.status === "unconfigured"
-                  ? "#b45309"
+                  ? context.theme.status.info.color
                   : "#64748b",
             fontWeight: targetDisplay.status === "resolved" ? 600 : 700,
           }}
@@ -845,6 +791,7 @@ function renderZonePreview(props: PreviewHostProps) {
     model,
     layoutModel,
     target,
+    editorTheme,
     zoneComponents,
   } = props;
 
@@ -866,14 +813,16 @@ function renderZonePreview(props: PreviewHostProps) {
     visibility,
     componentLayout,
     camera,
-    theme: previewTheme,
+    theme: editorTheme.preview,
     textScale: "md",
   };
 
   return (
     <div
       style={{
-        ...previewHostStyle,
+        ...previewHostBaseStyle,
+        background: editorTheme.previewHost.background,
+        boxShadow: editorTheme.previewHost.shadow,
         left: `${worldRect.x}px`,
         top: `${worldRect.y}px`,
         width: `${worldRect.width}px`,
@@ -934,6 +883,7 @@ function renderPathPreview(props: PreviewHostProps) {
     model,
     layoutModel,
     target,
+    editorTheme,
     pathComponents,
   } = props;
 
@@ -957,7 +907,7 @@ function renderPathPreview(props: PreviewHostProps) {
     visibility,
     componentLayout,
     camera,
-    theme: previewTheme,
+    theme: editorTheme.preview,
     textScale: "md",
   };
   const targetDisplay = resolvePathTargetDisplay(context);
@@ -965,7 +915,9 @@ function renderPathPreview(props: PreviewHostProps) {
   return (
     <div
       style={{
-        ...previewHostStyle,
+        ...previewHostBaseStyle,
+        background: editorTheme.previewHost.background,
+        boxShadow: editorTheme.previewHost.shadow,
         left: `${worldRect.x}px`,
         top: `${worldRect.y}px`,
         width: `${worldRect.width}px`,
@@ -976,7 +928,7 @@ function renderPathPreview(props: PreviewHostProps) {
       }}
     >
       {targetDisplay.status !== "resolved"
-        ? renderPathStatusBadge(targetDisplay.status)
+        ? renderPathStatusBadge(targetDisplay.status, editorTheme)
         : null}
       {(Object.keys(componentLayout.slots) as PathComponentSlotName[]).map(
         (slot) => {
@@ -1040,6 +992,32 @@ export function ZoneMoveEditorOverlay(props: {
     editor,
     onExclusionStateChange,
   } = props;
+  const resolvedEditorTheme = useMemo(
+    () => resolveEditorTheme(editor?.theme),
+    [editor?.theme]
+  );
+  const hudButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      border: resolvedEditorTheme.hud.buttonBorder,
+      borderRadius: 10,
+      background: resolvedEditorTheme.hud.buttonBackground,
+      color: resolvedEditorTheme.hud.buttonText,
+      minHeight: 34,
+      padding: "8px 10px",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+    }),
+    [resolvedEditorTheme]
+  );
+  const hudActiveButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      background: resolvedEditorTheme.hud.buttonActiveBackground,
+      border: resolvedEditorTheme.hud.buttonActiveBorder,
+      color: resolvedEditorTheme.hud.buttonActiveText,
+    }),
+    [resolvedEditorTheme]
+  );
 
   const [draggingTarget, setDraggingTarget] = useState<MoveEditorTarget | null>(null);
   const [draggingZoneGroupIds, setDraggingZoneGroupIds] = useState<ZoneId[]>([]);
@@ -2375,6 +2353,7 @@ export function ZoneMoveEditorOverlay(props: {
               model,
               layoutModel,
               target: draggingTarget,
+              editorTheme: resolvedEditorTheme,
               zoneComponents,
               pathComponents,
             }) ??
@@ -2384,6 +2363,7 @@ export function ZoneMoveEditorOverlay(props: {
               model,
               layoutModel,
               target: draggingTarget,
+              editorTheme: resolvedEditorTheme,
               zoneComponents,
               pathComponents,
             })
@@ -2494,9 +2474,9 @@ export function ZoneMoveEditorOverlay(props: {
               padding: 10,
               minWidth: 198,
               borderRadius: 14,
-              border: "1px solid rgba(148, 163, 184, 0.22)",
-              background: "rgba(15, 23, 42, 0.9)",
-              boxShadow: "0 16px 32px rgba(2, 6, 23, 0.22)",
+              border: resolvedEditorTheme.hud.panelBorder,
+              background: resolvedEditorTheme.hud.panelBackground,
+              boxShadow: resolvedEditorTheme.hud.panelShadow,
               pointerEvents: "auto",
             }}
           >
@@ -2513,8 +2493,10 @@ export function ZoneMoveEditorOverlay(props: {
                   onClick={() => editor.history?.onUndo?.()}
                   disabled={!editor.history?.canUndo}
                   style={{
-                    ...HUD_BUTTON_STYLE,
-                    opacity: editor.history?.canUndo ? 1 : 0.48,
+                    ...hudButtonStyle,
+                    opacity: editor.history?.canUndo
+                      ? 1
+                      : resolvedEditorTheme.hud.buttonDisabledOpacity,
                     cursor: editor.history?.canUndo ? "pointer" : "not-allowed",
                   }}
                 >
@@ -2525,8 +2507,10 @@ export function ZoneMoveEditorOverlay(props: {
                   onClick={() => editor.history?.onRedo?.()}
                   disabled={!editor.history?.canRedo}
                   style={{
-                    ...HUD_BUTTON_STYLE,
-                    opacity: editor.history?.canRedo ? 1 : 0.48,
+                    ...hudButtonStyle,
+                    opacity: editor.history?.canRedo
+                      ? 1
+                      : resolvedEditorTheme.hud.buttonDisabledOpacity,
                     cursor: editor.history?.canRedo ? "pointer" : "not-allowed",
                   }}
                 >
@@ -2541,15 +2525,19 @@ export function ZoneMoveEditorOverlay(props: {
                 onClick={() => requestDeleteCurrentSelection()}
                 disabled={!canDeleteSelection}
                 style={{
-                  ...HUD_BUTTON_STYLE,
+                  ...hudButtonStyle,
                   background: canDeleteSelection
-                    ? "rgba(127, 29, 29, 0.74)"
-                    : "rgba(15, 23, 42, 0.72)",
+                    ? resolvedEditorTheme.hud.buttonDangerBackground
+                    : resolvedEditorTheme.hud.buttonBackground,
                   border: canDeleteSelection
-                    ? "1px solid rgba(248, 113, 113, 0.44)"
-                    : HUD_BUTTON_STYLE.border,
-                  color: canDeleteSelection ? "#fee2e2" : "#e2e8f0",
-                  opacity: canDeleteSelection ? 1 : 0.48,
+                    ? resolvedEditorTheme.hud.buttonDangerBorder
+                    : hudButtonStyle.border,
+                  color: canDeleteSelection
+                    ? resolvedEditorTheme.hud.buttonDangerText
+                    : resolvedEditorTheme.hud.buttonText,
+                  opacity: canDeleteSelection
+                    ? 1
+                    : resolvedEditorTheme.hud.buttonDisabledOpacity,
                   cursor: canDeleteSelection ? "pointer" : "not-allowed",
                 }}
               >
@@ -2561,7 +2549,7 @@ export function ZoneMoveEditorOverlay(props: {
               <button
                 type="button"
                 onClick={() => overlayControls?.onFitToView?.()}
-                style={HUD_BUTTON_STYLE}
+                style={hudButtonStyle}
               >
                 한눈에 보기
               </button>
@@ -2581,8 +2569,8 @@ export function ZoneMoveEditorOverlay(props: {
                     type="button"
                     onClick={() => overlayControls?.onToggleGridVisible?.()}
                     style={{
-                      ...HUD_BUTTON_STYLE,
-                      ...(overlayControls?.gridVisible ? HUD_ACTIVE_BUTTON_STYLE : null),
+                      ...hudButtonStyle,
+                      ...(overlayControls?.gridVisible ? hudActiveButtonStyle : null),
                     }}
                   >
                     Grid {overlayControls?.gridVisible ? "On" : "Off"}
@@ -2593,8 +2581,8 @@ export function ZoneMoveEditorOverlay(props: {
                     type="button"
                     onClick={() => overlayControls?.onToggleSnap?.()}
                     style={{
-                      ...HUD_BUTTON_STYLE,
-                      ...(overlayControls?.snapEnabled ? HUD_ACTIVE_BUTTON_STYLE : null),
+                      ...hudButtonStyle,
+                      ...(overlayControls?.snapEnabled ? hudActiveButtonStyle : null),
                     }}
                   >
                     Snap {overlayControls?.snapEnabled ? "On" : "Off"}
@@ -2617,7 +2605,7 @@ export function ZoneMoveEditorOverlay(props: {
                   <button
                     type="button"
                     onClick={() => overlayControls?.onZoomOut?.()}
-                    style={HUD_BUTTON_STYLE}
+                    style={hudButtonStyle}
                   >
                     -
                   </button>
@@ -2629,7 +2617,7 @@ export function ZoneMoveEditorOverlay(props: {
                     type="button"
                     onClick={() => overlayControls?.onResetZoom?.()}
                     style={{
-                      ...HUD_BUTTON_STYLE,
+                      ...hudButtonStyle,
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -2642,7 +2630,7 @@ export function ZoneMoveEditorOverlay(props: {
                   <button
                     type="button"
                     onClick={() => overlayControls?.onZoomIn?.()}
-                    style={HUD_BUTTON_STYLE}
+                    style={hudButtonStyle}
                   >
                     +
                   </button>
@@ -3464,7 +3452,7 @@ export function ZoneMoveEditorOverlay(props: {
                     ? DELETE_SHAKE_ANIMATION
                     : undefined,
                 transformOrigin: "center center",
-                ...getTargetOutlineStyle(target, visualState),
+                ...getTargetOutlineStyle(target, visualState, resolvedEditorTheme),
               }}
             >
               {sourceAnchorLocalRect && target.kind === "zone" ? (
@@ -3977,7 +3965,7 @@ export function ZoneMoveEditorOverlay(props: {
                       fontWeight: 800,
                       letterSpacing: "0.08em",
                       boxShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
-                      ...getTargetBadgeStyle(visualState),
+                      ...getTargetBadgeStyle(visualState, resolvedEditorTheme),
                     }}
                   >
                     {getTargetBadgeLabel(target)}
@@ -4096,21 +4084,3 @@ export function ZoneMoveEditorOverlay(props: {
     </div>
   );
 }
-
-const HUD_BUTTON_STYLE: CSSProperties = {
-  border: "1px solid rgba(148, 163, 184, 0.22)",
-  borderRadius: 10,
-  background: "rgba(15, 23, 42, 0.74)",
-  color: "#e2e8f0",
-  minHeight: 34,
-  padding: "8px 10px",
-  fontSize: 12,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const HUD_ACTIVE_BUTTON_STYLE: CSSProperties = {
-  background: "rgba(37, 99, 235, 0.92)",
-  border: "1px solid rgba(96, 165, 250, 0.4)",
-  color: "#eff6ff",
-};
