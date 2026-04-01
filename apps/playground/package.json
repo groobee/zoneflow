@@ -15,6 +15,7 @@
     "@zoneflow/renderer-dom": "workspace:*",
     "@zoneflow/editor-dom": "workspace:*",
     "@zoneflow/react": "workspace:*",
+    "@zoneflow/themes": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

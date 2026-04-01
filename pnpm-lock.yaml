@@ -26,6 +26,9 @@ importers:
       '@zoneflow/renderer-dom':
         specifier: workspace:*
         version: link:../../packages/renderer-dom
+      '@zoneflow/themes':
+        specifier: workspace:*
+        version: link:../../packages/themes
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -109,6 +112,15 @@ importers:
       react-dom:
         specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
+
+  packages/themes:
+    dependencies:
+      '@zoneflow/react':
+        specifier: workspace:*
+        version: link:../react
+      '@zoneflow/renderer-dom':
+        specifier: workspace:*
+        version: link:../renderer-dom
 
   packages/renderer-dom:
     dependencies:
