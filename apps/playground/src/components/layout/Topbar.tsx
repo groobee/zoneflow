@@ -8,10 +8,17 @@ import {
   selectStyle,
   topbarStyle,
 } from "./layout.styles";
+import type {
+  PlaygroundThemePreset,
+  PlaygroundThemePresetId,
+} from "../../theme/playgroundThemes";
 
 type Props = {
-  sampleType: "small" | "large" | "custom";
-  setSampleType: (value: "small" | "large" | "custom") => void;
+  sampleType: "tiny" | "small" | "large" | "custom";
+  setSampleType: (value: "tiny" | "small" | "large" | "custom") => void;
+  themePreset: PlaygroundThemePreset;
+  themePresetId: PlaygroundThemePresetId;
+  setThemePresetId: (value: PlaygroundThemePresetId) => void;
   editor: UniverseEditorController;
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
@@ -24,6 +31,9 @@ type Props = {
 export function Topbar({
   sampleType,
   setSampleType,
+  themePreset,
+  themePresetId,
+  setThemePresetId,
   editor,
   overlayHudVisible,
   onToggleOverlayHud,
@@ -32,40 +42,88 @@ export function Topbar({
   onExportFile,
   onImportFile,
 }: Props) {
+  const themedTopbarStyle: React.CSSProperties = {
+    ...topbarStyle,
+    background: themePreset.topbar.background,
+    borderBottom: themePreset.topbar.border,
+  };
+  const themedControlStyle: React.CSSProperties = {
+    ...buttonStyle,
+    background: themePreset.topbar.controlBackground,
+    border: themePreset.topbar.controlBorder,
+    color: themePreset.topbar.controlText,
+  };
+  const themedSelectStyle: React.CSSProperties = {
+    ...selectStyle,
+    background: themePreset.topbar.controlBackground,
+    border: themePreset.topbar.controlBorder,
+    color: themePreset.topbar.controlText,
+  };
+
   return (
     <DefaultEditorToolbar
       editor={editor}
-      style={topbarStyle}
+      style={themedTopbarStyle}
+      theme={themePreset.editorTheme}
       leading={
-        <select
-          style={selectStyle}
-          value={sampleType}
-          onChange={(e) =>
-            setSampleType(e.target.value as "small" | "large" | "custom")
-          }
-        >
-          <option value="small">Small sample</option>
-          <option value="large">Large sample</option>
-          {sampleType === "custom" ? (
-            <option value="custom">Loaded file</option>
-          ) : null}
-        </select>
+        <>
+          <select
+            style={themedSelectStyle}
+            value={themePresetId}
+            onChange={(e) =>
+              setThemePresetId(e.target.value as PlaygroundThemePresetId)
+            }
+            title={themePreset.description}
+          >
+            <option value="sunset">Theme: Sunset</option>
+            <option value="ocean">Theme: Ocean</option>
+            <option value="midnight">Theme: Midnight</option>
+          </select>
+          <select
+            style={themedSelectStyle}
+            value={sampleType}
+            onChange={(e) =>
+              setSampleType(
+                e.target.value as "tiny" | "small" | "large" | "custom"
+              )
+            }
+          >
+            <option value="tiny">Tiny sample</option>
+            <option value="small">Small sample</option>
+            <option value="large">Large sample</option>
+            {sampleType === "custom" ? (
+              <option value="custom">Loaded file</option>
+            ) : null}
+          </select>
+        </>
       }
       trailing={
         <>
-          <button type="button" style={buttonStyle} onClick={onCreateNewDocument}>
+          <button
+            type="button"
+            style={themedControlStyle}
+            onClick={onCreateNewDocument}
+          >
             새 문서
           </button>
-          <button type="button" style={buttonStyle} onClick={onImportFile}>
+          <button type="button" style={themedControlStyle} onClick={onImportFile}>
             불러오기
           </button>
-          <button type="button" style={buttonStyle} onClick={onExportFile}>
+          <button type="button" style={themedControlStyle} onClick={onExportFile}>
             저장
           </button>
-          <button type="button" style={buttonStyle} onClick={onToggleOverlayHud}>
+          <button
+            type="button"
+            style={themedControlStyle}
+            onClick={onToggleOverlayHud}
+          >
             HUD {overlayHudVisible ? "On" : "Off"}
           </button>
-          <button type="button" style={buttonStyle} onClick={onOpenDataModal}>
+          <button
+            type="button"
+            style={themedControlStyle}
+            onClick={onOpenDataModal}
+          >
             데이터
           </button>
         </>

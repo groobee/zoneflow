@@ -17,12 +17,14 @@ import {
   PlaygroundZoneEditor,
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
+import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
 
 type Props = {
   editor: UniverseEditorController;
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
   overlayHudVisible: boolean;
+  themePreset: PlaygroundThemePreset;
 };
 
 export function CanvasHost({
@@ -30,6 +32,7 @@ export function CanvasHost({
   debug,
   onResize,
   overlayHudVisible,
+  themePreset,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -80,10 +83,12 @@ export function CanvasHost({
     <main ref={ref} style={canvasHostStyle}>
       <UniverseEditorCanvas
         editor={editor}
+        theme={themePreset.rendererTheme}
         viewport={debug.viewport}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{
+          theme: themePreset.editorTheme,
           overlayControls: {
             enabled: overlayHudVisible,
           },

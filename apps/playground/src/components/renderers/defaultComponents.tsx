@@ -42,23 +42,36 @@ function resolvePathTargetDisplay(params: PathSlotComponentProps["mount"]["conte
   };
 }
 
-function resolveZoneBadgeTone(actionType?: string) {
+function resolveZoneBadgeTone(params: {
+  actionType?: string;
+  badgeBg: string;
+  actionBorder: string;
+  containerBorder: string;
+  titleColor: string;
+}) {
+  const { actionType, badgeBg, actionBorder, containerBorder, titleColor } = params;
   if (!actionType) {
     return {
-      background: "linear-gradient(135deg, #e0f2fe 0%, #eef6ff 100%)",
-      color: "#0f4c81",
-      borderColor: "rgba(14, 116, 144, 0.14)",
+      background: badgeBg,
+      color: titleColor,
+      borderColor: containerBorder,
     };
   }
 
   return {
-    background: "linear-gradient(135deg, #fff1d6 0%, #fff7e8 100%)",
-    color: "#9a4d00",
-    borderColor: "rgba(217, 119, 6, 0.14)",
+    background: badgeBg,
+    color: actionBorder,
+    borderColor: actionBorder,
   };
 }
 
-function StatCard(props: { label: string; value: string | number }) {
+function StatCard(props: {
+  label: string;
+  value: string | number;
+  titleColor: string;
+  subtextColor: string;
+  borderColor: string;
+}) {
   return (
     <div
       style={{
@@ -67,14 +80,14 @@ function StatCard(props: { label: string; value: string | number }) {
         gap: 3,
         padding: "9px 10px",
         borderRadius: 12,
-        border: "1px solid rgba(148, 163, 184, 0.12)",
+        border: `1px solid ${props.borderColor}`,
         background: "rgba(248, 250, 252, 0.96)",
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
       }}
     >
       <span
         style={{
-          color: "#7b8798",
+          color: props.subtextColor,
           fontSize: 9,
           fontWeight: 800,
           letterSpacing: "0.08em",
@@ -86,7 +99,7 @@ function StatCard(props: { label: string; value: string | number }) {
       </span>
       <span
         style={{
-          color: "#0f172a",
+          color: props.titleColor,
           fontSize: 13,
           fontWeight: 700,
           lineHeight: 1.1,
@@ -106,7 +119,7 @@ export const zoneComponents: ZoneSlotComponentMap = {
         <h3
           style={{
             margin: 0,
-            color: "#0f172a",
+            color: mount.context.theme.zoneTitle,
             fontFamily: sans,
             fontSize: 15,
             fontWeight: 720,
@@ -131,9 +144,9 @@ export const zoneComponents: ZoneSlotComponentMap = {
             height: "100%",
             padding: "0 10px",
             borderRadius: 999,
-            border: "1px solid rgba(148, 163, 184, 0.12)",
+            border: `1px solid ${mount.context.theme.zoneContainerBorder}`,
             background: "rgba(255, 255, 255, 0.68)",
-            color: "#6b7280",
+            color: mount.context.theme.zoneSubtext,
             fontSize: 10,
             fontWeight: 800,
             letterSpacing: "0.08em",
@@ -148,11 +161,13 @@ export const zoneComponents: ZoneSlotComponentMap = {
               height: 6,
               borderRadius: 999,
               background:
-                mount.context.zone.zoneType === "action" ? "#f59e0b" : "#3b82f6",
+                mount.context.zone.zoneType === "action"
+                  ? mount.context.theme.zoneActionBorder
+                  : mount.context.theme.selection,
               boxShadow:
                 mount.context.zone.zoneType === "action"
-                  ? "0 0 0 4px rgba(245,158,11,0.12)"
-                  : "0 0 0 4px rgba(59,130,246,0.12)",
+                  ? `0 0 0 4px color-mix(in srgb, ${mount.context.theme.zoneActionBorder} 18%, transparent)`
+                  : `0 0 0 4px color-mix(in srgb, ${mount.context.theme.selection} 18%, transparent)`,
             }}
           />
           {mount.context.zone.zoneType}
@@ -163,7 +178,13 @@ export const zoneComponents: ZoneSlotComponentMap = {
 
   badge({ mount }: ZoneSlotComponentProps) {
     const label = mount.context.zone.action?.type ?? "group";
-    const tone = resolveZoneBadgeTone(mount.context.zone.action?.type);
+    const tone = resolveZoneBadgeTone({
+      actionType: mount.context.zone.action?.type,
+      badgeBg: mount.context.theme.zoneBadgeBg,
+      actionBorder: mount.context.theme.zoneActionBorder,
+      containerBorder: mount.context.theme.zoneContainerBorder,
+      titleColor: mount.context.theme.zoneTitle,
+    });
 
     return (
       <Zoned style={{ display: "flex", alignItems: "center" }}>
@@ -182,7 +203,7 @@ export const zoneComponents: ZoneSlotComponentMap = {
             fontWeight: 700,
             fontFamily: sans,
             boxSizing: "border-box",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.58)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42)",
           }}
         >
           <span
@@ -212,7 +233,7 @@ export const zoneComponents: ZoneSlotComponentMap = {
       >
         <div
           style={{
-            color: "#4b5563",
+            color: mount.context.theme.zoneSubtext,
             fontSize: 11,
             lineHeight: 1.45,
           }}
@@ -228,8 +249,20 @@ export const zoneComponents: ZoneSlotComponentMap = {
             gap: 8,
           }}
         >
-          <StatCard label="Children" value={mount.context.zone.childZoneIds.length} />
-          <StatCard label="Conditions" value={mount.context.zone.pathIds.length} />
+          <StatCard
+            label="Children"
+            value={mount.context.zone.childZoneIds.length}
+            titleColor={mount.context.theme.zoneTitle}
+            subtextColor={mount.context.theme.zoneSubtext}
+            borderColor={mount.context.theme.zoneContainerBorder}
+          />
+          <StatCard
+            label="Conditions"
+            value={mount.context.zone.pathIds.length}
+            titleColor={mount.context.theme.zoneTitle}
+            subtextColor={mount.context.theme.zoneSubtext}
+            borderColor={mount.context.theme.zoneContainerBorder}
+          />
         </div>
       </Zoned>
     );
@@ -248,7 +281,7 @@ export const zoneComponents: ZoneSlotComponentMap = {
       >
         <span
           style={{
-            color: "#64748b",
+            color: mount.context.theme.zoneSubtext,
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: "0.06em",
@@ -259,7 +292,7 @@ export const zoneComponents: ZoneSlotComponentMap = {
         </span>
         <span
           style={{
-            color: "#94a3b8",
+            color: mount.context.theme.zoneSubtext,
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: "0.04em",
@@ -281,7 +314,7 @@ export const pathComponents: PathSlotComponentMap = {
       <Pathed style={{ display: "flex", alignItems: "center" }}>
         <div
           style={{
-            color: "#0f172a",
+            color: mount.context.theme.pathLabel,
             fontSize: 13,
             fontWeight: 730,
             letterSpacing: "-0.02em",
@@ -309,9 +342,9 @@ export const pathComponents: PathSlotComponentMap = {
             height: "100%",
             padding: "0 10px",
             borderRadius: 999,
-            background: "linear-gradient(135deg, #eef2ff 0%, #f8f5ff 100%)",
-            border: "1px solid rgba(99, 102, 241, 0.14)",
-            color: "#5b5bd6",
+            background: mount.context.theme.zoneBadgeBg,
+            border: `1px solid ${mount.context.theme.pathInboundEdge}`,
+            color: mount.context.theme.pathInboundEdge,
             fontSize: 10,
             fontWeight: 800,
             letterSpacing: "0.06em",
@@ -341,7 +374,7 @@ export const pathComponents: PathSlotComponentMap = {
       >
         <span
           style={{
-            color: "#94a3b8",
+            color: mount.context.theme.zoneSubtext,
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: "0.08em",
@@ -358,10 +391,10 @@ export const pathComponents: PathSlotComponentMap = {
             minWidth: 0,
             color:
               targetDisplay.status === "missing"
-                ? "#b45309"
+                ? mount.context.theme.status.warning.color
                 : targetDisplay.status === "unconfigured"
-                  ? "#b45309"
-                  : "#334155",
+                  ? mount.context.theme.status.info.color
+                  : mount.context.theme.zoneTitle,
             fontSize: 10,
             fontWeight: 700,
           }}
@@ -370,10 +403,10 @@ export const pathComponents: PathSlotComponentMap = {
             style={{
               color:
                 targetDisplay.status === "missing"
-                  ? "#f59e0b"
+                  ? mount.context.theme.status.warning.color
                   : targetDisplay.status === "unconfigured"
-                    ? "#f59e0b"
-                    : "#60a5fa",
+                    ? mount.context.theme.status.info.color
+                    : mount.context.theme.pathInboundEdge,
             }}
           >
             {targetDisplay.status === "missing"
@@ -402,7 +435,7 @@ export const pathComponents: PathSlotComponentMap = {
         style={{
           display: "grid",
           alignContent: "start",
-          color: "#475569",
+          color: mount.context.theme.zoneSubtext,
           fontSize: 11,
           lineHeight: 1.45,
           fontFamily: sans,
@@ -413,9 +446,9 @@ export const pathComponents: PathSlotComponentMap = {
             padding: "8px 10px",
             borderRadius: 11,
             background: "rgba(248, 250, 252, 0.98)",
-            border: "1px solid rgba(148, 163, 184, 0.12)",
+            border: `1px solid ${mount.context.theme.zoneContainerBorder}`,
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.82)",
-            color: "#526173",
+            color: mount.context.theme.zoneSubtext,
             fontFamily: mono,
             fontSize: 10,
             overflow: "hidden",
