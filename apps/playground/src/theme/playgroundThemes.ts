@@ -18,6 +18,19 @@ export type PlaygroundThemePreset = {
     controlBorder: string;
     controlText: string;
   };
+  sidebar: {
+    background: string;
+    border: string;
+    text: string;
+    mutedText: string;
+    sectionTitle: string;
+    cardBackground: string;
+    cardBorder: string;
+    controlBackground: string;
+    controlBorder: string;
+    controlText: string;
+    accent: string;
+  };
 };
 
 export const playgroundThemePresets: Record<
@@ -103,6 +116,19 @@ export const playgroundThemePresets: Record<
       controlBorder: "1px solid rgba(253, 186, 116, 0.28)",
       controlText: "#ffedd5",
     },
+    sidebar: {
+      background: "#3b1c10",
+      border: "1px solid rgba(251, 146, 60, 0.18)",
+      text: "#ffedd5",
+      mutedText: "#fdba74",
+      sectionTitle: "#fed7aa",
+      cardBackground: "rgba(124, 45, 18, 0.42)",
+      cardBorder: "rgba(251, 146, 60, 0.18)",
+      controlBackground: "#7c2d12",
+      controlBorder: "1px solid rgba(253, 186, 116, 0.24)",
+      controlText: "#ffedd5",
+      accent: "#f97316",
+    },
   },
   ocean: {
     id: "ocean",
@@ -182,6 +208,19 @@ export const playgroundThemePresets: Record<
       controlBackground: "#0e7490",
       controlBorder: "1px solid rgba(103, 232, 249, 0.24)",
       controlText: "#ecfeff",
+    },
+    sidebar: {
+      background: "#082f49",
+      border: "1px solid rgba(103, 232, 249, 0.16)",
+      text: "#ecfeff",
+      mutedText: "#a5f3fc",
+      sectionTitle: "#cffafe",
+      cardBackground: "rgba(14, 116, 144, 0.34)",
+      cardBorder: "rgba(103, 232, 249, 0.16)",
+      controlBackground: "#0e7490",
+      controlBorder: "1px solid rgba(103, 232, 249, 0.24)",
+      controlText: "#ecfeff",
+      accent: "#06b6d4",
     },
   },
   midnight: {
@@ -290,6 +329,19 @@ export const playgroundThemePresets: Record<
       controlBackground: "#0f172a",
       controlBorder: "1px solid rgba(71, 85, 105, 0.42)",
       controlText: "#e2e8f0",
+    },
+    sidebar: {
+      background: "#0b1220",
+      border: "1px solid rgba(71, 85, 105, 0.24)",
+      text: "#e2e8f0",
+      mutedText: "#94a3b8",
+      sectionTitle: "#cbd5e1",
+      cardBackground: "rgba(15, 23, 42, 0.72)",
+      cardBorder: "rgba(148, 163, 184, 0.16)",
+      controlBackground: "#1e293b",
+      controlBorder: "1px solid rgba(148, 163, 184, 0.2)",
+      controlText: "#e2e8f0",
+      accent: "#22c55e",
     },
   },
 };

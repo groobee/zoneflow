@@ -180,7 +180,7 @@ export default function App() {
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
       />
-      <LeftPanel isEditMode={isEditMode} />
+      <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
       <CanvasHost
         editor={editor}
@@ -194,6 +194,7 @@ export default function App() {
         debug={debug}
         hostWidth={hostSize.width}
         hostHeight={hostSize.height}
+        themePreset={themePreset}
       />
 
       {isDataModalOpen ? (

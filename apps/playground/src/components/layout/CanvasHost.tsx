@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   createZoneFromDropTemplate,
   UniverseEditorCanvas,
@@ -8,10 +8,7 @@ import {
 import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
-import {
-  pathComponents,
-  zoneComponents,
-} from "../renderers/defaultComponents";
+import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
   PlaygroundZoneEditButton,
   PlaygroundZoneEditor,
@@ -35,6 +32,10 @@ export function CanvasHost({
   themePreset,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const { zoneComponents, pathComponents } = useMemo(
+    () => getThemePresetComponents(themePreset.id),
+    [themePreset.id]
+  );
 
   useEffect(() => {
     if (!ref.current) return;

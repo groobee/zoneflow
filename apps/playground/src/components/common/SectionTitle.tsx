@@ -5,7 +5,7 @@ const style: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: 0.4,
   textTransform: "uppercase",
-  color: "#94a3b8",
+  color: "var(--pg-section-title, #94a3b8)",
   marginBottom: 10,
 };
 
