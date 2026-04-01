@@ -28,6 +28,23 @@ Zoneflow는 `Zone`과 `Path`를 중심으로 워크플로우를 표현하고 편
 
 ## 설치
 
+`pnpm`을 아직 설치하지 않았다면 먼저 준비합니다.
+
+권장 방식:
+
+```bash
+corepack enable
+corepack prepare pnpm@latest --activate
+```
+
+또는:
+
+```bash
+npm install -g pnpm
+```
+
+그 다음 Zoneflow 패키지를 설치합니다.
+
 ```bash
 pnpm add @zoneflow/core @zoneflow/react react react-dom
 ```

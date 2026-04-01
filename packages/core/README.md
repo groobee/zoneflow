@@ -48,6 +48,7 @@ pnpm add @zoneflow/core
 import {
   createUniverseId,
   createUniverseLayoutModel,
+  createZoneId,
   createZone,
   createZoneLayout,
   serializeZoneflowDocument,
@@ -68,6 +69,7 @@ let layoutModel = createUniverseLayoutModel({
 });
 
 model = createZone(model, {
+  id: createZoneId(),
   name: "Start",
   zoneType: "action",
   parentZoneId: null,

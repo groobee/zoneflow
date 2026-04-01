@@ -14,7 +14,7 @@
 ## 설치
 
 ```bash
-pnpm add @zoneflow/themes @zoneflow/react @zoneflow/core
+pnpm add @zoneflow/themes @zoneflow/react @zoneflow/core react react-dom
 ```
 
 ## 사용 예제
