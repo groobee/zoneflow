@@ -4031,7 +4031,7 @@ export function ZoneMoveEditorOverlay(props: {
             color: resolvedEditorTheme.overlay.toast.text,
             boxShadow: resolvedEditorTheme.overlay.toast.shadow,
             pointerEvents: "auto",
-            zIndex: 가OVERLAY_Z_INDEX.toast,
+            zIndex: OVERLAY_Z_INDEX.toast,
             animation: shouldAnimateDeleteUi
               ? DELETE_TOAST_IN_ANIMATION
               : undefined,
