@@ -5,14 +5,14 @@ export const checkboxLabelStyle: React.CSSProperties = {
     alignItems: "center",
     gap: 6,
     fontSize: 12,
-    color: "#cbd5e1",
+    color: "var(--pg-panel-text, #cbd5e1)",
     cursor: "pointer",
 };
 
 export const buttonStyle: React.CSSProperties = {
-    background: "#1e293b",
-    color: "#e2e8f0",
-    border: "1px solid rgba(148, 163, 184, 0.2)",
+    background: "var(--pg-control-bg, #1e293b)",
+    color: "var(--pg-control-text, #e2e8f0)",
+    border: "var(--pg-control-border, 1px solid rgba(148, 163, 184, 0.2))",
     borderRadius: 8,
     padding: "6px 10px",
     cursor: "pointer",
@@ -24,9 +24,9 @@ export const gridStyle: React.CSSProperties = {
 };
 
 export const inputStyle: React.CSSProperties = {
-    background: "#111827",
-    color: "#e5e7eb",
-    border: "1px solid rgba(148, 163, 184, 0.25)",
+    background: "var(--pg-control-bg, #111827)",
+    color: "var(--pg-control-text, #e5e7eb)",
+    border: "var(--pg-control-border, 1px solid rgba(148, 163, 184, 0.25))",
     borderRadius: 8,
     padding: "6px 8px",
     width: 88,
@@ -34,9 +34,9 @@ export const inputStyle: React.CSSProperties = {
 };
 
 export const selectStyle: React.CSSProperties = {
-    background: "#111827",
-    color: "#e5e7eb",
-    border: "1px solid rgba(148, 163, 184, 0.25)",
+    background: "var(--pg-control-bg, #111827)",
+    color: "var(--pg-control-text, #e5e7eb)",
+    border: "var(--pg-control-border, 1px solid rgba(148, 163, 184, 0.25))",
     borderRadius: 8,
     padding: "6px 10px",
     width: "100%",
@@ -51,7 +51,7 @@ export const sectionHeaderStyle: React.CSSProperties = {
 export const subsectionTitleStyle: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 700,
-    color: "#94a3b8",
+    color: "var(--pg-panel-muted, #94a3b8)",
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -77,9 +77,9 @@ export const anchorGridStyle: React.CSSProperties = {
 export const anchorButtonStyle: React.CSSProperties = {
     width: 36,
     height: 36,
-    background: "#1e293b",
-    color: "#e2e8f0",
-    border: "1px solid rgba(148, 163, 184, 0.25)",
+    background: "var(--pg-control-bg, #1e293b)",
+    color: "var(--pg-control-text, #e2e8f0)",
+    border: "var(--pg-control-border, 1px solid rgba(148, 163, 184, 0.25))",
     borderRadius: 8,
     cursor: "pointer",
     fontSize: 16,

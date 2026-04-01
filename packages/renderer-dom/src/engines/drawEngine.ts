@@ -104,10 +104,12 @@ function resolvePathTargetDisplay(params: {
 function createPathStatusBadge(params: {
   owner: HTMLElement;
   status: "unconfigured" | "missing";
+  theme: RendererDrawInput["theme"];
 }) {
-  const { owner, status } = params;
+  const { owner, status, theme } = params;
   const badge = document.createElement("div");
 
+  const tone = status === "missing" ? theme.status.warning : theme.status.info;
   const isMissing = status === "missing";
   badge.title = isMissing ? "Broken path target" : "Path target not set";
   badge.setAttribute(
@@ -126,11 +128,10 @@ function createPathStatusBadge(params: {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: "999px",
-    border: "1px solid rgba(217, 119, 6, 0.24)",
-    background:
-      "linear-gradient(180deg, rgba(255,251,235,0.98) 0%, rgba(254,243,199,0.98) 100%)",
-    color: "#b45309",
-    boxShadow: "0 6px 14px rgba(180, 83, 9, 0.16)",
+    border: tone.border,
+    background: tone.background,
+    color: tone.color,
+    boxShadow: tone.shadow,
     fontSize: "12px",
     lineHeight: "1",
     fontWeight: "700",
@@ -161,8 +162,13 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
-function getEdgeColor(kind: "zone-to-path" | "path-to-zone", themePathEdge: string) {
-  return kind === "zone-to-path" ? themePathEdge : "#0f766e";
+function getEdgeColor(params: {
+  kind: "zone-to-path" | "path-to-zone";
+  theme: RendererDrawInput["theme"];
+}) {
+  return params.kind === "zone-to-path"
+    ? params.theme.pathEdge
+    : params.theme.pathInboundEdge;
 }
 
 function getBezierCurvePathD(params: {
@@ -369,9 +375,9 @@ function renderPathFallback(
       ...base,
       color:
         targetDisplay.status === "missing"
-          ? "#b45309"
+          ? context.theme.status.warning.color
           : targetDisplay.status === "unconfigured"
-            ? "#b45309"
+            ? context.theme.status.info.color
             : context.theme.zoneSubtext,
       fontSize: "11px",
       fontWeight: targetDisplay.status === "resolved" ? 500 : 700,
@@ -549,7 +555,10 @@ function drawEdges(params: {
     if (!visibility?.shouldRenderEdge) continue;
 
     for (const edge of edges) {
-      const stroke = getEdgeColor(edge.kind, input.theme.pathEdge);
+      const stroke = getEdgeColor({
+        kind: edge.kind,
+        theme: input.theme,
+      });
       const path = createSvgElement("path");
       path.setAttribute(
         "d",
@@ -595,9 +604,10 @@ function createSurfaceChrome(params: {
   owner: HTMLElement;
   accent: string;
   radius: string;
+  theme: RendererDrawInput["theme"];
   topBandOpacity?: number;
 }) {
-  const { owner, accent, radius, topBandOpacity = 0.64 } = params;
+  const { owner, accent, radius, theme, topBandOpacity = 0.64 } = params;
   const chrome = document.createElement("div");
   const topBand = document.createElement("div");
   const cornerGlow = document.createElement("div");
@@ -607,8 +617,7 @@ function createSurfaceChrome(params: {
     inset: "0",
     borderRadius: radius,
     pointerEvents: "none",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(255,255,255,0.08) 42%, rgba(255,255,255,0) 100%)",
+    background: theme.surface.chrome.overlay,
   });
 
   applyStyles(topBand, {
@@ -619,7 +628,7 @@ function createSurfaceChrome(params: {
     height: "44px",
     borderTopLeftRadius: radius,
     borderTopRightRadius: radius,
-    background: `linear-gradient(90deg, ${accent} 0%, rgba(255,255,255,0.04) 72%)`,
+    background: `linear-gradient(90deg, ${accent} 0%, ${theme.surface.chrome.accentFade} 72%)`,
     opacity: topBandOpacity,
     pointerEvents: "none",
   });
@@ -631,8 +640,7 @@ function createSurfaceChrome(params: {
     width: "116px",
     height: "116px",
     borderRadius: "999px",
-    background:
-      "radial-gradient(circle, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.22) 36%, rgba(255,255,255,0) 72%)",
+    background: theme.surface.chrome.glow,
     pointerEvents: "none",
   });
 
@@ -653,8 +661,8 @@ function drawZoneAnchors(params: {
       : input.theme.zoneContainerBorder;
   const anchorAccentColor =
     zone.zone.zoneType === "action"
-      ? "rgba(245, 158, 11, 0.96)"
-      : "rgba(37, 99, 235, 0.96)";
+      ? input.theme.surface.anchor.actionAccent
+      : input.theme.surface.anchor.containerAccent;
   const shouldRenderAnchor = (kind: "inlet" | "outlet") =>
     kind === "inlet"
       ? isZoneInputEnabled(zone.zone)
@@ -679,13 +687,11 @@ function drawZoneAnchors(params: {
       width: `${rect.width}px`,
       height: `${rect.height}px`,
       borderRadius: "0",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247,250,253,0.98) 100%)",
+      background: input.theme.surface.anchor.background,
       border: `1px solid ${zoneBorderColor}`,
       borderRight: kind === "inlet" ? "none" : `1px solid ${zoneBorderColor}`,
       borderLeft: kind === "outlet" ? "none" : `1px solid ${zoneBorderColor}`,
-      boxShadow:
-        "0 18px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
+      boxShadow: input.theme.surface.anchor.shadow,
       boxSizing: "border-box",
       overflow: "hidden",
       pointerEvents: "none",
@@ -696,8 +702,7 @@ function drawZoneAnchors(params: {
       top: "0",
       bottom: "0",
       width: "10px",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247,250,253,0.98) 100%)",
+      background: input.theme.surface.anchor.background,
       right: kind === "inlet" ? "0" : "auto",
       left: kind === "outlet" ? "0" : "auto",
     });
@@ -857,11 +862,9 @@ export const domDrawEngine: DrawEngine = {
             ? theme.zoneActionBorder
             : theme.zoneContainerBorder
         }`,
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)",
+        background: theme.surface.zone.background,
         boxSizing: "border-box",
-        boxShadow:
-          "0 18px 34px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05)",
+        boxShadow: theme.surface.zone.shadow,
         overflow: "hidden",
       });
 
@@ -874,9 +877,10 @@ export const domDrawEngine: DrawEngine = {
         owner: zoneChromeEl,
         accent:
           zoneVisual.zone.zoneType === "action"
-            ? "rgba(245, 158, 11, 0.18)"
-            : "rgba(37, 99, 235, 0.12)",
+            ? theme.surface.zone.actionAccent
+            : theme.surface.zone.containerAccent,
         radius: "0",
+        theme,
       });
 
       zoneBodyEl.appendChild(zoneChromeEl);
@@ -925,11 +929,9 @@ export const domDrawEngine: DrawEngine = {
         height: `${pathVisual.rect.height}px`,
         borderRadius: "18px",
         border: `1px solid ${theme.pathEdge}`,
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(246,248,252,0.98) 100%)",
+        background: theme.surface.path.background,
         boxSizing: "border-box",
-        boxShadow:
-          "0 16px 26px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05)",
+        boxShadow: theme.surface.path.shadow,
         opacity: getOpacity(visibility.emphasis),
         zIndex: 1,
         overflow: "hidden",
@@ -942,8 +944,9 @@ export const domDrawEngine: DrawEngine = {
 
       createSurfaceChrome({
         owner: pathChromeEl,
-        accent: "rgba(56, 189, 248, 0.16)",
+        accent: theme.surface.path.accent,
         radius: "18px",
+        theme,
         topBandOpacity: 0.72,
       });
 
@@ -958,6 +961,7 @@ export const domDrawEngine: DrawEngine = {
         createPathStatusBadge({
           owner: pathEl,
           status: targetDisplay.status,
+          theme,
         });
       }
 

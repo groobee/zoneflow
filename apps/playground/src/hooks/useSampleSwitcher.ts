@@ -11,8 +11,12 @@ import {
   sampleLargeUniverse,
   sampleLargeUniverseLayout,
 } from "../mock/sampleLargeUniverse";
+import {
+  sampleTinyUniverse,
+  sampleTinyUniverseLayout,
+} from "../mock/sampleTinyUniverse";
 
-export type SampleType = "small" | "large" | "custom";
+export type SampleType = "tiny" | "small" | "large" | "custom";
 
 type SampleSet = {
   model: UniverseModel;
@@ -20,6 +24,10 @@ type SampleSet = {
 };
 
 const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
+  tiny: {
+    model: sampleTinyUniverse,
+    layoutModel: sampleTinyUniverseLayout,
+  },
   small: {
     model: sampleUniverse,
     layoutModel: sampleUniverseLayout,

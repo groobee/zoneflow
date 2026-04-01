@@ -14,6 +14,11 @@ import { LeftPanel } from "./components/layout/LeftPanel";
 import { RightPanel } from "./components/layout/RightPanel";
 import { CanvasHost } from "./components/layout/CanvasHost";
 import { ModelDataModal } from "./components/data/ModelDataModal";
+import {
+  defaultPlaygroundThemePresetId,
+  playgroundThemePresets,
+  type PlaygroundThemePresetId,
+} from "./theme/playgroundThemes";
 
 /**
  * Zoneflow Playground (Sample App)
@@ -55,10 +60,14 @@ export default function App() {
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
+  const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
+    defaultPlaygroundThemePresetId
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isEditMode = editor.isEditMode;
   const workingModel = editor.model;
   const workingLayoutModel = editor.layoutModel;
+  const themePreset = playgroundThemePresets[themePresetId];
 
   const handleCreateNewDocument = () => {
     const universeId = createUniverseId();
@@ -78,13 +87,25 @@ export default function App() {
     });
   };
 
-  const handleSampleTypeChange = (nextSampleType: "small" | "large" | "custom") => {
+  const handleSampleTypeChange = (
+    nextSampleType: "tiny" | "small" | "large" | "custom"
+  ) => {
     if (nextSampleType === "custom") {
       return;
     }
 
     editor.resetForSampleChange();
     setSampleType(nextSampleType);
+  };
+
+  const handleThemePresetChange = (nextThemePresetId: PlaygroundThemePresetId) => {
+    const nextPreset = playgroundThemePresets[nextThemePresetId];
+    setThemePresetId(nextThemePresetId);
+
+    if (sampleType !== "custom") {
+      editor.resetForSampleChange();
+      setSampleType(nextPreset.sampleType);
+    }
   };
 
   const handleExportFile = () => {
@@ -132,7 +153,12 @@ export default function App() {
   };
 
   return (
-    <div style={shellStyle}>
+    <div
+      style={{
+        ...shellStyle,
+        background: themePreset.rendererTheme.background ?? shellStyle.background,
+      }}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -143,6 +169,9 @@ export default function App() {
       <Topbar
         sampleType={sampleType}
         setSampleType={handleSampleTypeChange}
+        themePreset={themePreset}
+        themePresetId={themePresetId}
+        setThemePresetId={handleThemePresetChange}
         editor={editor}
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
@@ -151,19 +180,21 @@ export default function App() {
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
       />
-      <LeftPanel isEditMode={isEditMode} />
+      <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
       <CanvasHost
         editor={editor}
         debug={debug}
         onResize={setHostSize}
         overlayHudVisible={overlayHudVisible}
+        themePreset={themePreset}
       />
 
       <RightPanel
         debug={debug}
         hostWidth={hostSize.width}
         hostHeight={hostSize.height}
+        themePreset={themePreset}
       />
 
       {isDataModalOpen ? (

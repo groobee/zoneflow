@@ -1,7 +1,8 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { CameraState, RendererFrame, Rect } from "@zoneflow/renderer-dom";
 import { UniverseCanvas, type UniverseCanvasProps } from "../canvas/UniverseCanvas";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay";
+import { resolveEditorTheme } from "./theme";
 import type { UniverseEditorController } from "./useUniverseEditor";
 
 type ControlledZoneMoveEditorConfig = Omit<
@@ -39,25 +40,6 @@ const ZOOM_STEP = 1.1;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const FIT_TO_VIEW_PADDING = 64;
-const VIEWER_HUD_BUTTON_STYLE = {
-  appearance: "none",
-  border: "1px solid rgba(148, 163, 184, 0.22)",
-  background: "rgba(15, 23, 42, 0.72)",
-  color: "#e2e8f0",
-  borderRadius: 10,
-  height: 36,
-  padding: "0 12px",
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: "0.02em",
-  cursor: "pointer",
-} as const;
-const VIEWER_HUD_ACTIVE_BUTTON_STYLE = {
-  background: "rgba(37, 99, 235, 0.24)",
-  border: "1px solid rgba(96, 165, 250, 0.34)",
-  color: "#dbeafe",
-} as const;
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -145,6 +127,34 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const resolvedEditorTheme = useMemo(
+    () => resolveEditorTheme(editorConfig?.theme),
+    [editorConfig?.theme]
+  );
+  const viewerHudButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      appearance: "none" as const,
+      border: resolvedEditorTheme.hud.buttonBorder,
+      background: resolvedEditorTheme.hud.buttonBackground,
+      color: resolvedEditorTheme.hud.buttonText,
+      borderRadius: 10,
+      height: 36,
+      padding: "0 12px",
+      fontSize: 12,
+      fontWeight: 700,
+      letterSpacing: "0.02em",
+      cursor: "pointer",
+    }),
+    [resolvedEditorTheme]
+  );
+  const viewerHudActiveButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      background: resolvedEditorTheme.hud.buttonActiveBackground,
+      border: resolvedEditorTheme.hud.buttonActiveBorder,
+      color: resolvedEditorTheme.hud.buttonActiveText,
+    }),
+    [resolvedEditorTheme]
+  );
 
   const zoomAtCenter = useCallback((factor: number) => {
     const rect = hostRef.current?.getBoundingClientRect();
@@ -273,9 +283,9 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
             padding: 10,
             minWidth: 198,
             borderRadius: 14,
-            border: "1px solid rgba(148, 163, 184, 0.22)",
-            background: "rgba(15, 23, 42, 0.9)",
-            boxShadow: "0 16px 32px rgba(2, 6, 23, 0.22)",
+            border: resolvedEditorTheme.hud.panelBorder,
+            background: resolvedEditorTheme.hud.panelBackground,
+            boxShadow: resolvedEditorTheme.hud.panelShadow,
             pointerEvents: "auto",
             zIndex: 20,
           }}
@@ -284,7 +294,7 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
             <button
               type="button"
               onClick={fitToView}
-              style={VIEWER_HUD_BUTTON_STYLE}
+              style={viewerHudButtonStyle}
             >
               한눈에 보기
             </button>
@@ -302,11 +312,11 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
               {editorConfig?.overlayControls?.showGridToggle !== false ? (
                 <button
                   type="button"
-                  onClick={editor.toggleGridVisible}
-                  style={{
-                    ...VIEWER_HUD_BUTTON_STYLE,
-                    ...(editor.gridVisible ? VIEWER_HUD_ACTIVE_BUTTON_STYLE : null),
-                  }}
+                    onClick={editor.toggleGridVisible}
+                    style={{
+                      ...viewerHudButtonStyle,
+                      ...(editor.gridVisible ? viewerHudActiveButtonStyle : null),
+                    }}
                 >
                   Grid {editor.gridVisible ? "On" : "Off"}
                 </button>
@@ -314,11 +324,11 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
               {editorConfig?.overlayControls?.showSnapToggle !== false ? (
                 <button
                   type="button"
-                  onClick={editor.toggleGridSnap}
-                  style={{
-                    ...VIEWER_HUD_BUTTON_STYLE,
-                    ...(editor.gridSnapEnabled ? VIEWER_HUD_ACTIVE_BUTTON_STYLE : null),
-                  }}
+                    onClick={editor.toggleGridSnap}
+                    style={{
+                      ...viewerHudButtonStyle,
+                      ...(editor.gridSnapEnabled ? viewerHudActiveButtonStyle : null),
+                    }}
                 >
                   Snap {editor.gridSnapEnabled ? "On" : "Off"}
                 </button>
@@ -338,10 +348,10 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
             >
               {editorConfig?.overlayControls?.showZoomControls !== false ? (
                 <button
-                  type="button"
-                  onClick={() => zoomAtCenter(1 / ZOOM_STEP)}
-                  style={VIEWER_HUD_BUTTON_STYLE}
-                >
+                    type="button"
+                    onClick={() => zoomAtCenter(1 / ZOOM_STEP)}
+                    style={viewerHudButtonStyle}
+                  >
                   -
                 </button>
               ) : (
@@ -351,10 +361,10 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
                 <button
                   type="button"
                   onClick={resetZoom}
-                  style={{
-                    ...VIEWER_HUD_BUTTON_STYLE,
-                    fontVariantNumeric: "tabular-nums",
-                  }}
+                    style={{
+                      ...viewerHudButtonStyle,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
                 >
                   {Math.round(camera.zoom * 100)}%
                 </button>
@@ -363,10 +373,10 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
               )}
               {editorConfig?.overlayControls?.showZoomControls !== false ? (
                 <button
-                  type="button"
-                  onClick={() => zoomAtCenter(ZOOM_STEP)}
-                  style={VIEWER_HUD_BUTTON_STYLE}
-                >
+                    type="button"
+                    onClick={() => zoomAtCenter(ZOOM_STEP)}
+                    style={viewerHudButtonStyle}
+                  >
                   +
                 </button>
               ) : (

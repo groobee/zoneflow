@@ -20,10 +20,11 @@ Zoneflow는 `Zone`과 `Path`를 중심으로 워크플로우를 표현하고 편
 
 - `@zoneflow/core`
 - `@zoneflow/react`
+- `@zoneflow/themes`
 - `@zoneflow/renderer-dom`
 - `@zoneflow/editor-dom`
 
-일반적인 앱 개발에서는 `@zoneflow/core`, `@zoneflow/react`만 직접 사용하고, 나머지 두 패키지는 하위 레이어로 두는 편이 맞습니다.
+일반적인 앱 개발에서는 `@zoneflow/core`, `@zoneflow/react`를 직접 사용하고, `@zoneflow/themes`는 선택적으로 프리셋 테마를 가져올 때 추가하면 됩니다. 나머지 저수준 패키지는 하위 레이어로 두는 편이 맞습니다.
 
 ## 설치
 
@@ -231,6 +232,65 @@ export function ZoneflowScreen() {
 ```
 
 도메인 규칙은 라이브러리 안에 넣지 말고, 이 주입 계층에서 처리하는 쪽이 맞습니다.
+
+## 테마 주입
+
+`@zoneflow/react`는 렌더러 테마와 editor HUD/preview 테마를 각각 주입할 수 있습니다.
+
+```tsx
+<DefaultEditorToolbar
+  editor={editor}
+  theme={{
+    hud: {
+      panelBackground: "rgba(9, 15, 28, 0.92)",
+      buttonActiveBackground: "#0f766e",
+      buttonActiveBorder: "1px solid rgba(45, 212, 191, 0.42)",
+    },
+  }}
+/>
+
+<UniverseEditorCanvas
+  editor={editor}
+  theme={{
+    zoneContainerBorder: "#334155",
+    zoneActionBorder: "#0f766e",
+    pathEdge: "#475569",
+    pathInboundEdge: "#0f766e",
+    surface: {
+      zone: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.98) 100%)",
+      },
+      path: {
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)",
+      },
+    },
+  }}
+  editorConfig={{
+    theme: {
+      overlay: {
+        helpPanel: {
+          background: "rgba(6, 12, 24, 0.9)",
+        },
+        connectTarget: {
+          badgeBackground: "#0f766e",
+        },
+        dropTarget: {
+          badgeBackground: "#2563eb",
+        },
+      },
+    },
+  }}
+/>
+```
+
+- `theme`
+  - renderer/viewer chrome 테마
+- `editorConfig.theme`
+  - editor overlay, HUD, preview, selection UI 테마
+- `DefaultEditorToolbar.theme`
+  - 기본 툴바 테마
 
 ## 파일 저장 / 불러오기
 

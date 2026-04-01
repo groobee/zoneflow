@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   createZoneFromDropTemplate,
   UniverseEditorCanvas,
@@ -8,21 +8,20 @@ import {
 import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
-import {
-  pathComponents,
-  zoneComponents,
-} from "../renderers/defaultComponents";
+import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
   PlaygroundZoneEditButton,
   PlaygroundZoneEditor,
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
+import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
 
 type Props = {
   editor: UniverseEditorController;
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
   overlayHudVisible: boolean;
+  themePreset: PlaygroundThemePreset;
 };
 
 export function CanvasHost({
@@ -30,8 +29,13 @@ export function CanvasHost({
   debug,
   onResize,
   overlayHudVisible,
+  themePreset,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const { zoneComponents, pathComponents } = useMemo(
+    () => getThemePresetComponents(themePreset.id),
+    [themePreset.id]
+  );
 
   useEffect(() => {
     if (!ref.current) return;
@@ -80,10 +84,12 @@ export function CanvasHost({
     <main ref={ref} style={canvasHostStyle}>
       <UniverseEditorCanvas
         editor={editor}
+        theme={themePreset.rendererTheme}
         viewport={debug.viewport}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{
+          theme: themePreset.editorTheme,
           overlayControls: {
             enabled: overlayHudVisible,
           },

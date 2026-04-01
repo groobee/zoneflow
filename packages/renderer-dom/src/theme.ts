@@ -1,3 +1,10 @@
+export type ZoneflowStatusTone = {
+  border: string;
+  background: string;
+  color: string;
+  shadow: string;
+};
+
 export type ZoneflowTheme = {
   background: string;
 
@@ -11,10 +18,40 @@ export type ZoneflowTheme = {
 
   pathLabel: string;
   pathEdge: string;
+  pathInboundEdge: string;
 
   selection: string;
 
-  // 👇 추가
+  surface: {
+    chrome: {
+      overlay: string;
+      glow: string;
+      accentFade: string;
+    };
+    zone: {
+      background: string;
+      shadow: string;
+      containerAccent: string;
+      actionAccent: string;
+    };
+    path: {
+      background: string;
+      shadow: string;
+      accent: string;
+    };
+    anchor: {
+      background: string;
+      shadow: string;
+      containerAccent: string;
+      actionAccent: string;
+    };
+  };
+
+  status: {
+    info: ZoneflowStatusTone;
+    warning: ZoneflowStatusTone;
+  };
+
   density: {
     zone: {
       detail: number;
