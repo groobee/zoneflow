@@ -1,6 +1,7 @@
 {
   "name": "@zoneflow/themes",
   "version": "0.0.1",
+  "license": "MIT",
   "description": "Preset renderer and editor themes for Zoneflow.",
   "type": "module",
   "main": "dist/index.js",

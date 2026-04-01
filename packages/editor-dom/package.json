@@ -1,6 +1,7 @@
 {
   "name": "@zoneflow/editor-dom",
   "version": "0.0.1",
+  "license": "MIT",
   "description": "Low-level editor geometry and interaction helpers for Zoneflow.",
   "type": "module",
   "main": "dist/index.js",

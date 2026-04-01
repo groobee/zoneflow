@@ -1,6 +1,7 @@
 {
   "name": "@zoneflow/renderer-dom",
   "version": "0.0.1",
+  "license": "MIT",
   "description": "Low-level DOM renderer engines for Zoneflow.",
   "type": "module",
   "main": "dist/index.js",

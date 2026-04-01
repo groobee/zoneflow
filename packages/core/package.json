@@ -1,6 +1,7 @@
 {
   "name": "@zoneflow/core",
   "version": "0.0.1",
+  "license": "MIT",
   "description": "Zoneflow core model, layout, mutation, validation, and document utilities.",
   "type": "module",
   "main": "dist/index.js",
