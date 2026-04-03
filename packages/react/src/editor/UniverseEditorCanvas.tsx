@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { CameraState, RendererFrame, Rect } from "@zoneflow/renderer-dom";
 import { UniverseCanvas, type UniverseCanvasProps } from "../canvas/UniverseCanvas";
+import {
+  getGridToggleLabel,
+  getSnapToggleLabel,
+  getZoneflowEditorStrings,
+  resolveEditorLocale,
+} from "./strings";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay";
 import { resolveEditorTheme } from "./theme";
 import type { UniverseEditorController } from "./useUniverseEditor";
@@ -129,6 +135,11 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorStrings = useMemo(
+    () => getZoneflowEditorStrings(editorLocale),
+    [editorLocale]
+  );
   const resolvedEditorTheme = useMemo(
     () => resolveEditorTheme(editorConfig?.theme),
     [editorConfig?.theme]
@@ -298,7 +309,7 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
               onClick={fitToView}
               style={viewerHudButtonStyle}
             >
-              한눈에 보기
+              {editorStrings.hud.fitToView}
             </button>
           ) : null}
 
@@ -320,7 +331,10 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
                       ...(editor.gridVisible ? viewerHudActiveButtonStyle : null),
                     }}
                 >
-                  Grid {editor.gridVisible ? "On" : "Off"}
+                  {getGridToggleLabel({
+                    locale: editorLocale,
+                    enabled: editor.gridVisible,
+                  })}
                 </button>
               ) : null}
               {editorConfig?.overlayControls?.showSnapToggle !== false ? (
@@ -332,7 +346,10 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
                       ...(editor.gridSnapEnabled ? viewerHudActiveButtonStyle : null),
                     }}
                 >
-                  Snap {editor.gridSnapEnabled ? "On" : "Off"}
+                  {getSnapToggleLabel({
+                    locale: editorLocale,
+                    enabled: editor.gridSnapEnabled,
+                  })}
                 </button>
               ) : null}
             </div>

@@ -59,6 +59,19 @@ import type {
   ZoneSlotComponentMap,
 } from "../slots/slotComponents";
 import {
+  formatDeleteSelectionLabel,
+  formatDeleteTargetLabel,
+  getGridToggleLabel,
+  getSelectionCommandLabel,
+  getSelectionToolbarCountLabel,
+  getSnapToggleLabel,
+  getTargetBadgeLabel as getTargetBadgeLabelText,
+  getTargetMetaStateLabel,
+  getZoneflowEditorStrings,
+  resolveEditorLocale,
+  type SelectionCommandKey,
+} from "./strings";
+import {
   resolveEditorTheme,
   type ZoneflowEditorTheme,
   type ZoneflowEditorThemeInput,
@@ -294,6 +307,7 @@ type PreviewHostProps = {
   layoutModel: UniverseLayoutModel;
   target: MoveEditorTarget;
   editorTheme: ZoneflowEditorTheme;
+  editorStrings: ReturnType<typeof getZoneflowEditorStrings>;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
 };
@@ -321,6 +335,7 @@ const OVERLAY_Z_INDEX = {
   floatingToolbar: 24,
   root: 30,
 } as const;
+const HELP_PANEL_STORAGE_KEY = "zoneflow:editor-help-panel";
 
 function createPreviewHost(): HTMLElement {
   return typeof document === "undefined"
@@ -360,18 +375,6 @@ function resolveDeleteButtonPosition(target: MoveEditorTarget) {
   return target.kind === "zone"
     ? { x: target.rect.width - 24, y: -14 }
     : { x: target.rect.width - 22, y: -12 };
-}
-
-function resolveDeleteTargetLabel(target: MoveEditorTarget) {
-  return target.kind === "zone" ? `존 "${target.label}"` : `패스 "${target.label}"`;
-}
-
-function resolveDeleteSelectionLabel(params: {
-  kind: "zone" | "path";
-  count: number;
-}) {
-  const { kind, count } = params;
-  return kind === "zone" ? `존 ${count}개` : `패스 ${count}개`;
 }
 
 function resolveDragTransactionMeta(drag: DragState): EditorTransactionMeta {
@@ -479,10 +482,6 @@ function getExclusionState(target: MoveEditorTarget): RendererExclusionState {
   };
 }
 
-function getTargetBadgeLabel(target: MoveEditorTarget): string {
-  return target.kind === "zone" ? "ZONE" : "PATH";
-}
-
 function getTargetVisualState(params: {
   target: MoveEditorTarget;
   hoveredTargetKey: string | null;
@@ -564,7 +563,11 @@ function intersectsRect(a: Rect, b: Rect): boolean {
   );
 }
 
-function renderDefaultZoneEditButton(props: ZoneEditorButtonRenderProps) {
+function renderDefaultZoneEditButton(
+  props: ZoneEditorButtonRenderProps & {
+    editorStrings: ReturnType<typeof getZoneflowEditorStrings>;
+  }
+) {
   const tone = props.isEditing
     ? props.theme?.overlay.editButton.active
     : props.theme?.overlay.editButton.idle;
@@ -592,7 +595,7 @@ function renderDefaultZoneEditButton(props: ZoneEditorButtonRenderProps) {
         pointerEvents: "auto",
       }}
     >
-      {props.isEditing ? "열림" : "수정"}
+      {props.isEditing ? props.editorStrings.target.open : props.editorStrings.target.edit}
     </button>
   );
 }
@@ -702,7 +705,8 @@ function resolvePathTargetDisplay(context: PathComponentRendererContext) {
 
 function renderPathStatusBadge(
   status: "unconfigured" | "missing",
-  editorTheme: ZoneflowEditorTheme
+  editorTheme: ZoneflowEditorTheme,
+  strings: ReturnType<typeof getZoneflowEditorStrings>
 ) {
   const isMissing = status === "missing";
   const tone = isMissing
@@ -711,8 +715,10 @@ function renderPathStatusBadge(
 
   return (
     <div
-      title={isMissing ? "Broken path target" : "Path target not set"}
-      aria-label={isMissing ? "Broken path target" : "Path target not set"}
+      title={isMissing ? strings.pathStatus.brokenTarget : strings.pathStatus.targetNotSet}
+      aria-label={
+        isMissing ? strings.pathStatus.brokenTarget : strings.pathStatus.targetNotSet
+      }
       style={{
         position: "absolute",
         right: 10,
@@ -822,6 +828,7 @@ function renderZonePreview(props: PreviewHostProps) {
     layoutModel,
     target,
     editorTheme,
+    editorStrings,
     zoneComponents,
   } = props;
 
@@ -916,6 +923,7 @@ function renderPathPreview(props: PreviewHostProps) {
     layoutModel,
     target,
     editorTheme,
+    editorStrings,
     pathComponents,
   } = props;
 
@@ -960,7 +968,7 @@ function renderPathPreview(props: PreviewHostProps) {
       }}
     >
       {targetDisplay.status !== "resolved"
-        ? renderPathStatusBadge(targetDisplay.status, editorTheme)
+        ? renderPathStatusBadge(targetDisplay.status, editorTheme, editorStrings)
         : null}
       {(Object.keys(componentLayout.slots) as PathComponentSlotName[]).map(
         (slot) => {
@@ -1100,6 +1108,20 @@ export function ZoneMoveEditorOverlay(props: {
     }),
     [resolvedEditorTheme]
   );
+  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorStrings = useMemo(
+    () => getZoneflowEditorStrings(editorLocale),
+    [editorLocale]
+  );
+  const [isHelpPanelExpanded, setIsHelpPanelExpanded] = useState(() => {
+    if (typeof window === "undefined") return true;
+
+    try {
+      return window.localStorage.getItem(HELP_PANEL_STORAGE_KEY) !== "collapsed";
+    } catch {
+      return true;
+    }
+  });
 
   const [draggingTarget, setDraggingTarget] = useState<MoveEditorTarget | null>(null);
   const [draggingZoneGroupIds, setDraggingZoneGroupIds] = useState<ZoneId[]>([]);
@@ -1181,6 +1203,19 @@ export function ZoneMoveEditorOverlay(props: {
   useEffect(() => {
     selectedPathIdsRef.current = selectedPathIds;
   }, [selectedPathIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      window.localStorage.setItem(
+        HELP_PANEL_STORAGE_KEY,
+        isHelpPanelExpanded ? "expanded" : "collapsed"
+      );
+    } catch {
+      // ignore storage failures
+    }
+  }, [isHelpPanelExpanded]);
 
   useEffect(() => {
     if (editor?.enabled) return;
@@ -1338,7 +1373,7 @@ export function ZoneMoveEditorOverlay(props: {
       latestRef.current.onLayoutModelChange?.(nextLayoutModel);
       pushDeleteUndoState({
         targetKey: target.key,
-        label: resolveDeleteTargetLabel(target),
+        label: formatDeleteTargetLabel(editorLocale, target),
       });
       setEditingZoneId((current) => (current === target.zoneId ? null : current));
     } else {
@@ -1352,7 +1387,7 @@ export function ZoneMoveEditorOverlay(props: {
       latestRef.current.onLayoutModelChange?.(nextLayoutModel);
       pushDeleteUndoState({
         targetKey: target.key,
-        label: resolveDeleteTargetLabel(target),
+        label: formatDeleteTargetLabel(editorLocale, target),
       });
     }
 
@@ -1380,7 +1415,8 @@ export function ZoneMoveEditorOverlay(props: {
     latestRef.current.onLayoutModelChange?.(nextLayoutModel);
     pushDeleteUndoState({
       targetKey: `selection:zones:${topLevelZoneIds.join(",")}`,
-      label: resolveDeleteSelectionLabel({
+      label: formatDeleteSelectionLabel({
+        locale: editorLocale,
         kind: "zone",
         count: topLevelZoneIds.length,
       }),
@@ -1414,7 +1450,8 @@ export function ZoneMoveEditorOverlay(props: {
     latestRef.current.onLayoutModelChange?.(nextLayoutModel);
     pushDeleteUndoState({
       targetKey: `selection:paths:${pathIds.join(",")}`,
-      label: resolveDeleteSelectionLabel({
+      label: formatDeleteSelectionLabel({
+        locale: editorLocale,
         kind: "path",
         count: pathIds.length,
       }),
@@ -2436,6 +2473,7 @@ export function ZoneMoveEditorOverlay(props: {
               layoutModel,
               target: draggingTarget,
               editorTheme: resolvedEditorTheme,
+              editorStrings,
               zoneComponents,
               pathComponents,
             }) ??
@@ -2446,6 +2484,7 @@ export function ZoneMoveEditorOverlay(props: {
               layoutModel,
               target: draggingTarget,
               editorTheme: resolvedEditorTheme,
+              editorStrings,
               zoneComponents,
               pathComponents,
             })
@@ -2530,35 +2569,86 @@ export function ZoneMoveEditorOverlay(props: {
             position: "absolute",
             left: 16,
             top: 16,
-            padding: "8px 10px",
-            borderRadius: 12,
-            background: resolvedEditorTheme.overlay.helpPanel.background,
-            border: resolvedEditorTheme.overlay.helpPanel.border,
-            color: resolvedEditorTheme.overlay.helpPanel.titleText,
-            fontSize: 12,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            letterSpacing: "0.04em",
-            boxShadow: resolvedEditorTheme.overlay.helpPanel.shadow,
+            pointerEvents: "auto",
           }}
         >
-          EDIT MODE
-          <div
-            style={{
-              marginTop: 4,
-              fontSize: 11,
-              fontWeight: 500,
-              letterSpacing: 0,
-              color: resolvedEditorTheme.overlay.helpPanel.mutedText,
-            }}
-          >
-            Drag nodes to move them. Shift-click zones or paths to multi-select,
-            then align or distribute them from the floating toolbar. Drag the right
-            anchor to add a condition path. Use the bottom-right handle to resize
-            zones, or double-click a zone to edit it. Drag the right-side anchor on
-            a path to reconnect it, and use the corner handle to resize the path
-            label box. Drag empty canvas space to marquee-select zones and paths.
-          </div>
+          {isHelpPanelExpanded ? (
+            <div
+              style={{
+                padding: "8px 10px",
+                borderRadius: 12,
+                background: resolvedEditorTheme.overlay.helpPanel.background,
+                border: resolvedEditorTheme.overlay.helpPanel.border,
+                color: resolvedEditorTheme.overlay.helpPanel.titleText,
+                fontSize: 12,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                letterSpacing: "0.04em",
+                boxShadow: resolvedEditorTheme.overlay.helpPanel.shadow,
+                maxWidth: 420,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <span>{editorStrings.helpPanel.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsHelpPanelExpanded(false)}
+                  aria-label={editorStrings.helpPanel.collapse}
+                  style={{
+                    border: resolvedEditorTheme.overlay.helpPanel.border,
+                    background: "transparent",
+                    color: resolvedEditorTheme.overlay.helpPanel.mutedText,
+                    borderRadius: 999,
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    letterSpacing: 0,
+                  }}
+                >
+                  {editorStrings.helpPanel.collapse}
+                </button>
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  letterSpacing: 0,
+                  color: resolvedEditorTheme.overlay.helpPanel.mutedText,
+                }}
+              >
+                {editorStrings.helpPanel.body}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsHelpPanelExpanded(true)}
+              aria-label={editorStrings.helpPanel.expand}
+              style={{
+                border: resolvedEditorTheme.overlay.helpPanel.border,
+                background: resolvedEditorTheme.overlay.helpPanel.background,
+                color: resolvedEditorTheme.overlay.helpPanel.titleText,
+                borderRadius: 999,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                lineHeight: 1,
+                boxShadow: resolvedEditorTheme.overlay.helpPanel.shadow,
+                cursor: "pointer",
+              }}
+            >
+              {editorStrings.helpPanel.summary}
+            </button>
+          )}
         </div>
 
         {overlayControlsEnabled ? (
@@ -2598,7 +2688,7 @@ export function ZoneMoveEditorOverlay(props: {
                     cursor: editor.history?.canUndo ? "pointer" : "not-allowed",
                   }}
                 >
-                  되돌리기
+                  {editorStrings.hud.undo}
                 </button>
                 <button
                   type="button"
@@ -2612,7 +2702,7 @@ export function ZoneMoveEditorOverlay(props: {
                     cursor: editor.history?.canRedo ? "pointer" : "not-allowed",
                   }}
                 >
-                  다시하기
+                  {editorStrings.hud.redo}
                 </button>
               </div>
             ) : null}
@@ -2639,7 +2729,7 @@ export function ZoneMoveEditorOverlay(props: {
                   cursor: canDeleteSelection ? "pointer" : "not-allowed",
                 }}
               >
-                선택 삭제
+                {editorStrings.hud.deleteSelection}
               </button>
             ) : null}
 
@@ -2649,7 +2739,7 @@ export function ZoneMoveEditorOverlay(props: {
                 onClick={() => overlayControls?.onFitToView?.()}
                 style={hudButtonStyle}
               >
-                한눈에 보기
+                {editorStrings.hud.fitToView}
               </button>
             ) : null}
 
@@ -2671,7 +2761,10 @@ export function ZoneMoveEditorOverlay(props: {
                       ...(overlayControls?.gridVisible ? hudActiveButtonStyle : null),
                     }}
                   >
-                    Grid {overlayControls?.gridVisible ? "On" : "Off"}
+                    {getGridToggleLabel({
+                      locale: editorLocale,
+                      enabled: Boolean(overlayControls?.gridVisible),
+                    })}
                   </button>
                 ) : null}
                 {overlayControls?.showSnapToggle !== false ? (
@@ -2683,7 +2776,10 @@ export function ZoneMoveEditorOverlay(props: {
                       ...(overlayControls?.snapEnabled ? hudActiveButtonStyle : null),
                     }}
                   >
-                    Snap {overlayControls?.snapEnabled ? "On" : "Off"}
+                    {getSnapToggleLabel({
+                      locale: editorLocale,
+                      enabled: Boolean(overlayControls?.snapEnabled),
+                    })}
                   </button>
                 ) : null}
               </div>
@@ -2770,18 +2866,22 @@ export function ZoneMoveEditorOverlay(props: {
                 whiteSpace: "nowrap",
               }}
             >
-              {selectedZoneTargets.length} selected
+              {getSelectionToolbarCountLabel({
+                locale: editorLocale,
+                kind: "zone",
+                count: selectedZoneTargets.length,
+              })}
             </span>
             {[
-              ["좌측", "align-left"],
-              ["우측", "align-right"],
-              ["상단", "align-top"],
-              ["하단", "align-bottom"],
-              ["가로중앙", "align-center-horizontal"],
-              ["세로중앙", "align-center-vertical"],
-              ["가로 분배", "distribute-horizontal"],
-              ["세로 분배", "distribute-vertical"],
-            ].map(([label, command]) => (
+              "align-left",
+              "align-right",
+              "align-top",
+              "align-bottom",
+              "align-center-horizontal",
+              "align-center-vertical",
+              "distribute-horizontal",
+              "distribute-vertical",
+            ].map((command) => (
               <button
                 key={command}
                 type="button"
@@ -2817,10 +2917,13 @@ export function ZoneMoveEditorOverlay(props: {
                 title={
                   canRunZoneSelectionCommands
                     ? undefined
-                    : "정렬/분배는 같은 부모를 가진 존들만 지원합니다."
+                    : editorStrings.selectionToolbar.sameParentOnlyHint
                 }
               >
-                {label}
+                {getSelectionCommandLabel({
+                  locale: editorLocale,
+                  command: command as SelectionCommandKey,
+                })}
               </button>
             ))}
             <button
@@ -2834,7 +2937,7 @@ export function ZoneMoveEditorOverlay(props: {
                 ...floatingToolbarDangerButtonStyle,
               }}
             >
-              삭제
+              {editorStrings.selectionToolbar.delete}
             </button>
           </div>
         ) : null}
@@ -2869,18 +2972,22 @@ export function ZoneMoveEditorOverlay(props: {
                 whiteSpace: "nowrap",
               }}
             >
-              {selectedPathTargets.length} paths
+              {getSelectionToolbarCountLabel({
+                locale: editorLocale,
+                kind: "path",
+                count: selectedPathTargets.length,
+              })}
             </span>
             {[
-              ["좌측", "align-left"],
-              ["우측", "align-right"],
-              ["상단", "align-top"],
-              ["하단", "align-bottom"],
-              ["가로중앙", "align-center-horizontal"],
-              ["세로중앙", "align-center-vertical"],
-              ["가로 분배", "distribute-horizontal"],
-              ["세로 분배", "distribute-vertical"],
-            ].map(([label, command]) => (
+              "align-left",
+              "align-right",
+              "align-top",
+              "align-bottom",
+              "align-center-horizontal",
+              "align-center-vertical",
+              "distribute-horizontal",
+              "distribute-vertical",
+            ].map((command) => (
               <button
                 key={command}
                 type="button"
@@ -2914,7 +3021,10 @@ export function ZoneMoveEditorOverlay(props: {
                   cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
                 }}
               >
-                {label}
+                {getSelectionCommandLabel({
+                  locale: editorLocale,
+                  command: command as SelectionCommandKey,
+                })}
               </button>
             ))}
             <button
@@ -2928,7 +3038,7 @@ export function ZoneMoveEditorOverlay(props: {
                 ...floatingToolbarDangerButtonStyle,
               }}
             >
-              삭제
+              {editorStrings.selectionToolbar.delete}
             </button>
           </div>
         ) : null}
@@ -2971,12 +3081,14 @@ export function ZoneMoveEditorOverlay(props: {
                 marginBottom: 10,
                 whiteSpace: "nowrap",
               }}
-            >
-              {resolveDeleteSelectionLabel({
-                kind: "zone",
-                count: deleteConfirmState.zoneIds.length,
-              })}{" "}
-              삭제할까요?
+              >
+              {editorStrings.deleteDialog.confirmSelection(
+                formatDeleteSelectionLabel({
+                  locale: editorLocale,
+                  kind: "zone",
+                  count: deleteConfirmState.zoneIds.length,
+                })
+              )}
             </div>
             <div
               style={{
@@ -2994,7 +3106,7 @@ export function ZoneMoveEditorOverlay(props: {
                 }}
                 style={dialogSecondaryButtonStyle}
               >
-                취소
+                {editorStrings.deleteDialog.cancel}
               </button>
               <button
                 type="button"
@@ -3005,7 +3117,7 @@ export function ZoneMoveEditorOverlay(props: {
                 }}
                 style={dialogDangerButtonStyle}
               >
-                삭제
+                {editorStrings.deleteDialog.confirm}
               </button>
             </div>
           </div>
@@ -3049,12 +3161,14 @@ export function ZoneMoveEditorOverlay(props: {
                 marginBottom: 10,
                 whiteSpace: "nowrap",
               }}
-            >
-              {resolveDeleteSelectionLabel({
-                kind: "path",
-                count: deleteConfirmState.pathIds.length,
-              })}{" "}
-              삭제할까요?
+              >
+              {editorStrings.deleteDialog.confirmSelection(
+                formatDeleteSelectionLabel({
+                  locale: editorLocale,
+                  kind: "path",
+                  count: deleteConfirmState.pathIds.length,
+                })
+              )}
             </div>
             <div
               style={{
@@ -3072,7 +3186,7 @@ export function ZoneMoveEditorOverlay(props: {
                 }}
                 style={dialogSecondaryButtonStyle}
               >
-                취소
+                {editorStrings.deleteDialog.cancel}
               </button>
               <button
                 type="button"
@@ -3083,7 +3197,7 @@ export function ZoneMoveEditorOverlay(props: {
                 }}
                 style={dialogDangerButtonStyle}
               >
-                삭제
+                {editorStrings.deleteDialog.confirm}
               </button>
             </div>
           </div>
@@ -3135,7 +3249,7 @@ export function ZoneMoveEditorOverlay(props: {
                 boxShadow: resolvedEditorTheme.overlay.connectTarget.badgeShadow,
               }}
             >
-              CONNECT
+              {editorStrings.target.connect}
             </div>
           </div>
         ) : null}
@@ -3169,7 +3283,7 @@ export function ZoneMoveEditorOverlay(props: {
                 boxShadow: resolvedEditorTheme.overlay.connectTarget.badgeShadow,
               }}
             >
-              RECONNECT
+              {editorStrings.target.reconnect}
             </div>
           </div>
         ) : null}
@@ -3204,7 +3318,7 @@ export function ZoneMoveEditorOverlay(props: {
                 boxShadow: resolvedEditorTheme.overlay.dropTarget.badgeShadow,
               }}
             >
-              DROP TARGET
+              {editorStrings.target.dropTarget}
             </div>
           </div>
         ))}
@@ -3839,7 +3953,9 @@ export function ZoneMoveEditorOverlay(props: {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {resolveDeleteTargetLabel(target)} 삭제할까요?
+                    {editorStrings.deleteDialog.confirmTarget(
+                      formatDeleteTargetLabel(editorLocale, target)
+                    )}
                   </div>
                   <div
                     style={{
@@ -3857,7 +3973,7 @@ export function ZoneMoveEditorOverlay(props: {
                       }}
                       style={dialogSecondaryButtonStyle}
                     >
-                      취소
+                      {editorStrings.deleteDialog.cancel}
                     </button>
                     <button
                       type="button"
@@ -3868,7 +3984,7 @@ export function ZoneMoveEditorOverlay(props: {
                       }}
                       style={dialogDangerButtonStyle}
                     >
-                      삭제
+                      {editorStrings.deleteDialog.confirm}
                     </button>
                   </div>
                 </div>
@@ -3902,6 +4018,7 @@ export function ZoneMoveEditorOverlay(props: {
                       rect: target.rect,
                       isSelected: visualState === "selected",
                       isEditing: isEditingZone,
+                      editorStrings,
                       theme: resolvedEditorTheme,
                       openEditor: () => {
                         openZoneEditor(target.zoneId, target.key);
@@ -3970,7 +4087,7 @@ export function ZoneMoveEditorOverlay(props: {
                     pointerEvents: "auto",
                   }}
                 >
-                  Edit path
+                  {editorStrings.target.editPath}
                 </button>
               ) : null}
               {shouldShowTargetMeta(visualState) ? (
@@ -3989,7 +4106,10 @@ export function ZoneMoveEditorOverlay(props: {
                       ...getTargetBadgeStyle(visualState, resolvedEditorTheme),
                     }}
                   >
-                    {getTargetBadgeLabel(target)}
+                    {getTargetBadgeLabelText({
+                      locale: editorLocale,
+                      kind: target.kind,
+                    })}
                   </div>
                   <div
                     style={{
@@ -4005,7 +4125,11 @@ export function ZoneMoveEditorOverlay(props: {
                       boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
                     }}
                   >
-                    {isResizingTarget ? "RESIZE" : isDragging ? "MOVING" : "DRAG"}
+                    {getTargetMetaStateLabel({
+                      locale: editorLocale,
+                      isDragging,
+                      isResizing: isResizingTarget,
+                    })}
                   </div>
                 </>
               ) : null}
@@ -4044,7 +4168,7 @@ export function ZoneMoveEditorOverlay(props: {
               whiteSpace: "nowrap",
             }}
           >
-            {deleteUndoState.label} 삭제됨
+            {editorStrings.deleteDialog.deleted(deleteUndoState.label)}
           </div>
           <button
             type="button"
@@ -4068,7 +4192,7 @@ export function ZoneMoveEditorOverlay(props: {
             }}
             disabled={!editor.history?.canUndo}
           >
-            되돌리기
+            {editorStrings.hud.undo}
           </button>
         </div>
       ) : null}

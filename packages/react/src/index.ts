@@ -1,6 +1,7 @@
 export * from "./canvas/UniverseCanvas";
 export * from "./editor/DefaultEditorToolbar";
 export * from "./editor/theme";
+export * from "./editor/strings";
 export * from "./editor/UniverseEditorCanvas";
 export * from "./editor/ZoneMoveEditorOverlay";
 export * from "./editor/useUniverseEditor";
