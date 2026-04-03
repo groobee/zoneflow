@@ -3,7 +3,8 @@ import type { CameraState, RendererFrame, Rect } from "@zoneflow/renderer-dom";
 import { UniverseCanvas, type UniverseCanvasProps } from "../canvas/UniverseCanvas";
 import {
   getGridToggleLabel,
-  getSnapToggleLabel,
+  getGridSnapToggleLabel,
+  getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
   resolveEditorLocale,
 } from "./strings";
@@ -46,7 +47,7 @@ const ZOOM_STEP = 1.1;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const FIT_TO_VIEW_PADDING = 64;
-const VIEWER_OVERLAY_HUD_Z_INDEX = 20;
+const VIEWER_OVERLAY_HUD_Z_INDEX = 40;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -223,6 +224,9 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
           enabled: editor.gridSnapEnabled,
           size: editor.gridSnapSize,
         },
+        objectSnap: {
+          enabled: editor.objectSnapEnabled,
+        },
         onModelChange: editor.updateDraftModel,
         onLayoutModelChange: editor.updateDraftLayoutModel,
         onTransactionStart: editor.beginTransaction,
@@ -239,12 +243,18 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
           showHistory: editorConfig?.overlayControls?.showHistory,
           showDelete: editorConfig?.overlayControls?.showDelete,
           showGridToggle: editorConfig?.overlayControls?.showGridToggle,
+          showGridSnapToggle: editorConfig?.overlayControls?.showGridSnapToggle,
+          showObjectSnapToggle: editorConfig?.overlayControls?.showObjectSnapToggle,
           showSnapToggle: editorConfig?.overlayControls?.showSnapToggle,
           showFitToView: editorConfig?.overlayControls?.showFitToView,
           showZoomControls: editorConfig?.overlayControls?.showZoomControls,
           showZoomValue: editorConfig?.overlayControls?.showZoomValue,
           gridVisible: editor.gridVisible,
           onToggleGridVisible: editor.toggleGridVisible,
+          gridSnapEnabled: editor.gridSnapEnabled,
+          objectSnapEnabled: editor.objectSnapEnabled,
+          onToggleGridSnap: editor.toggleGridSnap,
+          onToggleObjectSnap: editor.toggleObjectSnap,
           snapEnabled: editor.gridSnapEnabled,
           onToggleSnap: editor.toggleGridSnap,
           onFitToView: fitToView,
@@ -314,11 +324,13 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
           ) : null}
 
           {(editorConfig?.overlayControls?.showGridToggle !== false ||
-            editorConfig?.overlayControls?.showSnapToggle !== false) ? (
+            editorConfig?.overlayControls?.showGridSnapToggle !== false ||
+            editorConfig?.overlayControls?.showSnapToggle !== false ||
+            editorConfig?.overlayControls?.showObjectSnapToggle !== false) ? (
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                display: "flex",
+                flexWrap: "wrap",
                 gap: 8,
               }}
             >
@@ -337,7 +349,8 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
                   })}
                 </button>
               ) : null}
-              {editorConfig?.overlayControls?.showSnapToggle !== false ? (
+              {(editorConfig?.overlayControls?.showGridSnapToggle !== false ||
+                editorConfig?.overlayControls?.showSnapToggle !== false) ? (
                 <button
                   type="button"
                     onClick={editor.toggleGridSnap}
@@ -346,9 +359,24 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
                       ...(editor.gridSnapEnabled ? viewerHudActiveButtonStyle : null),
                     }}
                 >
-                  {getSnapToggleLabel({
+                  {getGridSnapToggleLabel({
                     locale: editorLocale,
                     enabled: editor.gridSnapEnabled,
+                  })}
+                </button>
+              ) : null}
+              {editorConfig?.overlayControls?.showObjectSnapToggle !== false ? (
+                <button
+                  type="button"
+                  onClick={editor.toggleObjectSnap}
+                  style={{
+                    ...viewerHudButtonStyle,
+                    ...(editor.objectSnapEnabled ? viewerHudActiveButtonStyle : null),
+                  }}
+                >
+                  {getObjectSnapToggleLabel({
+                    locale: editorLocale,
+                    enabled: editor.objectSnapEnabled,
                   })}
                 </button>
               ) : null}

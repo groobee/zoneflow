@@ -39,12 +39,26 @@ export type PathMoveOriginSnapshot = {
   coordinateSpace: PathMoveCoordinateSpace;
 };
 
+export type ObjectSnapGuides = {
+  x: number[];
+  y: number[];
+};
+
+export type ObjectSnapAxisMatch = {
+  guide: number;
+  align: "start" | "center" | "end";
+  snappedStart: number;
+};
+
 export type MoveEditorDragOrigin =
   | {
       kind: "zone";
       zoneId: ZoneId;
       originX: number;
       originY: number;
+      width: number;
+      height: number;
+      objectSnapGuides?: ObjectSnapGuides;
     }
   | {
       kind: "zone-group";
@@ -55,6 +69,7 @@ export type MoveEditorDragOrigin =
       kind: "path";
       pathId: PathId;
       origin: PathMoveOriginSnapshot;
+      objectSnapGuides?: ObjectSnapGuides;
     }
   | {
       kind: "path-group";
@@ -80,6 +95,11 @@ export type PathResizeOrigin = {
 export type GridSnapOptions = {
   enabled?: boolean;
   size?: number;
+};
+
+export type ObjectSnapOptions = {
+  enabled?: boolean;
+  threshold?: number;
 };
 
 export type ZoneAlignMode =
@@ -145,6 +165,115 @@ export function resolveSnappedMove(params: {
     nextY,
     effectiveDeltaX: nextX - originX,
     effectiveDeltaY: nextY - originY,
+  };
+}
+
+export function collectRectObjectSnapGuides(rects: Rect[]): ObjectSnapGuides {
+  const x = new Set<number>();
+  const y = new Set<number>();
+
+  for (const rect of rects) {
+    x.add(roundCoordinate(rect.x));
+    x.add(roundCoordinate(rect.x + rect.width / 2));
+    x.add(roundCoordinate(rect.x + rect.width));
+    y.add(roundCoordinate(rect.y));
+    y.add(roundCoordinate(rect.y + rect.height / 2));
+    y.add(roundCoordinate(rect.y + rect.height));
+  }
+
+  return {
+    x: Array.from(x).sort((a, b) => a - b),
+    y: Array.from(y).sort((a, b) => a - b),
+  };
+}
+
+function resolveAxisObjectSnap(params: {
+  start: number;
+  size: number;
+  guides: number[];
+  threshold: number;
+}) {
+  const { start, size, guides, threshold } = params;
+  const candidates = [
+    { coordinate: start, align: "start" as const },
+    { coordinate: start + size / 2, align: "center" as const },
+    { coordinate: start + size, align: "end" as const },
+  ];
+
+  let best:
+    | {
+        distance: number;
+        match: ObjectSnapAxisMatch;
+      }
+    | undefined;
+
+  for (const guide of guides) {
+    for (const candidate of candidates) {
+      const distance = Math.abs(guide - candidate.coordinate);
+      if (distance > threshold) continue;
+
+      const snappedStart =
+        candidate.align === "start"
+          ? guide
+          : candidate.align === "center"
+            ? guide - size / 2
+            : guide - size;
+
+      if (!best || distance < best.distance) {
+        best = {
+          distance,
+          match: {
+            guide: roundCoordinate(guide),
+            align: candidate.align,
+            snappedStart: roundCoordinate(snappedStart),
+          },
+        };
+      }
+    }
+  }
+
+  return best?.match;
+}
+
+export function resolveObjectSnappedRectPosition(params: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  camera: CameraState;
+  guides?: ObjectSnapGuides;
+  objectSnap?: ObjectSnapOptions;
+}) {
+  const { x, y, width, height, camera, guides, objectSnap } = params;
+  if (!guides || !objectSnap?.enabled) {
+    return {
+      x: roundCoordinate(x),
+      y: roundCoordinate(y),
+      guideX: undefined,
+      guideY: undefined,
+    };
+  }
+
+  const threshold = objectSnap.threshold ?? 8;
+  const worldThreshold = threshold / camera.zoom;
+  const xMatch = resolveAxisObjectSnap({
+    start: x,
+    size: width,
+    guides: guides.x,
+    threshold: worldThreshold,
+  });
+  const yMatch = resolveAxisObjectSnap({
+    start: y,
+    size: height,
+    guides: guides.y,
+    threshold: worldThreshold,
+  });
+
+  return {
+    x: xMatch?.snappedStart ?? roundCoordinate(x),
+    y: yMatch?.snappedStart ?? roundCoordinate(y),
+    guideX: xMatch?.guide,
+    guideY: yMatch?.guide,
   };
 }
 

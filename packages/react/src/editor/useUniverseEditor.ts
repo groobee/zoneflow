@@ -14,12 +14,15 @@ export type UniverseEditorController = {
   canUndo: boolean;
   canRedo: boolean;
   gridSnapEnabled: boolean;
+  objectSnapEnabled: boolean;
   gridSnapSize: UniverseEditorGridSize;
   gridVisible: boolean;
   setGridSnapEnabled: Dispatch<SetStateAction<boolean>>;
+  setObjectSnapEnabled: Dispatch<SetStateAction<boolean>>;
   setGridSnapSize: Dispatch<SetStateAction<UniverseEditorGridSize>>;
   setGridVisible: Dispatch<SetStateAction<boolean>>;
   toggleGridSnap: () => void;
+  toggleObjectSnap: () => void;
   toggleGridVisible: () => void;
   startEdit: () => void;
   applyEdit: () => void;
@@ -40,6 +43,7 @@ export function useUniverseEditor(params: {
   setModel: Dispatch<SetStateAction<UniverseModel>>;
   setLayoutModel: Dispatch<SetStateAction<UniverseLayoutModel>>;
   initialGridSnapEnabled?: boolean;
+  initialObjectSnapEnabled?: boolean;
   initialGridSnapSize?: UniverseEditorGridSize;
   initialGridVisible?: boolean;
 }): UniverseEditorController {
@@ -49,6 +53,7 @@ export function useUniverseEditor(params: {
     setModel,
     setLayoutModel,
     initialGridSnapEnabled = true,
+    initialObjectSnapEnabled = true,
     initialGridSnapSize = 16,
     initialGridVisible = false,
   } = params;
@@ -60,6 +65,7 @@ export function useUniverseEditor(params: {
     setLayoutModel,
   });
   const [gridSnapEnabled, setGridSnapEnabled] = useState(initialGridSnapEnabled);
+  const [objectSnapEnabled, setObjectSnapEnabled] = useState(initialObjectSnapEnabled);
   const [gridSnapSize, setGridSnapSize] =
     useState<UniverseEditorGridSize>(initialGridSnapSize);
   const [gridVisible, setGridVisible] = useState(initialGridVisible);
@@ -72,15 +78,22 @@ export function useUniverseEditor(params: {
     setGridVisible((current) => !current);
   }, []);
 
+  const toggleObjectSnap = useCallback(() => {
+    setObjectSnapEnabled((current) => !current);
+  }, []);
+
   return {
     ...session,
     gridSnapEnabled,
+    objectSnapEnabled,
     gridSnapSize,
     gridVisible,
     setGridSnapEnabled,
+    setObjectSnapEnabled,
     setGridSnapSize,
     setGridVisible,
     toggleGridSnap,
+    toggleObjectSnap,
     toggleGridVisible,
   };
 }

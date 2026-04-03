@@ -97,9 +97,11 @@ type ToastTone = {
 type GuideTone = {
   validStroke: string;
   invalidStroke: string;
+  objectSnapStroke: string;
   invalidDashArray: string;
   strokeWidth: number;
   opacity: number;
+  objectSnapOpacity: number;
 };
 
 type MetaChipTone = {
@@ -353,9 +355,11 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
     guide: {
       validStroke: "#0f766e",
       invalidStroke: "#0f172a",
+      objectSnapStroke: "rgba(14, 165, 233, 0.92)",
       invalidDashArray: "6 6",
       strokeWidth: 2.5,
       opacity: 0.92,
+      objectSnapOpacity: 0.86,
     },
     editButton: {
       idle: {

@@ -24,7 +24,8 @@ type EditorStrings = {
     deleteSelection: string;
     fitToView: string;
     grid: string;
-    snap: string;
+    gridSnap: string;
+    objectSnap: string;
     on: string;
     off: string;
   };
@@ -79,7 +80,8 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       deleteSelection: "선택 삭제",
       fitToView: "한눈에 보기",
       grid: "Grid",
-      snap: "Snap",
+      gridSnap: "Grid Snap",
+      objectSnap: "Object Snap",
       on: "On",
       off: "Off",
     },
@@ -141,7 +143,8 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       deleteSelection: "Delete selection",
       fitToView: "Fit to view",
       grid: "Grid",
-      snap: "Snap",
+      gridSnap: "Grid Snap",
+      objectSnap: "Object Snap",
       on: "On",
       off: "Off",
     },
@@ -233,6 +236,10 @@ export function getSelectionToolbarCountLabel(params: {
   count: number;
 }) {
   const { locale, kind, count } = params;
+  if (locale === "ko") {
+    return kind === "zone" ? `${count}개 선택` : `패스 ${count}개`;
+  }
+
   const strings = EDITOR_STRINGS[locale].selectionToolbar;
   return kind === "zone"
     ? `${count} ${strings.zoneSelectionSuffix}`
@@ -267,12 +274,20 @@ export function getGridToggleLabel(params: {
   return `${strings.grid} ${params.enabled ? strings.on : strings.off}`;
 }
 
-export function getSnapToggleLabel(params: {
+export function getGridSnapToggleLabel(params: {
   locale: ZoneflowEditorLocale;
   enabled: boolean;
 }) {
   const strings = EDITOR_STRINGS[params.locale].hud;
-  return `${strings.snap} ${params.enabled ? strings.on : strings.off}`;
+  return `${strings.gridSnap} ${params.enabled ? strings.on : strings.off}`;
+}
+
+export function getObjectSnapToggleLabel(params: {
+  locale: ZoneflowEditorLocale;
+  enabled: boolean;
+}) {
+  const strings = EDITOR_STRINGS[params.locale].hud;
+  return `${strings.objectSnap} ${params.enabled ? strings.on : strings.off}`;
 }
 
 export function getSelectionCommandLabel(params: {

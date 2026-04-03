@@ -9,15 +9,19 @@ import {
 } from "@zoneflow/core";
 import type {
   CameraState,
+  Rect,
   RendererFrame,
 } from "@zoneflow/renderer-dom";
 import {
+  collectRectObjectSnapGuides,
   projectWorldRectToScreenRect,
+  resolveObjectSnappedRectPosition,
   resolveSnappedMove,
   roundCoordinate,
   snapCoordinate,
   typedValues,
   type GridSnapOptions,
+  type ObjectSnapOptions,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
   type MoveEditorTargetOptions,
@@ -39,6 +43,7 @@ export type {
   MoveEditorDragOrigin,
   MoveEditorTarget,
   MoveEditorTargetOptions,
+  ObjectSnapOptions,
   PathAlignMode,
   PathDistributeMode,
   PathResizeOrigin,
@@ -64,6 +69,54 @@ export {
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
 const DEFAULT_MIN_ZONE_WIDTH = 140;
 const DEFAULT_MIN_ZONE_HEIGHT = 96;
+
+function collectDescendantZoneIds(model: UniverseModel, zoneId: ZoneId): Set<ZoneId> {
+  const descendants = new Set<ZoneId>();
+  const queue = [...(model.zonesById[zoneId]?.childZoneIds ?? [])];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || descendants.has(current)) continue;
+    descendants.add(current);
+    queue.push(...(model.zonesById[current]?.childZoneIds ?? []));
+  }
+
+  return descendants;
+}
+
+function resolveObjectSnapGuides(params: {
+  model: UniverseModel;
+  frame?: RendererFrame;
+  target: MoveEditorTarget;
+}) {
+  const { model, frame, target } = params;
+  if (!frame) return undefined;
+
+  const excludedZoneIds =
+    target.kind === "zone"
+      ? new Set<ZoneId>([target.zoneId, ...collectDescendantZoneIds(model, target.zoneId)])
+      : new Set<ZoneId>();
+  const candidateRects: Rect[] = [];
+
+  for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
+    const visibility = frame.pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
+    if (!visibility?.isVisible) continue;
+    if (excludedZoneIds.has(zoneVisual.zoneId)) continue;
+    candidateRects.push(zoneVisual.rect);
+  }
+
+  for (const pathVisual of typedValues(frame.pipeline.graphLayout.pathsById)) {
+    const visibility = frame.pipeline.visibility.pathVisibilityById[pathVisual.pathId];
+    if (!visibility?.shouldRenderNode || !pathVisual.rect) continue;
+    if (target.kind === "path" && pathVisual.pathId === target.pathId) continue;
+    if (target.kind === "zone" && excludedZoneIds.has(pathVisual.sourceZoneId)) continue;
+    candidateRects.push(pathVisual.rect);
+  }
+
+  return candidateRects.length > 0
+    ? collectRectObjectSnapGuides(candidateRects)
+    : undefined;
+}
 
 function resolveResizedAnchor(params: {
   kind: "inlet" | "outlet";
@@ -169,20 +222,34 @@ export function getMoveEditorTargets(params: {
   ];
 }
 
-export function resolveMoveEditorDragOrigin(
-  layoutModel: UniverseLayoutModel,
-  target: MoveEditorTarget,
-  frame?: RendererFrame
-): MoveEditorDragOrigin | undefined {
+export function resolveMoveEditorDragOrigin(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  target: MoveEditorTarget;
+  frame?: RendererFrame;
+}): MoveEditorDragOrigin | undefined {
+  const { model, layoutModel, target, frame } = params;
   if (target.kind === "zone") {
     const zoneLayout = getZoneLayout(layoutModel, target.zoneId);
     if (!zoneLayout) return undefined;
+    const zoneRect =
+      frame?.pipeline.graphLayout.zonesById[target.zoneId]?.rect ??
+      getZoneLayout(layoutModel, target.zoneId);
+    const width = zoneRect?.width ?? 0;
+    const height = zoneRect?.height ?? 0;
 
     return {
       kind: "zone",
       zoneId: target.zoneId,
       originX: zoneLayout.x,
       originY: zoneLayout.y,
+      width,
+      height,
+      objectSnapGuides: resolveObjectSnapGuides({
+        model,
+        frame,
+        target,
+      }),
     };
   }
 
@@ -193,6 +260,11 @@ export function resolveMoveEditorDragOrigin(
       frame,
       layoutModel,
       pathId: target.pathId,
+    }),
+    objectSnapGuides: resolveObjectSnapGuides({
+      model,
+      frame,
+      target,
     }),
   };
 }
@@ -220,6 +292,7 @@ export function moveEditorTargetByScreenDelta(params: {
   deltaX: number;
   deltaY: number;
   gridSnap?: GridSnapOptions;
+  objectSnap?: ObjectSnapOptions;
 }): UniverseLayoutModel {
   const {
     layoutModel,
@@ -228,6 +301,7 @@ export function moveEditorTargetByScreenDelta(params: {
     deltaX,
     deltaY,
     gridSnap,
+    objectSnap,
   } = params;
 
   if (origin.kind === "zone") {
@@ -239,9 +313,18 @@ export function moveEditorTargetByScreenDelta(params: {
       camera,
       gridSnap,
     });
-    return updateZoneLayout(layoutModel, origin.zoneId, {
+    const snapped = resolveObjectSnappedRectPosition({
       x: nextX,
       y: nextY,
+      width: origin.width,
+      height: origin.height,
+      camera,
+      guides: origin.objectSnapGuides,
+      objectSnap,
+    });
+    return updateZoneLayout(layoutModel, origin.zoneId, {
+      x: snapped.x,
+      y: snapped.y,
     });
   }
 
@@ -303,13 +386,88 @@ export function moveEditorTargetByScreenDelta(params: {
     camera,
     gridSnap,
   });
+  const snapped = resolveObjectSnappedRectPosition({
+    x: nextX,
+    y: nextY,
+    width: origin.origin.width,
+    height: origin.origin.height,
+    camera,
+    guides: origin.objectSnapGuides,
+    objectSnap,
+  });
   return applyPathMovePosition({
     layoutModel,
     pathId: origin.pathId,
     origin: origin.origin,
-    x: nextX,
-    y: nextY,
+    x: snapped.x,
+    y: snapped.y,
   });
+}
+
+export function resolveMoveEditorObjectSnapGuides(params: {
+  camera: CameraState;
+  origin: MoveEditorDragOrigin;
+  deltaX: number;
+  deltaY: number;
+  gridSnap?: GridSnapOptions;
+  objectSnap?: ObjectSnapOptions;
+}) {
+  const { camera, origin, deltaX, deltaY, gridSnap, objectSnap } = params;
+
+  if (origin.kind === "zone") {
+    const { nextX, nextY } = resolveSnappedMove({
+      originX: origin.originX,
+      originY: origin.originY,
+      deltaX,
+      deltaY,
+      camera,
+      gridSnap,
+    });
+    const snapped = resolveObjectSnappedRectPosition({
+      x: nextX,
+      y: nextY,
+      width: origin.width,
+      height: origin.height,
+      camera,
+      guides: origin.objectSnapGuides,
+      objectSnap,
+    });
+
+    return {
+      guideX: snapped.guideX,
+      guideY: snapped.guideY,
+    };
+  }
+
+  if (origin.kind === "path") {
+    const { nextX, nextY } = resolveSnappedMove({
+      originX: origin.origin.x,
+      originY: origin.origin.y,
+      deltaX,
+      deltaY,
+      camera,
+      gridSnap,
+    });
+    const snapped = resolveObjectSnappedRectPosition({
+      x: nextX,
+      y: nextY,
+      width: origin.origin.width,
+      height: origin.origin.height,
+      camera,
+      guides: origin.objectSnapGuides,
+      objectSnap,
+    });
+
+    return {
+      guideX: snapped.guideX,
+      guideY: snapped.guideY,
+    };
+  }
+
+  return {
+    guideX: undefined,
+    guideY: undefined,
+  };
 }
 
 export function resolveZoneResizeOrigin(

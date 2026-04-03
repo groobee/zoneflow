@@ -26,6 +26,7 @@ import {
   moveEditorTargetByScreenDelta,
   resolveGroupZoneDragOrigin,
   resolveMoveEditorDragOrigin,
+  resolveMoveEditorObjectSnapGuides,
   resolvePathOutputAnchorScreenRect,
   resolvePathResizeOrigin,
   resizeZoneByScreenDelta,
@@ -62,9 +63,10 @@ import {
   formatDeleteSelectionLabel,
   formatDeleteTargetLabel,
   getGridToggleLabel,
+  getGridSnapToggleLabel,
+  getObjectSnapToggleLabel,
   getSelectionCommandLabel,
   getSelectionToolbarCountLabel,
-  getSnapToggleLabel,
   getTargetBadgeLabel as getTargetBadgeLabelText,
   getTargetMetaStateLabel,
   getZoneflowEditorStrings,
@@ -175,6 +177,10 @@ export type ZoneMoveEditorConfig = {
     enabled?: boolean;
     size?: number;
   };
+  objectSnap?: {
+    enabled?: boolean;
+    threshold?: number;
+  };
   onModelChange?: (nextModel: UniverseModel) => void;
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   renderZoneEditButton?: (props: ZoneEditorButtonRenderProps) => ReactNode;
@@ -198,12 +204,18 @@ export type ZoneMoveEditorConfig = {
     showHistory?: boolean;
     showDelete?: boolean;
     showGridToggle?: boolean;
+    showGridSnapToggle?: boolean;
+    showObjectSnapToggle?: boolean;
     showSnapToggle?: boolean;
     showFitToView?: boolean;
     showZoomControls?: boolean;
     showZoomValue?: boolean;
     gridVisible?: boolean;
     onToggleGridVisible?: () => void;
+    gridSnapEnabled?: boolean;
+    objectSnapEnabled?: boolean;
+    onToggleGridSnap?: () => void;
+    onToggleObjectSnap?: () => void;
     snapEnabled?: boolean;
     onToggleSnap?: () => void;
     onFitToView?: () => void;
@@ -300,6 +312,11 @@ type MarqueeSelectionState = {
   appendToSelection: boolean;
 };
 
+type ObjectSnapGuideLineState = {
+  x?: number;
+  y?: number;
+};
+
 type PreviewHostProps = {
   frame: RendererFrame;
   camera: CameraState;
@@ -333,6 +350,7 @@ const OVERLAY_Z_INDEX = {
   toast: 12,
   selectionDialog: 13,
   floatingToolbar: 24,
+  hud: 28,
   root: 30,
 } as const;
 const HELP_PANEL_STORAGE_KEY = "zoneflow:editor-help-panel";
@@ -1144,6 +1162,8 @@ export function ZoneMoveEditorOverlay(props: {
   const [pathCreateTargetZoneId, setPathCreateTargetZoneId] = useState<ZoneId | null>(null);
   const [retargetingPath, setRetargetingPath] = useState<PathRetargetDragState | null>(null);
   const [retargetPathTargetZoneId, setRetargetPathTargetZoneId] = useState<ZoneId | null>(null);
+  const [objectSnapGuideLines, setObjectSnapGuideLines] =
+    useState<ObjectSnapGuideLineState | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
@@ -1171,6 +1191,7 @@ export function ZoneMoveEditorOverlay(props: {
     frame,
     includeRoot: editor?.includeRoot,
     gridSnap: editor?.gridSnap,
+    objectSnap: editor?.objectSnap,
     onModelChange: editor?.onModelChange,
     onLayoutModelChange: editor?.onLayoutModelChange,
     onTransactionStart: editor?.onTransactionStart,
@@ -1187,6 +1208,7 @@ export function ZoneMoveEditorOverlay(props: {
       frame,
       includeRoot: editor?.includeRoot,
       gridSnap: editor?.gridSnap,
+      objectSnap: editor?.objectSnap,
       onModelChange: editor?.onModelChange,
       onLayoutModelChange: editor?.onLayoutModelChange,
       onTransactionStart: editor?.onTransactionStart,
@@ -1234,6 +1256,7 @@ export function ZoneMoveEditorOverlay(props: {
     setPathCreateTargetZoneId(null);
     setRetargetingPath(null);
     setRetargetPathTargetZoneId(null);
+    setObjectSnapGuideLines(null);
     setHoveredTargetKey(null);
     setSelectedTargetKey(null);
     setSelectedZoneIds([]);
@@ -1333,6 +1356,7 @@ export function ZoneMoveEditorOverlay(props: {
   const armDeleteTarget = (target: MoveEditorTarget) => {
     dragRef.current = null;
     setDraggingTarget(null);
+    setObjectSnapGuideLines(null);
     setIsResizing(false);
     setDeleteConfirmState(null);
     latestRef.current.onExclusionStateChange?.(undefined);
@@ -1691,6 +1715,7 @@ export function ZoneMoveEditorOverlay(props: {
         if (!onLayoutModelChange) return;
 
         event.preventDefault();
+        setObjectSnapGuideLines(null);
 
         const nextLayoutModel = resizeZoneByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
@@ -1708,6 +1733,7 @@ export function ZoneMoveEditorOverlay(props: {
       const marquee = marqueeSelectionRef.current;
       if (marquee) {
         event.preventDefault();
+        setObjectSnapGuideLines(null);
 
         const nextSelection: MarqueeSelectionState = {
           ...marquee,
@@ -1734,6 +1760,7 @@ export function ZoneMoveEditorOverlay(props: {
         if (!onLayoutModelChange) return;
 
         event.preventDefault();
+        setObjectSnapGuideLines(null);
 
         const nextLayoutModel = resizePathNodeByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
@@ -1799,7 +1826,38 @@ export function ZoneMoveEditorOverlay(props: {
           deltaX: event.clientX - drag.startClientX,
           deltaY: event.clientY - drag.startClientY,
           gridSnap: latestRef.current.gridSnap,
+          objectSnap: latestRef.current.objectSnap,
         });
+
+        if (drag.origin.kind === "zone" || drag.origin.kind === "path") {
+          const snappedGuides = resolveMoveEditorObjectSnapGuides({
+            camera: latestRef.current.camera,
+            origin: drag.origin,
+            deltaX: event.clientX - drag.startClientX,
+            deltaY: event.clientY - drag.startClientY,
+            gridSnap: latestRef.current.gridSnap,
+            objectSnap: latestRef.current.objectSnap,
+          });
+
+          setObjectSnapGuideLines(
+            snappedGuides.guideX !== undefined || snappedGuides.guideY !== undefined
+              ? {
+                  x:
+                    snappedGuides.guideX !== undefined
+                      ? latestRef.current.camera.x +
+                        snappedGuides.guideX * latestRef.current.camera.zoom
+                      : undefined,
+                  y:
+                    snappedGuides.guideY !== undefined
+                      ? latestRef.current.camera.y +
+                        snappedGuides.guideY * latestRef.current.camera.zoom
+                      : undefined,
+                }
+              : null
+          );
+        } else {
+          setObjectSnapGuideLines(null);
+        }
 
         onLayoutModelChange(nextLayoutModel);
         return;
@@ -1808,6 +1866,7 @@ export function ZoneMoveEditorOverlay(props: {
       const pathRetarget = pathRetargetRef.current;
       if (pathRetarget && latestRef.current.frame) {
         event.preventDefault();
+        setObjectSnapGuideLines(null);
 
         const currentScreenPoint = toCanvasScreenPoint(
           overlayRef.current,
@@ -1845,6 +1904,7 @@ export function ZoneMoveEditorOverlay(props: {
       if (!pathCreate || !latestRef.current.frame) return;
 
       event.preventDefault();
+      setObjectSnapGuideLines(null);
 
       const currentScreenPoint = toCanvasScreenPoint(
         overlayRef.current,
@@ -2498,6 +2558,36 @@ export function ZoneMoveEditorOverlay(props: {
           pointerEvents: "none",
         }}
       >
+        {objectSnapGuideLines?.x !== undefined ? (
+          <div
+            style={{
+              position: "absolute",
+              left: objectSnapGuideLines.x,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              transform: "translateX(-0.5px)",
+              background: resolvedEditorTheme.overlay.guide.objectSnapStroke,
+              opacity: resolvedEditorTheme.overlay.guide.objectSnapOpacity,
+            }}
+          />
+        ) : null}
+
+        {objectSnapGuideLines?.y !== undefined ? (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: objectSnapGuideLines.y,
+              height: 1,
+              transform: "translateY(-0.5px)",
+              background: resolvedEditorTheme.overlay.guide.objectSnapStroke,
+              opacity: resolvedEditorTheme.overlay.guide.objectSnapOpacity,
+            }}
+          />
+        ) : null}
+
         {creatingPath && pathCreateSourceAnchorRect ? (
           <svg
             width="100%"
@@ -2570,6 +2660,7 @@ export function ZoneMoveEditorOverlay(props: {
             left: 16,
             top: 16,
             pointerEvents: "auto",
+            zIndex: OVERLAY_Z_INDEX.hud,
           }}
         >
           {isHelpPanelExpanded ? (
@@ -2666,6 +2757,7 @@ export function ZoneMoveEditorOverlay(props: {
               background: resolvedEditorTheme.hud.panelBackground,
               boxShadow: resolvedEditorTheme.hud.panelShadow,
               pointerEvents: "auto",
+              zIndex: OVERLAY_Z_INDEX.hud,
             }}
           >
             {overlayControls?.showHistory !== false ? (
@@ -2744,11 +2836,13 @@ export function ZoneMoveEditorOverlay(props: {
             ) : null}
 
             {(overlayControls?.showGridToggle !== false ||
-              overlayControls?.showSnapToggle !== false) ? (
+              overlayControls?.showGridSnapToggle !== false ||
+              overlayControls?.showSnapToggle !== false ||
+              overlayControls?.showObjectSnapToggle !== false) ? (
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  display: "flex",
+                  flexWrap: "wrap",
                   gap: 8,
                 }}
               >
@@ -2760,25 +2854,51 @@ export function ZoneMoveEditorOverlay(props: {
                       ...hudButtonStyle,
                       ...(overlayControls?.gridVisible ? hudActiveButtonStyle : null),
                     }}
+                >
+                  {getGridToggleLabel({
+                    locale: editorLocale,
+                    enabled: Boolean(overlayControls?.gridVisible),
+                  })}
+                  </button>
+                ) : null}
+                {(overlayControls?.showGridSnapToggle !== false ||
+                  overlayControls?.showSnapToggle !== false) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const toggleGridSnap =
+                        overlayControls?.onToggleGridSnap ?? overlayControls?.onToggleSnap;
+                      toggleGridSnap?.();
+                    }}
+                    style={{
+                      ...hudButtonStyle,
+                      ...(
+                        (overlayControls?.gridSnapEnabled ?? overlayControls?.snapEnabled)
+                          ? hudActiveButtonStyle
+                          : null
+                      ),
+                    }}
                   >
-                    {getGridToggleLabel({
+                    {getGridSnapToggleLabel({
                       locale: editorLocale,
-                      enabled: Boolean(overlayControls?.gridVisible),
+                      enabled: Boolean(
+                        overlayControls?.gridSnapEnabled ?? overlayControls?.snapEnabled
+                      ),
                     })}
                   </button>
                 ) : null}
-                {overlayControls?.showSnapToggle !== false ? (
+                {overlayControls?.showObjectSnapToggle !== false ? (
                   <button
                     type="button"
-                    onClick={() => overlayControls?.onToggleSnap?.()}
+                    onClick={() => overlayControls?.onToggleObjectSnap?.()}
                     style={{
                       ...hudButtonStyle,
-                      ...(overlayControls?.snapEnabled ? hudActiveButtonStyle : null),
+                      ...(overlayControls?.objectSnapEnabled ? hudActiveButtonStyle : null),
                     }}
                   >
-                    {getSnapToggleLabel({
+                    {getObjectSnapToggleLabel({
                       locale: editorLocale,
-                      enabled: Boolean(overlayControls?.snapEnabled),
+                      enabled: Boolean(overlayControls?.objectSnapEnabled),
                     })}
                   </button>
                 ) : null}
@@ -3528,13 +3648,18 @@ export function ZoneMoveEditorOverlay(props: {
                       primaryZoneId: target.zoneId,
                     })
                   : shouldStartPathGroupDrag
-                    ? resolveGroupPathDragOrigin({
-                        frame,
-                        layoutModel,
-                        pathIds: selectedPathIds,
-                        primaryPathId: target.pathId,
-                      })
-                  : resolveMoveEditorDragOrigin(layoutModel, target, frame);
+                  ? resolveGroupPathDragOrigin({
+                      frame,
+                      layoutModel,
+                      pathIds: selectedPathIds,
+                      primaryPathId: target.pathId,
+                    })
+                  : resolveMoveEditorDragOrigin({
+                      model,
+                      layoutModel,
+                      target,
+                      frame,
+                    });
                 if (!origin) return;
 
                 cancelLongPress();

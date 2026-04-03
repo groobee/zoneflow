@@ -1,4 +1,11 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
+import {
+  getGridSnapToggleLabel,
+  getGridToggleLabel,
+  getObjectSnapToggleLabel,
+  getZoneflowEditorStrings,
+  resolveEditorLocale,
+} from "./strings";
 import { resolveEditorTheme, type ZoneflowEditorThemeInput } from "./theme";
 import type { UniverseEditorController } from "./useUniverseEditor";
 
@@ -19,6 +26,11 @@ export type DefaultEditorToolbarProps = {
 
 export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
   const { editor, leading, trailing, style, theme } = props;
+  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorStrings = useMemo(
+    () => getZoneflowEditorStrings(editorLocale),
+    [editorLocale]
+  );
   const editorTheme = useMemo(() => resolveEditorTheme(theme), [theme]);
   const toolbarStyle: CSSProperties = {
     display: "flex",
@@ -65,14 +77,30 @@ export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
           style={editor.gridSnapEnabled ? primaryButtonStyle : buttonStyle}
           onClick={editor.toggleGridSnap}
         >
-          Snap {editor.gridSnapEnabled ? "On" : "Off"}
+          {getGridSnapToggleLabel({
+            locale: editorLocale,
+            enabled: editor.gridSnapEnabled,
+          })}
+        </button>
+        <button
+          type="button"
+          style={editor.objectSnapEnabled ? primaryButtonStyle : buttonStyle}
+          onClick={editor.toggleObjectSnap}
+        >
+          {getObjectSnapToggleLabel({
+            locale: editorLocale,
+            enabled: editor.objectSnapEnabled,
+          })}
         </button>
         <button
           type="button"
           style={editor.gridVisible ? primaryButtonStyle : buttonStyle}
           onClick={editor.toggleGridVisible}
         >
-          Grid {editor.gridVisible ? "On" : "Off"}
+          {getGridToggleLabel({
+            locale: editorLocale,
+            enabled: editor.gridVisible,
+          })}
         </button>
         <select
           style={{
@@ -110,7 +138,7 @@ export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
               onClick={editor.undo}
               title="Cmd/Ctrl+Z"
             >
-              되돌리기
+              {editorStrings.hud.undo}
             </button>
             <button
               type="button"
@@ -123,17 +151,17 @@ export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
               onClick={editor.redo}
               title="Shift+Cmd/Ctrl+Z"
             >
-              다시하기
+              {editorStrings.hud.redo}
             </button>
             <button type="button" style={buttonStyle} onClick={editor.cancelEdit}>
-              취소
+              {editorStrings.deleteDialog.cancel}
             </button>
             <button
               type="button"
               style={primaryButtonStyle}
               onClick={editor.applyEdit}
             >
-              적용
+              {editorLocale === "ko" ? "적용" : "Apply"}
             </button>
           </>
         ) : (
@@ -142,7 +170,7 @@ export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
             style={primaryButtonStyle}
             onClick={editor.startEdit}
           >
-            수정
+            {editorStrings.target.edit}
           </button>
         )}
       </div>
