@@ -155,12 +155,14 @@ function resolveResizedAnchor(params: {
 
 export function getMoveEditorTargets(params: {
   model: UniverseModel;
+  layoutModel?: UniverseLayoutModel;
   frame: RendererFrame;
   camera: CameraState;
   options?: MoveEditorTargetOptions;
 }): MoveEditorTarget[] {
   const {
     model,
+    layoutModel,
     frame,
     camera,
     options,
@@ -168,8 +170,10 @@ export function getMoveEditorTargets(params: {
 
   const includeRoot = options?.includeRoot ?? true;
   const minVisibleSize = options?.minVisibleSize ?? DEFAULT_MIN_VISIBLE_SIZE;
-  const zoneTargets: Array<MoveEditorTarget & { kind: "zone"; depth: number }> = [];
-  const pathTargets: MoveEditorTarget[] = [];
+  const zoneTargets: Array<
+    MoveEditorTarget & { kind: "zone"; depth: number; zOrder?: number }
+  > = [];
+  const pathTargets: Array<MoveEditorTarget & { kind: "path"; zOrder: number }> = [];
 
   for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
     const zone = model.zonesById[zoneVisual.zoneId];
@@ -191,10 +195,11 @@ export function getMoveEditorTargets(params: {
       label: zone.name,
       rect,
       depth: getZoneDepth(model, zoneVisual.zoneId),
+      zOrder: layoutModel?.zoneLayoutsById[zoneVisual.zoneId]?.zOrder,
     });
   }
 
-  for (const pathVisual of typedValues(frame.pipeline.graphLayout.pathsById)) {
+  for (const [index, pathVisual] of typedValues(frame.pipeline.graphLayout.pathsById).entries()) {
     const visibility =
       frame.pipeline.visibility.pathVisibilityById[pathVisual.pathId];
 
@@ -211,14 +216,21 @@ export function getMoveEditorTargets(params: {
       pathId: pathVisual.pathId,
       label: pathVisual.path.name,
       rect,
+      zOrder: layoutModel?.pathLayoutsById[pathVisual.pathId]?.zOrder ?? index,
     });
   }
 
   return [
     ...zoneTargets
-      .sort((a, b) => a.depth - b.depth)
-      .map(({ depth: _depth, ...target }) => target),
-    ...pathTargets,
+      .sort((a, b) => {
+        const aOrder = a.zOrder ?? 0;
+        const bOrder = b.zOrder ?? 0;
+        return a.depth - b.depth || aOrder - bOrder;
+      })
+      .map(({ depth: _depth, zOrder: _zOrder, ...target }) => target),
+    ...pathTargets
+      .sort((a, b) => (a.zOrder ?? 0) - (b.zOrder ?? 0))
+      .map(({ zOrder: _zOrder, ...target }) => target),
   ];
 }
 

@@ -96,14 +96,16 @@ export function createZoneLayout(input: {
   y: number;
   width: number;
   height: number;
+  zOrder?: number;
 }): ZoneLayout {
-  const { x, y, width, height } = input;
+  const { x, y, width, height, zOrder } = input;
 
   return {
     x,
     y,
     width,
     height,
+    zOrder,
     anchors: {
       inlet: {
         point: {
@@ -159,6 +161,7 @@ export function updateZoneLayout(
     y: patch.y ?? currentLayout?.y ?? 0,
     width: patch.width ?? currentLayout?.width,
     height: patch.height ?? currentLayout?.height,
+    zOrder: patch.zOrder ?? currentLayout?.zOrder,
     anchors: mergeAnchors(currentLayout?.anchors, patch.anchors),
   });
 }
@@ -199,6 +202,7 @@ export function updatePathLayout(
   return setPathLayout(layoutModel, pathId, {
     ...currentLayout,
     ...patch,
+    zOrder: patch.zOrder ?? currentLayout?.zOrder,
     componentLayoutsById:
       patch.componentLayoutsById ??
       currentLayout?.componentLayoutsById,
@@ -239,7 +243,11 @@ export function setPathComponentLayout(
       : undefined,
   };
 
-  if (!nextPathLayout.routeOffset && !nextPathLayout.componentLayoutsById) {
+  if (
+    nextPathLayout.zOrder === undefined &&
+    !nextPathLayout.routeOffset &&
+    !nextPathLayout.componentLayoutsById
+  ) {
     return setPathLayout(layoutModel, pathId, undefined);
   }
 

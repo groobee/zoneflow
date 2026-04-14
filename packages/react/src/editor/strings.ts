@@ -8,7 +8,11 @@ export type SelectionCommandKey =
   | "align-center-horizontal"
   | "align-center-vertical"
   | "distribute-horizontal"
-  | "distribute-vertical";
+  | "distribute-vertical"
+  | "send-to-back"
+  | "send-backward"
+  | "bring-forward"
+  | "bring-to-front";
 
 type EditorStrings = {
   helpPanel: {
@@ -99,6 +103,10 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
         "align-center-vertical": "세로중앙",
         "distribute-horizontal": "가로 분배",
         "distribute-vertical": "세로 분배",
+        "send-to-back": "맨뒤",
+        "send-backward": "뒤로",
+        "bring-forward": "앞으로",
+        "bring-to-front": "맨앞",
       },
     },
     deleteDialog: {
@@ -162,6 +170,10 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
         "align-center-vertical": "Center Y",
         "distribute-horizontal": "Distribute X",
         "distribute-vertical": "Distribute Y",
+        "send-to-back": "Back",
+        "send-backward": "Backward",
+        "bring-forward": "Forward",
+        "bring-to-front": "Front",
       },
     },
     deleteDialog: {

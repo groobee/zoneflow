@@ -1,5 +1,6 @@
 export * from "./zoneMoveEditor";
 export * from "./pathCreateEditor";
+export * from "./zOrderEditor";
 export {
   alignPathsByMode,
   alignZonesByMode,

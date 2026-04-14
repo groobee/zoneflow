@@ -22,6 +22,7 @@ export type AnchorLayout = {
   rect?: AnchorRect;
 };
 export type ZoneLayout = Layout & {
+  zOrder?: number;
   anchors: {
     inlet: AnchorLayout;
     outlet: AnchorLayout;
@@ -29,6 +30,7 @@ export type ZoneLayout = Layout & {
 };
 
 export type PathLayout = {
+  zOrder?: number;
   routeOffset?: Point;
   componentLayoutsById?: Record<string, Layout>;
 };

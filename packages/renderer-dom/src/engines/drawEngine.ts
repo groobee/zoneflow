@@ -68,9 +68,24 @@ function sortZonesForRender(params: {
       zone,
       index,
       depth: getZoneDepth(params.input.model, zone.zoneId),
+      zOrder: params.input.layoutModel.zoneLayoutsById[zone.zoneId]?.zOrder ?? index,
     }))
-    .sort((a, b) => a.depth - b.depth || a.index - b.index)
+    .sort((a, b) => a.depth - b.depth || a.zOrder - b.zOrder || a.index - b.index)
     .map((entry) => entry.zone);
+}
+
+function sortPathsForRender(params: {
+  input: RendererDrawInput;
+  pathsById: Record<string, PathVisualNode>;
+}): PathVisualNode[] {
+  return Object.values(params.pathsById)
+    .map((path, index) => ({
+      path,
+      index,
+      zOrder: params.input.layoutModel.pathLayoutsById[path.pathId]?.zOrder ?? index,
+    }))
+    .sort((a, b) => a.zOrder - b.zOrder || a.index - b.index)
+    .map((entry) => entry.path);
 }
 
 function resolvePathDisplayName(params: {
@@ -914,7 +929,10 @@ export const domDrawEngine: DrawEngine = {
       zoneLayer.appendChild(zoneEl);
     }
 
-    for (const pathVisual of Object.values(pipeline.graphLayout.pathsById)) {
+    for (const pathVisual of sortPathsForRender({
+      input,
+      pathsById: pipeline.graphLayout.pathsById,
+    })) {
       const visibility = pipeline.visibility.pathVisibilityById[pathVisual.pathId];
       if (
         !visibility?.shouldRenderNode ||
