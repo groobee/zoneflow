@@ -21,11 +21,21 @@ function summarizePayload(value: unknown) {
 }
 
 function isNocturneVariant(variant: Variant) {
-  return variant === "dark" || variant === "party";
+  return (
+    variant === "dark" ||
+    variant === "party" ||
+    variant === "sci-fi" ||
+    variant === "dystopia"
+  );
 }
 
 function isSerifVariant(variant: Variant) {
-  return variant === "sunset" || variant === "korean-culture";
+  return (
+    variant === "sunset" ||
+    variant === "korean-culture" ||
+    variant === "fantasy" ||
+    variant === "desert"
+  );
 }
 
 function resolvePathTargetDisplay(params: PathSlotComponentProps["mount"]["context"]) {
@@ -47,6 +57,8 @@ function zoneTitleStyle(
   switch (variant) {
     case "sunset":
     case "korean-culture":
+    case "fantasy":
+    case "desert":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
@@ -58,6 +70,8 @@ function zoneTitleStyle(
       };
     case "ocean":
     case "light":
+    case "garden":
+    case "utopia":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
@@ -69,15 +83,27 @@ function zoneTitleStyle(
       };
     case "dark":
     case "party":
+    case "sci-fi":
+    case "dystopia":
       return {
         margin: 0,
         color: context.theme.zoneTitle,
-        fontFamily: sans,
+        fontFamily: variant === "sci-fi" ? mono : sans,
         fontSize: 14,
         fontWeight: 720,
         lineHeight: 1.05,
         letterSpacing: "0.01em",
         textTransform: "uppercase",
+      };
+    case "mono":
+      return {
+        margin: 0,
+        color: context.theme.zoneTitle,
+        fontFamily: mono,
+        fontSize: 14,
+        fontWeight: 760,
+        lineHeight: 1.05,
+        letterSpacing: "-0.02em",
       };
   }
   return {
@@ -98,6 +124,8 @@ function pathLabelStyle(
   switch (variant) {
     case "sunset":
     case "korean-culture":
+    case "fantasy":
+    case "desert":
       return {
         color: context.theme.pathLabel,
         fontSize: 14,
@@ -110,6 +138,8 @@ function pathLabelStyle(
       };
     case "ocean":
     case "light":
+    case "garden":
+    case "utopia":
       return {
         color: context.theme.pathLabel,
         fontSize: 13,
@@ -122,12 +152,25 @@ function pathLabelStyle(
       };
     case "dark":
     case "party":
+    case "sci-fi":
+    case "dystopia":
       return {
         color: context.theme.pathLabel,
         fontSize: 12,
         fontWeight: 720,
         letterSpacing: "0.04em",
         textTransform: "uppercase",
+        fontFamily: mono,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      };
+    case "mono":
+      return {
+        color: context.theme.pathLabel,
+        fontSize: 12,
+        fontWeight: 760,
+        letterSpacing: "-0.02em",
         fontFamily: mono,
         overflow: "hidden",
         textOverflow: "ellipsis",

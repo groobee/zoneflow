@@ -53,6 +53,48 @@ export const playgroundThemePresets: Record<
     topbar: zoneflowThemePresets["korean-culture"].surfacePalette.topbar,
     sidebar: zoneflowThemePresets["korean-culture"].surfacePalette.sidebar,
   },
+  "sci-fi": {
+    ...zoneflowThemePresets["sci-fi"],
+    sampleType: "large",
+    topbar: zoneflowThemePresets["sci-fi"].surfacePalette.topbar,
+    sidebar: zoneflowThemePresets["sci-fi"].surfacePalette.sidebar,
+  },
+  fantasy: {
+    ...zoneflowThemePresets.fantasy,
+    sampleType: "small",
+    topbar: zoneflowThemePresets.fantasy.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.fantasy.surfacePalette.sidebar,
+  },
+  mono: {
+    ...zoneflowThemePresets.mono,
+    sampleType: "tiny",
+    topbar: zoneflowThemePresets.mono.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.mono.surfacePalette.sidebar,
+  },
+  garden: {
+    ...zoneflowThemePresets.garden,
+    sampleType: "small",
+    topbar: zoneflowThemePresets.garden.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.garden.surfacePalette.sidebar,
+  },
+  utopia: {
+    ...zoneflowThemePresets.utopia,
+    sampleType: "tiny",
+    topbar: zoneflowThemePresets.utopia.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.utopia.surfacePalette.sidebar,
+  },
+  dystopia: {
+    ...zoneflowThemePresets.dystopia,
+    sampleType: "large",
+    topbar: zoneflowThemePresets.dystopia.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.dystopia.surfacePalette.sidebar,
+  },
+  desert: {
+    ...zoneflowThemePresets.desert,
+    sampleType: "small",
+    topbar: zoneflowThemePresets.desert.surfacePalette.topbar,
+    sidebar: zoneflowThemePresets.desert.surfacePalette.sidebar,
+  },
 };
 
 export const defaultPlaygroundThemePresetId: PlaygroundThemePresetId = "sunset";

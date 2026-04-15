@@ -10,6 +10,13 @@
 - `light`
 - `party`
 - `korean-culture`
+- `sci-fi`
+- `fantasy`
+- `mono`
+- `garden`
+- `utopia`
+- `dystopia`
+- `desert`
 
 ## 설치
 

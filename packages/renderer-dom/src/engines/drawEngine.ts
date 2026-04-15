@@ -31,6 +31,21 @@ const RENDER_Z_INDEX = {
   edgeLayer: 20,
   pathLayer: 30,
 } as const;
+const EDGE_FLOW_CLASS = "zoneflow-edge-flow";
+const EDGE_FLOW_STYLE = `
+@keyframes zoneflow-edge-flow {
+  from { stroke-dashoffset: 18; }
+  to { stroke-dashoffset: 0; }
+}
+.${EDGE_FLOW_CLASS} {
+  animation: zoneflow-edge-flow 900ms linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .${EDGE_FLOW_CLASS} {
+    animation: none;
+  }
+}
+`;
 
 function applyStyles(
   el: HTMLElement | SVGElement,
@@ -185,6 +200,12 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
+function appendEdgeFlowStyle(svg: SVGSVGElement) {
+  const style = createSvgElement("style");
+  style.textContent = EDGE_FLOW_STYLE;
+  svg.appendChild(style);
+}
+
 function getEdgeColor(params: {
   kind: "zone-to-path" | "path-to-zone";
   theme: RendererDrawInput["theme"];
@@ -199,28 +220,51 @@ function getBezierCurvePathD(params: {
   target: { x: number; y: number };
 }) {
   const { source, target } = params;
+  const distanceX = Math.abs(target.x - source.x);
+  const distanceY = Math.abs(target.y - source.y);
+
+  if (distanceX <= 72 && distanceY <= 48) {
+    return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+  }
+
   const sourceLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.18, 18), 42);
   const leadSourceX = source.x + sourceLead;
-  const dx = target.x - leadSourceX;
-  const direction = dx >= 0 ? 1 : -1;
+  const targetLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.16, 18), 42);
+  const targetApproachX = target.x - targetLead;
+  const shouldRouteAround = targetApproachX - leadSourceX < 36;
+
+  if (shouldRouteAround) {
+    const bridgeDistance = Math.abs(leadSourceX - targetApproachX);
+    const midX = (leadSourceX + targetApproachX) / 2;
+    const sourceBendX =
+      leadSourceX + Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
+    const targetBendX =
+      targetApproachX - Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
+    const verticalGap = Math.abs(target.y - source.y);
+    const verticalDirection = target.y >= source.y ? 1 : -1;
+    const laneOffset = Math.min(
+      Math.max(Math.abs(target.x - source.x) * 0.22 + 48, 56),
+      144
+    );
+    const laneY =
+      (source.y + target.y) / 2 +
+      (verticalGap < 36 ? verticalDirection * laneOffset : 0);
+
+    return [
+      `M ${source.x} ${source.y}`,
+      `L ${leadSourceX} ${source.y}`,
+      `C ${sourceBendX} ${source.y}, ${sourceBendX} ${laneY}, ${midX} ${laneY}`,
+      `C ${targetBendX} ${laneY}, ${targetBendX} ${target.y}, ${targetApproachX} ${target.y}`,
+      `L ${target.x} ${target.y}`,
+    ].join(" ");
+  }
+
+  const dx = targetApproachX - leadSourceX;
   const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
-  const control1X = leadSourceX + handle * direction;
-  const control2X = target.x - handle * direction;
+  const control1X = leadSourceX + handle;
+  const control2X = targetApproachX - handle;
 
-  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${target.x} ${target.y}`;
-}
-
-function getChevronPathD(params: {
-  target: { x: number; y: number };
-  direction: 1 | -1;
-}) {
-  const { target, direction } = params;
-  const tipX = target.x - direction * 6;
-  const baseX = tipX - direction * 7;
-  const topY = target.y - 4;
-  const bottomY = target.y + 4;
-
-  return `M ${baseX} ${topY} L ${tipX} ${target.y} L ${baseX} ${bottomY}`;
+  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${targetApproachX} ${target.y} L ${target.x} ${target.y}`;
 }
 
 function computeSceneBounds(input: RendererDrawInput): Rect {
@@ -572,6 +616,7 @@ function drawEdges(params: {
   input: RendererDrawInput;
 }) {
   const { svg, input } = params;
+  appendEdgeFlowStyle(svg);
 
   for (const [pathId, edges] of Object.entries(input.pipeline.graphLayout.edgesByPathId)) {
     const visibility = input.pipeline.visibility.pathVisibilityById[pathId];
@@ -582,14 +627,13 @@ function drawEdges(params: {
         kind: edge.kind,
         theme: input.theme,
       });
+      const pathD = getBezierCurvePathD({
+        source: edge.source,
+        target: edge.target,
+      });
+      const opacity = getOpacity(visibility.emphasis);
       const path = createSvgElement("path");
-      path.setAttribute(
-        "d",
-        getBezierCurvePathD({
-          source: edge.source,
-          target: edge.target,
-        })
-      );
+      path.setAttribute("d", pathD);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", stroke);
       path.setAttribute(
@@ -598,27 +642,24 @@ function drawEdges(params: {
       );
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
-      path.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
+      path.setAttribute("opacity", String(opacity * 0.42));
       svg.appendChild(path);
 
-      const chevron = createSvgElement("path");
-      chevron.setAttribute(
-        "d",
-        getChevronPathD({
-          target: edge.target,
-          direction: edge.kind === "path-to-zone" ? 1 : edge.target.x >= edge.source.x ? 1 : -1,
-        })
-      );
-      chevron.setAttribute("fill", "none");
-      chevron.setAttribute("stroke", stroke);
-      chevron.setAttribute(
+      const flow = createSvgElement("path");
+      flow.setAttribute("d", pathD);
+      flow.setAttribute("fill", "none");
+      flow.setAttribute("stroke", stroke);
+      flow.setAttribute(
         "stroke-width",
-        edge.kind === "path-to-zone" ? "1.95" : "1.7"
+        edge.kind === "path-to-zone" ? "2.8" : "2.35"
       );
-      chevron.setAttribute("stroke-linecap", "round");
-      chevron.setAttribute("stroke-linejoin", "round");
-      chevron.setAttribute("opacity", String(getOpacity(visibility.emphasis)));
-      svg.appendChild(chevron);
+      flow.setAttribute("stroke-linecap", "round");
+      flow.setAttribute("stroke-linejoin", "round");
+      flow.setAttribute("stroke-dasharray", "1 11");
+      flow.setAttribute("stroke-dashoffset", "0");
+      flow.setAttribute("opacity", String(opacity));
+      flow.setAttribute("class", EDGE_FLOW_CLASS);
+      svg.appendChild(flow);
     }
   }
 }
