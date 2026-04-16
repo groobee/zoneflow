@@ -5,6 +5,12 @@ export type ZoneflowStatusTone = {
   shadow: string;
 };
 
+export type ZoneflowEdgeFlowTheme = {
+  durationMs: number;
+  segmentLength: number;
+  gapLength: number;
+};
+
 export type ZoneflowTheme = {
   background: string;
 
@@ -51,6 +57,8 @@ export type ZoneflowTheme = {
     info: ZoneflowStatusTone;
     warning: ZoneflowStatusTone;
   };
+
+  edgeFlow: ZoneflowEdgeFlowTheme;
 
   density: {
     zone: {

@@ -21,6 +21,12 @@ import {
   isZoneInputEnabled,
   isZoneOutputEnabled,
 } from "@zoneflow/core";
+import {
+  appendEdgeFlowStyle,
+  resolveCollapsedEdgeStroke,
+  resolveDrawableEdgeSegments,
+  resolveEdgeFlowMotion,
+} from "./edgeFlow";
 
 const SCENE_PADDING = 64;
 const RENDER_Z_INDEX = {
@@ -32,20 +38,6 @@ const RENDER_Z_INDEX = {
   pathLayer: 30,
 } as const;
 const EDGE_FLOW_CLASS = "zoneflow-edge-flow";
-const EDGE_FLOW_STYLE = `
-@keyframes zoneflow-edge-flow {
-  from { stroke-dashoffset: 18; }
-  to { stroke-dashoffset: 0; }
-}
-.${EDGE_FLOW_CLASS} {
-  animation: zoneflow-edge-flow 900ms linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .${EDGE_FLOW_CLASS} {
-    animation: none;
-  }
-}
-`;
 
 function applyStyles(
   el: HTMLElement | SVGElement,
@@ -198,12 +190,6 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   tag: K
 ): SVGElementTagNameMap[K] {
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
-}
-
-function appendEdgeFlowStyle(svg: SVGSVGElement) {
-  const style = createSvgElement("style");
-  style.textContent = EDGE_FLOW_STYLE;
-  svg.appendChild(style);
 }
 
 function getEdgeColor(params: {
@@ -616,17 +602,31 @@ function drawEdges(params: {
   input: RendererDrawInput;
 }) {
   const { svg, input } = params;
-  appendEdgeFlowStyle(svg);
+  const edgeFlowMotion = resolveEdgeFlowMotion(input.theme);
+  appendEdgeFlowStyle({
+    svg,
+    animationName: "zoneflow-edge-flow",
+    className: EDGE_FLOW_CLASS,
+    motion: edgeFlowMotion,
+  });
 
   for (const [pathId, edges] of Object.entries(input.pipeline.graphLayout.edgesByPathId)) {
     const visibility = input.pipeline.visibility.pathVisibilityById[pathId];
     if (!visibility?.shouldRenderEdge) continue;
 
-    for (const edge of edges) {
-      const stroke = getEdgeColor({
-        kind: edge.kind,
-        theme: input.theme,
-      });
+    const drawableEdges = resolveDrawableEdgeSegments({
+      pathId,
+      edges,
+      visibility,
+    });
+
+    for (const { edge, collapsed } of drawableEdges) {
+      const stroke = collapsed
+        ? resolveCollapsedEdgeStroke(input.theme)
+        : getEdgeColor({
+            kind: edge.kind,
+            theme: input.theme,
+          });
       const pathD = getBezierCurvePathD({
         source: edge.source,
         target: edge.target,
@@ -645,19 +645,35 @@ function drawEdges(params: {
       path.setAttribute("opacity", String(opacity * 0.42));
       svg.appendChild(path);
 
+      const flowGlow = createSvgElement("path");
+      flowGlow.setAttribute("d", pathD);
+      flowGlow.setAttribute("fill", "none");
+      flowGlow.setAttribute("stroke", stroke);
+      flowGlow.setAttribute(
+        "stroke-width",
+        edge.kind === "path-to-zone" ? "4.4" : "3.8"
+      );
+      flowGlow.setAttribute("stroke-linecap", "round");
+      flowGlow.setAttribute("stroke-linejoin", "round");
+      flowGlow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
+      flowGlow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
+      flowGlow.setAttribute("opacity", String(opacity * 0.18));
+      flowGlow.setAttribute("class", EDGE_FLOW_CLASS);
+      svg.appendChild(flowGlow);
+
       const flow = createSvgElement("path");
       flow.setAttribute("d", pathD);
       flow.setAttribute("fill", "none");
       flow.setAttribute("stroke", stroke);
       flow.setAttribute(
         "stroke-width",
-        edge.kind === "path-to-zone" ? "2.8" : "2.35"
+        edge.kind === "path-to-zone" ? "2.55" : "2.15"
       );
       flow.setAttribute("stroke-linecap", "round");
       flow.setAttribute("stroke-linejoin", "round");
-      flow.setAttribute("stroke-dasharray", "1 11");
-      flow.setAttribute("stroke-dashoffset", "0");
-      flow.setAttribute("opacity", String(opacity));
+      flow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
+      flow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
+      flow.setAttribute("opacity", String(opacity * 0.94));
       flow.setAttribute("class", EDGE_FLOW_CLASS);
       svg.appendChild(flow);
     }

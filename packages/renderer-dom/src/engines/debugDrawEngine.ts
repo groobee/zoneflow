@@ -9,6 +9,13 @@ import type {
   RendererDrawInput,
   Rect,
 } from "../types";
+import {
+  appendEdgeFlowStyle,
+  resolveCollapsedEdgeStroke,
+  resolveDrawableEdgeSegments,
+  resolveEdgeFlowMotion,
+} from "./edgeFlow";
+import { defaultTheme } from "../themes/defaultTheme";
 
 export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
@@ -18,7 +25,8 @@ type DrawFn = (
   root: HTMLElement,
   pipeline: any,
   camera: CameraState,
-  viewport: Rect
+  viewport: Rect,
+  theme?: RendererDrawInput["theme"]
 ) => void;
 
 const ANCHOR_SIZE = 8;
@@ -29,20 +37,6 @@ const DEFAULT_DEBUG_LAYERS: DebugLayer[] = [
   "anchors",
 ];
 const EDGE_FLOW_CLASS = "zoneflow-debug-edge-flow";
-const EDGE_FLOW_STYLE = `
-@keyframes zoneflow-debug-edge-flow {
-  from { stroke-dashoffset: 18; }
-  to { stroke-dashoffset: 0; }
-}
-.${EDGE_FLOW_CLASS} {
-  animation: zoneflow-debug-edge-flow 900ms linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .${EDGE_FLOW_CLASS} {
-    animation: none;
-  }
-}
-`;
 
 const drawLayerMap: Record<DebugLayer, DrawFn> = {
   "graph-layout": drawGraphLayout,
@@ -58,12 +52,6 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   tag: K
 ): SVGElementTagNameMap[K] {
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
-}
-
-function appendEdgeFlowStyle(svg: SVGSVGElement) {
-  const style = createSvgElement("style");
-  style.textContent = EDGE_FLOW_STYLE;
-  svg.appendChild(style);
 }
 
 function sortZoneVisualsForRender(pipeline: any) {
@@ -89,8 +77,13 @@ function sortZoneVisualsForRender(pipeline: any) {
     .map((entry: any) => entry.zone);
 }
 
-function getEdgeColor(kind: "zone-to-path" | "path-to-zone") {
-  return kind === "zone-to-path" ? "#2563eb" : "#0f766e";
+function getEdgeColor(params: {
+  kind: "zone-to-path" | "path-to-zone";
+  theme: RendererDrawInput["theme"];
+}) {
+  return params.kind === "zone-to-path"
+    ? params.theme.pathEdge
+    : params.theme.pathInboundEdge;
 }
 
 function getBezierCurvePathD(params: {
@@ -244,7 +237,8 @@ export const debugDrawEngine = {
         worldRoot,
         pipeline,
         camera,
-        pipeline.viewportInfo.world
+        pipeline.viewportInfo.world,
+        input.theme
       );
     });
 
@@ -447,7 +441,13 @@ function drawComponentLayout(
   });
 }
 
-function drawEdges(root: HTMLElement, pipeline: any) {
+function drawEdges(
+  root: HTMLElement,
+  pipeline: any,
+  _camera: CameraState,
+  _viewport: Rect,
+  theme?: RendererDrawInput["theme"]
+) {
   const { edgesByPathId } = pipeline.graphLayout;
   const svg = createSvgElement("svg");
   svg.style.position = "absolute";
@@ -457,13 +457,31 @@ function drawEdges(root: HTMLElement, pipeline: any) {
   svg.style.height = "100%";
   svg.style.overflow = "visible";
   svg.style.pointerEvents = "none";
-  appendEdgeFlowStyle(svg);
+  const edgeFlowMotion = resolveEdgeFlowMotion(theme ?? defaultTheme);
+  appendEdgeFlowStyle({
+    svg,
+    animationName: "zoneflow-debug-edge-flow",
+    className: EDGE_FLOW_CLASS,
+    motion: edgeFlowMotion,
+  });
+  const effectiveTheme = theme ?? defaultTheme;
 
-  Object.values(edgesByPathId)
-    .flatMap((edges: any) => edges)
-    .forEach((edge: any) => {
+  Object.entries(edgesByPathId).forEach(([pathId, edges]: any) => {
+    const visibility = pipeline.visibility?.pathVisibilityById?.[pathId];
+    const drawableEdges = resolveDrawableEdgeSegments({
+      pathId,
+      edges,
+      visibility,
+    });
+
+    drawableEdges.forEach(({ edge, collapsed }) => {
       const path = createSvgElement("path");
-      const stroke = getEdgeColor(edge.kind);
+      const stroke = collapsed
+        ? resolveCollapsedEdgeStroke(effectiveTheme)
+        : getEdgeColor({
+            kind: edge.kind,
+            theme: effectiveTheme,
+          });
       const pathD = getBezierCurvePathD({
         source: edge.source,
         target: edge.target,
@@ -482,22 +500,40 @@ function drawEdges(root: HTMLElement, pipeline: any) {
 
       svg.appendChild(path);
 
+      const flowGlow = createSvgElement("path");
+      flowGlow.setAttribute("d", pathD);
+      flowGlow.setAttribute("fill", "none");
+      flowGlow.setAttribute("stroke", stroke);
+      flowGlow.setAttribute(
+        "stroke-width",
+        edge.kind === "zone-to-path" ? "3.8" : "4.4"
+      );
+      flowGlow.setAttribute("stroke-linecap", "round");
+      flowGlow.setAttribute("stroke-linejoin", "round");
+      flowGlow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
+      flowGlow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
+      flowGlow.setAttribute("opacity", "0.18");
+      flowGlow.setAttribute("class", EDGE_FLOW_CLASS);
+      svg.appendChild(flowGlow);
+
       const flow = createSvgElement("path");
       flow.setAttribute("d", pathD);
       flow.setAttribute("fill", "none");
       flow.setAttribute("stroke", stroke);
       flow.setAttribute(
         "stroke-width",
-        edge.kind === "zone-to-path" ? "2.45" : "2.85"
+        edge.kind === "zone-to-path" ? "2.15" : "2.55"
       );
       flow.setAttribute("stroke-linecap", "round");
       flow.setAttribute("stroke-linejoin", "round");
-      flow.setAttribute("stroke-dasharray", "1 11");
-      flow.setAttribute("stroke-dashoffset", "0");
+      flow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
+      flow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flow.setAttribute("class", EDGE_FLOW_CLASS);
+      flow.setAttribute("opacity", "0.94");
 
       svg.appendChild(flow);
     });
+  });
 
   root.appendChild(svg);
 }

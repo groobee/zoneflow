@@ -70,6 +70,12 @@ export const defaultTheme: ZoneflowTheme = {
     },
   },
 
+  edgeFlow: {
+    durationMs: 1320,
+    segmentLength: 18,
+    gapLength: 28,
+  },
+
   density: {
     zone: {
       detail: 200,
@@ -121,6 +127,10 @@ export function resolveTheme(
         ...defaultTheme.status.warning,
         ...theme.status?.warning,
       },
+    },
+    edgeFlow: {
+      ...defaultTheme.edgeFlow,
+      ...theme.edgeFlow,
     },
     density: {
       zone: {
