@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { UniverseModel, UniverseLayoutModel } from "@zoneflow/core";
+import type { CanConnectPath } from "@zoneflow/react";
 
 import {
   sampleUniverse,
@@ -15,8 +16,26 @@ import {
   sampleTinyUniverse,
   sampleTinyUniverseLayout,
 } from "../mock/sampleTinyUniverse";
+import {
+  sampleNoSelfLoopUniverse,
+  sampleNoSelfLoopUniverseLayout,
+} from "../mock/sampleNoSelfLoopUniverse";
+import {
+  sampleDagUniverse,
+  sampleDagUniverseLayout,
+} from "../mock/sampleDagUniverse";
+import {
+  dagCanConnectPath,
+  noSelfLoopCanConnectPath,
+} from "../canConnectStrategies";
 
-export type SampleType = "tiny" | "small" | "large" | "custom";
+export type SampleType =
+  | "tiny"
+  | "small"
+  | "large"
+  | "no-self-loop"
+  | "dag"
+  | "custom";
 
 type SampleSet = {
   model: UniverseModel;
@@ -36,6 +55,19 @@ const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
     model: sampleLargeUniverse,
     layoutModel: sampleLargeUniverseLayout,
   },
+  "no-self-loop": {
+    model: sampleNoSelfLoopUniverse,
+    layoutModel: sampleNoSelfLoopUniverseLayout,
+  },
+  dag: {
+    model: sampleDagUniverse,
+    layoutModel: sampleDagUniverseLayout,
+  },
+};
+
+const SAMPLE_CAN_CONNECT: Partial<Record<SampleType, CanConnectPath>> = {
+  "no-self-loop": noSelfLoopCanConnectPath,
+  dag: dagCanConnectPath,
 };
 
 function cloneSampleSet(sampleType: SampleType): SampleSet {
@@ -99,5 +131,6 @@ export function useSampleSwitcher(initial: SampleType = "small") {
     layoutModel: sample.layoutModel,
     setModel,
     setLayoutModel,
+    canConnectPath: SAMPLE_CAN_CONNECT[sampleType],
   };
 }

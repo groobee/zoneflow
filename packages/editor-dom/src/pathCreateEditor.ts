@@ -6,10 +6,12 @@ import {
   setPathTarget,
   type AnchorRect,
   updatePathLayout,
+  type Path,
   type PathId,
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
+  type Zone,
   type ZoneId,
 } from "@zoneflow/core";
 import {
@@ -18,6 +20,19 @@ import {
   type RendererFrame,
 } from "@zoneflow/renderer-dom";
 import type { GridSnapOptions } from "./zoneMoveEditor";
+
+export type CanConnectPathParams = {
+  mode: "create" | "retarget";
+  sourceZoneId: ZoneId;
+  targetZoneId: ZoneId;
+  sourceZone: Zone;
+  targetZone: Zone;
+  model: UniverseModel;
+  pathId?: PathId;
+  path?: Path;
+};
+
+export type CanConnectPath = (params: CanConnectPathParams) => boolean;
 
 function typedValues<TKey extends string, TValue>(
   record: Record<TKey, TValue>
@@ -154,8 +169,9 @@ export function resolveInputAnchorTargetZoneId(params: {
   camera: CameraState;
   point: Point;
   excludeZoneIds?: ZoneId[];
+  canConnect?: (targetZoneId: ZoneId) => boolean;
 }): ZoneId | null {
-  const { model, frame, camera, point, excludeZoneIds } = params;
+  const { model, frame, camera, point, excludeZoneIds, canConnect } = params;
   const excluded = new Set(excludeZoneIds ?? []);
   let bestZoneId: ZoneId | null = null;
   let bestArea = Number.POSITIVE_INFINITY;
@@ -176,6 +192,7 @@ export function resolveInputAnchorTargetZoneId(params: {
       kind: "inlet",
     });
     if (!rect || !containsPoint(rect, point)) continue;
+    if (canConnect && !canConnect(zoneVisual.zoneId)) continue;
 
     const area = getRectArea(rect);
     if (area < bestArea) {
@@ -242,28 +259,51 @@ export function retargetPathFromOutputAnchorDrag(params: {
   sourceZoneId: ZoneId;
   pathId: PathId;
   targetZoneId?: ZoneId | null;
+  canConnect?: CanConnectPath;
 }): UniverseModel | undefined {
   const {
     model,
     sourceZoneId,
     pathId,
     targetZoneId,
+    canConnect,
   } = params;
 
   const sourceZone = model.zonesById[sourceZoneId];
-  if (!sourceZone?.pathsById[pathId]) return undefined;
-  if (targetZoneId && !isZoneInputEnabled(model.zonesById[targetZoneId])) {
-    return undefined;
+  const path = sourceZone?.pathsById[pathId];
+  if (!sourceZone || !path) return undefined;
+
+  let resolvedTargetZoneId: ZoneId | null = targetZoneId ?? null;
+  if (resolvedTargetZoneId) {
+    const targetZone = model.zonesById[resolvedTargetZoneId];
+    if (!targetZone || !isZoneInputEnabled(targetZone)) {
+      return undefined;
+    }
+    if (
+      canConnect &&
+      !canConnect({
+        mode: "retarget",
+        sourceZoneId,
+        targetZoneId: resolvedTargetZoneId,
+        sourceZone,
+        targetZone,
+        model,
+        pathId,
+        path,
+      })
+    ) {
+      resolvedTargetZoneId = null;
+    }
   }
 
   return setPathTarget(
     model,
     sourceZoneId,
     pathId,
-    targetZoneId
+    resolvedTargetZoneId
       ? {
           universeId: model.universeId,
-          zoneId: targetZoneId,
+          zoneId: resolvedTargetZoneId,
         }
       : null
   );
@@ -277,6 +317,7 @@ export function createPathFromOutputAnchorDrag(params: {
   dropWorldPoint: Point;
   targetZoneId?: ZoneId | null;
   gridSnap?: GridSnapOptions;
+  canConnect?: CanConnectPath;
 }): CreatePathFromAnchorDragResult | undefined {
   const {
     model,
@@ -286,18 +327,37 @@ export function createPathFromOutputAnchorDrag(params: {
     dropWorldPoint,
     targetZoneId,
     gridSnap,
+    canConnect,
   } = params;
 
   const sourceZone = model.zonesById[sourceZoneId];
   const sourceVisual = frame.pipeline.graphLayout.zonesById[sourceZoneId];
-  const targetVisual = targetZoneId
-    ? frame.pipeline.graphLayout.zonesById[targetZoneId]
-    : undefined;
   if (!sourceZone || !sourceVisual) return undefined;
   if (!isZoneOutputEnabled(sourceZone)) return undefined;
-  if (targetZoneId && !isZoneInputEnabled(model.zonesById[targetZoneId])) {
-    return undefined;
+
+  let resolvedTargetZoneId: ZoneId | null = targetZoneId ?? null;
+  if (resolvedTargetZoneId) {
+    const targetZone = model.zonesById[resolvedTargetZoneId];
+    if (!targetZone || !isZoneInputEnabled(targetZone)) {
+      return undefined;
+    }
+    if (
+      canConnect &&
+      !canConnect({
+        mode: "create",
+        sourceZoneId,
+        targetZoneId: resolvedTargetZoneId,
+        sourceZone,
+        targetZone,
+        model,
+      })
+    ) {
+      resolvedTargetZoneId = null;
+    }
   }
+  const targetVisual = resolvedTargetZoneId
+    ? frame.pipeline.graphLayout.zonesById[resolvedTargetZoneId]
+    : undefined;
 
   const pathId = createPathId();
   const nextPathIndex = sourceZone.pathIds.length;
@@ -323,10 +383,10 @@ export function createPathFromOutputAnchorDrag(params: {
     id: pathId,
     key: `condition_${ordinal}`,
     name: "Empty",
-    target: targetZoneId
+    target: resolvedTargetZoneId
       ? {
           universeId: model.universeId,
-          zoneId: targetZoneId,
+          zoneId: resolvedTargetZoneId,
         }
       : null,
     rule: null,

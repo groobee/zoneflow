@@ -213,6 +213,7 @@ export function ZoneflowScreen() {
 - `renderPathEditor`
 - `onPathLabelDoubleClick`
 - `onPathLabelContextMenu`
+- `canConnectPath`
 
 예:
 
@@ -257,6 +258,37 @@ export function ZoneflowScreen() {
 ```
 
 도메인 규칙은 라이브러리 안에 넣지 말고, 이 주입 계층에서 처리하는 쪽이 맞습니다.
+
+### 패스 연결 검증
+
+존 간 패스를 새로 만들거나 기존 패스의 target 을 다른 존으로 옮길 때, 외부에서 도메인 룰에 따라 연결 가능 여부를 결정할 수 있습니다.
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    canConnectPath: ({ mode, sourceZone, targetZone, sourceZoneId, targetZoneId }) => {
+      // self-connect 금지
+      if (sourceZoneId === targetZoneId) return false;
+
+      // action 끼리 직결 금지
+      if (sourceZone.zoneType === "action" && targetZone.zoneType === "action") {
+        return false;
+      }
+
+      return true;
+    },
+  }}
+/>
+```
+
+동작:
+
+- hover 단계 — `false` 반환 시 해당 zone 이 drop target 후보에서 제외됩니다. 사용자에겐 "여기엔 못 붙음" 이 즉시 시각으로 보입니다.
+- drop 단계 — `false` 반환 시 path 의 `target` 이 `null` 로 강등됩니다. 새 path 의 경우 노드는 사용자가 놓은 위치에 만들어지지만 target 없이 비어있는 상태로, 기존 path retarget 의 경우 dangling 상태가 됩니다.
+- 콜백 미지정 시 모든 연결을 허용합니다 (기존 동작과 동일).
+
+`canConnectPath` 는 pointermove 마다 호출되므로 동기적이고 가벼워야 합니다. 콜백이 throw 하면 `false` 로 처리됩니다.
 
 ## 테마 주입
 

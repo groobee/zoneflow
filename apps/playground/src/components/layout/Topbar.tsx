@@ -12,10 +12,11 @@ import type {
   PlaygroundThemePreset,
   PlaygroundThemePresetId,
 } from "../../theme/playgroundThemes";
+import type { SampleType } from "../../hooks/useSampleSwitcher";
 
 type Props = {
-  sampleType: "tiny" | "small" | "large" | "custom";
-  setSampleType: (value: "tiny" | "small" | "large" | "custom") => void;
+  sampleType: SampleType;
+  setSampleType: (value: SampleType) => void;
   themePreset: PlaygroundThemePreset;
   themePresetId: PlaygroundThemePresetId;
   setThemePresetId: (value: PlaygroundThemePresetId) => void;
@@ -92,15 +93,13 @@ export function Topbar({
           <select
             style={themedSelectStyle}
             value={sampleType}
-            onChange={(e) =>
-              setSampleType(
-                e.target.value as "tiny" | "small" | "large" | "custom"
-              )
-            }
+            onChange={(e) => setSampleType(e.target.value as SampleType)}
           >
             <option value="tiny">Tiny sample</option>
             <option value="small">Small sample</option>
             <option value="large">Large sample</option>
+            <option value="no-self-loop">No self-loop sample</option>
+            <option value="dag">DAG sample</option>
             {sampleType === "custom" ? (
               <option value="custom">Loaded file</option>
             ) : null}

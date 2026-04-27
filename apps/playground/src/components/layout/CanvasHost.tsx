@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import {
   createZoneFromDropTemplate,
   UniverseEditorCanvas,
+  type CanConnectPath,
   type CanvasExternalDropPayload,
   type UniverseEditorController,
 } from "@zoneflow/react";
@@ -22,6 +23,7 @@ type Props = {
   onResize: (size: { width: number; height: number }) => void;
   overlayHudVisible: boolean;
   themePreset: PlaygroundThemePreset;
+  canConnectPath?: CanConnectPath;
 };
 
 export function CanvasHost({
@@ -30,6 +32,7 @@ export function CanvasHost({
   onResize,
   overlayHudVisible,
   themePreset,
+  canConnectPath,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const { zoneComponents, pathComponents } = useMemo(
@@ -101,6 +104,7 @@ export function CanvasHost({
             animation: true,
             confirm: true,
           },
+          canConnectPath,
           renderZoneEditButton: (props) => (
             <PlaygroundZoneEditButton {...props} />
           ),

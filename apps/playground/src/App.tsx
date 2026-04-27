@@ -7,7 +7,10 @@ import {
 } from "@zoneflow/core";
 import { useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
-import { useSampleSwitcher } from "./hooks/useSampleSwitcher";
+import {
+  useSampleSwitcher,
+  type SampleType,
+} from "./hooks/useSampleSwitcher";
 import { shellStyle } from "./components/layout/layout.styles";
 import { Topbar } from "./components/layout/Topbar";
 import { LeftPanel } from "./components/layout/LeftPanel";
@@ -45,6 +48,7 @@ export default function App() {
     layoutModel,
     setModel,
     setLayoutModel,
+    canConnectPath,
   } =
     useSampleSwitcher("small");
   const editor = useUniverseEditor({
@@ -87,9 +91,7 @@ export default function App() {
     });
   };
 
-  const handleSampleTypeChange = (
-    nextSampleType: "tiny" | "small" | "large" | "custom"
-  ) => {
+  const handleSampleTypeChange = (nextSampleType: SampleType) => {
     if (nextSampleType === "custom") {
       return;
     }
@@ -188,6 +190,7 @@ export default function App() {
         onResize={setHostSize}
         overlayHudVisible={overlayHudVisible}
         themePreset={themePreset}
+        canConnectPath={canConnectPath}
       />
 
       <RightPanel

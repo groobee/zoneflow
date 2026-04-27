@@ -40,6 +40,8 @@ import {
   resolveZoneAnchorScreenRect,
   resolveZoneResizeOrigin,
   screenPointToWorldPoint,
+  type CanConnectPath,
+  type CanConnectPathParams,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
   type PathResizeOrigin,
@@ -138,6 +140,8 @@ export type CanvasExternalDropPayload = {
   frame: RendererFrame | null;
 };
 
+export type { CanConnectPath, CanConnectPathParams };
+
 export type EditorTransactionMeta =
   | {
       kind: "move-zone";
@@ -193,6 +197,17 @@ export type ZoneMoveEditorConfig = {
   onPathLabelClick?: (event: PathLabelEventPayload) => void;
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
   onPathLabelContextMenu?: (event: PathLabelEventPayload) => void;
+  /**
+   * 외부에서 zone 간 path 연결 가능 여부를 검증하는 콜백.
+   *
+   * - 미지정 시 기본 동작: 모든 연결 허용 (기존 동작과 동일).
+   * - hover 단계: `false` 반환 시 해당 zone 이 drop target 후보에서 제외됨 — 사용자에게 즉시 시각 피드백.
+   * - drop 단계: `false` 반환 시 path 의 target 이 `null` 로 강등됨 (path 노드는 만들어지되 dangling).
+   *
+   * 도메인 룰(zoneType 호환성, cycle 방지, 중복 차단 등) 을 외부에서 결정할 때 사용.
+   * pointermove 마다 호출되므로 동기적이고 가벼워야 함.
+   */
+  canConnectPath?: CanConnectPath;
   onTransactionStart?: (transaction: EditorTransactionMeta) => void;
   onTransactionCommit?: (transaction: EditorTransactionMeta) => void;
   onTransactionCancel?: (transaction: EditorTransactionMeta) => void;
@@ -1200,6 +1215,7 @@ export function ZoneMoveEditorOverlay(props: {
     onTransactionStart: editor?.onTransactionStart,
     onTransactionCommit: editor?.onTransactionCommit,
     onTransactionCancel: editor?.onTransactionCancel,
+    canConnectPath: editor?.canConnectPath,
     onExclusionStateChange,
   });
 
@@ -1217,6 +1233,7 @@ export function ZoneMoveEditorOverlay(props: {
       onTransactionStart: editor?.onTransactionStart,
       onTransactionCommit: editor?.onTransactionCommit,
       onTransactionCancel: editor?.onTransactionCancel,
+      canConnectPath: editor?.canConnectPath,
       onExclusionStateChange,
     };
   }, [model, layoutModel, camera, frame, editor, onExclusionStateChange]);
@@ -1519,6 +1536,39 @@ export function ZoneMoveEditorOverlay(props: {
   };
 
   useEffect(() => {
+    const safeCanConnectPath: CanConnectPath = (params) => {
+      const fn = latestRef.current.canConnectPath;
+      if (!fn) return true;
+      try {
+        return fn(params);
+      } catch (err) {
+        console.error("[zoneflow] canConnectPath threw:", err);
+        return false;
+      }
+    };
+
+    const buildHoverCanConnect = (
+      sourceZoneId: ZoneId,
+      mode: "create" | "retarget",
+      pathId?: PathId
+    ) =>
+      (targetZoneId: ZoneId): boolean => {
+        const liveModel = latestRef.current.model;
+        const sourceZone = liveModel.zonesById[sourceZoneId];
+        const targetZone = liveModel.zonesById[targetZoneId];
+        if (!sourceZone || !targetZone) return false;
+        return safeCanConnectPath({
+          mode,
+          sourceZoneId,
+          targetZoneId,
+          sourceZone,
+          targetZone,
+          model: liveModel,
+          pathId,
+          path: pathId ? sourceZone.pathsById[pathId] : undefined,
+        });
+      };
+
     const stopDragging = () => {
       cancelLongPress();
 
@@ -1574,6 +1624,7 @@ export function ZoneMoveEditorOverlay(props: {
           frame: latestRef.current.frame,
           camera: latestRef.current.camera,
           point: pathCreate.currentScreenPoint,
+          canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
         });
         const created = createPathFromOutputAnchorDrag({
           model: latestRef.current.model,
@@ -1586,6 +1637,7 @@ export function ZoneMoveEditorOverlay(props: {
           ),
           targetZoneId,
           gridSnap: latestRef.current.gridSnap,
+          canConnect: safeCanConnectPath,
         });
 
         if (created) {
@@ -1601,6 +1653,11 @@ export function ZoneMoveEditorOverlay(props: {
           frame: latestRef.current.frame,
           camera: latestRef.current.camera,
           point: pathRetarget.currentScreenPoint,
+          canConnect: buildHoverCanConnect(
+            pathRetarget.sourceZoneId,
+            "retarget",
+            pathRetarget.pathId
+          ),
         });
 
         const nextModel = retargetPathFromOutputAnchorDrag({
@@ -1608,6 +1665,7 @@ export function ZoneMoveEditorOverlay(props: {
           sourceZoneId: pathRetarget.sourceZoneId,
           pathId: pathRetarget.pathId,
           targetZoneId,
+          canConnect: safeCanConnectPath,
         });
 
         if (nextModel) {
@@ -1899,6 +1957,11 @@ export function ZoneMoveEditorOverlay(props: {
             frame: latestRef.current.frame,
             camera: latestRef.current.camera,
             point: currentScreenPoint,
+            canConnect: buildHoverCanConnect(
+              pathRetarget.sourceZoneId,
+              "retarget",
+              pathRetarget.pathId
+            ),
           })
         );
         return;
@@ -1937,6 +2000,7 @@ export function ZoneMoveEditorOverlay(props: {
           frame: latestRef.current.frame,
           camera: latestRef.current.camera,
           point: currentScreenPoint,
+          canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
         })
       );
     };
