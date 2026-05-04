@@ -246,6 +246,61 @@ export type ZoneMoveEditorConfig = {
     enabled?: boolean;
     onDrop: (event: CanvasExternalDropPayload) => void;
   };
+  /**
+   * Zone outlet 에서 새 path 를 만들어낸 직후에 호출됩니다.
+   *
+   * 외부에서 path 의 옵션 (rule type, name, payload 등) 을 즉석에서 설정할 수 있게 합니다.
+   * 콜백은 새로 만들어진 `pathId` 와 함께 path 가 들어간 `model` / `layoutModel` 을 받고,
+   * 추가로 변경한 `model` / `layoutModel` 을 반환하면 editor 가 그 결과를 path 생성과
+   * 한 commit 으로 함께 적용합니다 (undo 도 한 단계).
+   *
+   * - 반환값이 `null/undefined/void` 이면 path 만 만들어진 상태 그대로 commit (기존 동작).
+   * - target 이 없는 dangling path 에도 동일하게 호출됩니다 (`targetZoneId === null`).
+   * - sync 호출이므로 prompt 같은 즉시 UI 가 자연스럽고, 비동기 modal 이 필요하면
+   *   콜백에서는 commit 만 두고 modal 이 닫힌 뒤 별도 setModel 로 후속 mutation 하는 패턴을
+   *   권장합니다.
+   */
+  onPathCreated?: (params: {
+    pathId: PathId;
+    sourceZoneId: ZoneId;
+    targetZoneId: ZoneId | null;
+    model: UniverseModel;
+    layoutModel: UniverseLayoutModel;
+  }) =>
+    | {
+        model?: UniverseModel;
+        layoutModel?: UniverseLayoutModel;
+      }
+    | null
+    | undefined
+    | void;
+  /**
+   * 기존 path 의 output anchor 를 끌어 zone 위가 아닌 빈 공간에 드롭했을 때 호출됩니다.
+   * (zone outlet 에서 새 path 를 만드는 흐름에서는 호출되지 않습니다 — 그 경우는 기존
+   * 동작대로 dangling path 가 생성됩니다.)
+   *
+   * 외부에서 새 zone 을 생성한 뒤, 생성된 zone 의 id 와 함께 변경된 model/layoutModel 을
+   * 반환하면 editor 가 그 zone 을 path 의 target 으로 자동 연결합니다.
+   *
+   * - 반환값이 `null/undefined/void` 이면 dangling path 로 처리 (기존 동작).
+   * - 반환된 `model` / `layoutModel` 은 path 연결까지 한 commit 에 적용됩니다.
+   */
+  onPathDropOnEmptySpace?: (params: {
+    sourceZoneId: ZoneId;
+    pathId: PathId;
+    worldPoint: Point;
+    screenPoint: Point;
+    model: UniverseModel;
+    layoutModel: UniverseLayoutModel;
+  }) =>
+    | {
+        model: UniverseModel;
+        layoutModel: UniverseLayoutModel;
+        targetZoneId: ZoneId;
+      }
+    | null
+    | undefined
+    | void;
   deleteInteraction?: {
     animation?: boolean;
     confirm?: boolean;
@@ -1216,6 +1271,8 @@ export function ZoneMoveEditorOverlay(props: {
     onTransactionCommit: editor?.onTransactionCommit,
     onTransactionCancel: editor?.onTransactionCancel,
     canConnectPath: editor?.canConnectPath,
+    onPathCreated: editor?.onPathCreated,
+    onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
     onExclusionStateChange,
   });
 
@@ -1234,6 +1291,8 @@ export function ZoneMoveEditorOverlay(props: {
       onTransactionCommit: editor?.onTransactionCommit,
       onTransactionCancel: editor?.onTransactionCancel,
       canConnectPath: editor?.canConnectPath,
+      onPathCreated: editor?.onPathCreated,
+      onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
       onExclusionStateChange,
     };
   }, [model, layoutModel, camera, frame, editor, onExclusionStateChange]);
@@ -1626,7 +1685,8 @@ export function ZoneMoveEditorOverlay(props: {
           point: pathCreate.currentScreenPoint,
           canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
         });
-        const created = createPathFromOutputAnchorDrag({
+
+        const createdPath = createPathFromOutputAnchorDrag({
           model: latestRef.current.model,
           layoutModel: latestRef.current.layoutModel,
           frame: latestRef.current.frame,
@@ -1640,16 +1700,35 @@ export function ZoneMoveEditorOverlay(props: {
           canConnect: safeCanConnectPath,
         });
 
-        if (created) {
-          latestRef.current.onModelChange?.(created.model);
-          latestRef.current.onLayoutModelChange?.(created.layoutModel);
-          setSelectedTargetKey(`path:${created.pathId}`);
+        if (createdPath) {
+          let finalModel = createdPath.model;
+          let finalLayoutModel = createdPath.layoutModel;
+
+          if (latestRef.current.onPathCreated) {
+            const result = latestRef.current.onPathCreated({
+              pathId: createdPath.pathId,
+              sourceZoneId: pathCreate.sourceZoneId,
+              targetZoneId,
+              model: finalModel,
+              layoutModel: finalLayoutModel,
+            });
+            if (result) {
+              if (result.model) finalModel = result.model;
+              if (result.layoutModel) finalLayoutModel = result.layoutModel;
+            }
+          }
+
+          latestRef.current.onModelChange?.(finalModel);
+          latestRef.current.onLayoutModelChange?.(finalLayoutModel);
+          setSelectedTargetKey(`path:${createdPath.pathId}`);
         }
       }
 
       if (pathRetarget?.hasMoved && latestRef.current.frame) {
-        const targetZoneId = resolveInputAnchorTargetZoneId({
-          model: latestRef.current.model,
+        let workingModel = latestRef.current.model;
+        let workingLayoutModel = latestRef.current.layoutModel;
+        let targetZoneId = resolveInputAnchorTargetZoneId({
+          model: workingModel,
           frame: latestRef.current.frame,
           camera: latestRef.current.camera,
           point: pathRetarget.currentScreenPoint,
@@ -1660,8 +1739,31 @@ export function ZoneMoveEditorOverlay(props: {
           ),
         });
 
+        if (
+          targetZoneId === null &&
+          latestRef.current.onPathDropOnEmptySpace
+        ) {
+          const dropWorldPoint = screenPointToWorldPoint(
+            pathRetarget.currentScreenPoint,
+            latestRef.current.camera
+          );
+          const created = latestRef.current.onPathDropOnEmptySpace({
+            sourceZoneId: pathRetarget.sourceZoneId,
+            pathId: pathRetarget.pathId,
+            worldPoint: dropWorldPoint,
+            screenPoint: pathRetarget.currentScreenPoint,
+            model: workingModel,
+            layoutModel: workingLayoutModel,
+          });
+          if (created) {
+            workingModel = created.model;
+            workingLayoutModel = created.layoutModel;
+            targetZoneId = created.targetZoneId;
+          }
+        }
+
         const nextModel = retargetPathFromOutputAnchorDrag({
-          model: latestRef.current.model,
+          model: workingModel,
           sourceZoneId: pathRetarget.sourceZoneId,
           pathId: pathRetarget.pathId,
           targetZoneId,
@@ -1670,6 +1772,9 @@ export function ZoneMoveEditorOverlay(props: {
 
         if (nextModel) {
           latestRef.current.onModelChange?.(nextModel);
+          if (workingLayoutModel !== latestRef.current.layoutModel) {
+            latestRef.current.onLayoutModelChange?.(workingLayoutModel);
+          }
           setSelectedTargetKey(`path:${pathRetarget.pathId}`);
         }
       }

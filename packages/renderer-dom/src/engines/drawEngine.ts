@@ -1,4 +1,5 @@
 import type {
+  BackgroundRendererContext,
   DrawEngine,
   PathComponentLayout,
   PathComponentMount,
@@ -30,6 +31,7 @@ import {
 
 const SCENE_PADDING = 64;
 const RENDER_Z_INDEX = {
+  backgroundLayer: 0,
   zoneBase: 1,
   pathNode: 1,
   pathStatusBadge: 2,
@@ -53,11 +55,65 @@ function createEmptyMountRegistry(): RenderMountRegistry {
   return {
     zones: [],
     paths: [],
+    background: null,
   };
 }
 
 function clearHost(host: HTMLElement) {
   host.innerHTML = "";
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
+}
+
+function createGridLayer(params: {
+  options: NonNullable<RendererDrawInput["gridOptions"]>;
+  camera: RendererDrawInput["camera"];
+  theme: RendererDrawInput["theme"];
+}): HTMLElement | null {
+  const { options, camera, theme } = params;
+  const worldSize = Math.max(options.size ?? 16, 2);
+  const majorEvery = Math.max(options.majorEvery ?? 4, 2);
+  const minorSize = worldSize * camera.zoom;
+  const majorSize = minorSize * majorEvery;
+
+  if (minorSize < 2) return null;
+
+  const minorOffsetX = positiveModulo(camera.x, minorSize);
+  const minorOffsetY = positiveModulo(camera.y, minorSize);
+  const majorOffsetX = positiveModulo(camera.x, majorSize);
+  const majorOffsetY = positiveModulo(camera.y, majorSize);
+
+  const minorColor = options.color ?? "rgba(148, 163, 184, 0.10)";
+  const majorColor = options.majorColor ?? "rgba(148, 163, 184, 0.18)";
+
+  const grid = document.createElement("div");
+  applyStyles(grid, {
+    position: "absolute",
+    inset: "0",
+    pointerEvents: "none",
+    backgroundColor: options.backgroundColor ?? "transparent",
+    backgroundImage: [
+      `linear-gradient(to right, ${minorColor} 1px, transparent 1px)`,
+      `linear-gradient(to bottom, ${minorColor} 1px, transparent 1px)`,
+      `linear-gradient(to right, ${majorColor} 1px, transparent 1px)`,
+      `linear-gradient(to bottom, ${majorColor} 1px, transparent 1px)`,
+    ].join(", "),
+    backgroundSize: [
+      `${minorSize}px ${minorSize}px`,
+      `${minorSize}px ${minorSize}px`,
+      `${majorSize}px ${majorSize}px`,
+      `${majorSize}px ${majorSize}px`,
+    ].join(", "),
+    backgroundPosition: [
+      `${minorOffsetX}px ${minorOffsetY}px`,
+      `${minorOffsetX}px ${minorOffsetY}px`,
+      `${majorOffsetX}px ${majorOffsetY}px`,
+      `${majorOffsetX}px ${majorOffsetY}px`,
+    ].join(", "),
+  });
+  return grid;
 }
 
 function createIdSet(ids?: string[]): Set<string> {
@@ -829,7 +885,9 @@ export const domDrawEngine: DrawEngine = {
 
     const sceneBounds = computeSceneBounds(input);
     const viewportRoot = document.createElement("div");
+    const worldBgRoot = document.createElement("div");
     const worldRoot = document.createElement("div");
+    const backgroundLayer = document.createElement("div");
     const edgeSvg = createSvgElement("svg");
     const zoneLayer = document.createElement("div");
     const pathLayer = document.createElement("div");
@@ -850,13 +908,27 @@ export const domDrawEngine: DrawEngine = {
       }
     });
 
+    const worldTransform = `translate(${camera.x - viewportInfo.effective.x}px, ${camera.y - viewportInfo.effective.y}px) scale(${camera.zoom})`;
+
+    applyStyles(worldBgRoot, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      width: `${sceneBounds.width}px`,
+      height: `${sceneBounds.height}px`,
+      transform: worldTransform,
+      transformOrigin: "0 0",
+      willChange: "transform",
+      pointerEvents: "none",
+    });
+
     applyStyles(worldRoot, {
       position: "absolute",
       left: "0",
       top: "0",
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
-      transform: `translate(${camera.x - viewportInfo.effective.x}px, ${camera.y - viewportInfo.effective.y}px) scale(${camera.zoom})`,
+      transform: worldTransform,
       transformOrigin: "0 0",
       willChange: "transform",
     });
@@ -875,6 +947,16 @@ export const domDrawEngine: DrawEngine = {
       zIndex: RENDER_Z_INDEX.edgeLayer,
     });
 
+    applyStyles(backgroundLayer, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      width: `${sceneBounds.width}px`,
+      height: `${sceneBounds.height}px`,
+      zIndex: RENDER_Z_INDEX.backgroundLayer,
+      pointerEvents: "none",
+    });
+
     applyStyles(zoneLayer, {
       position: "absolute",
       left: "0",
@@ -882,6 +964,7 @@ export const domDrawEngine: DrawEngine = {
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
       zIndex: RENDER_Z_INDEX.zoneLayer,
+      pointerEvents: "none",
     });
 
     applyStyles(pathLayer, {
@@ -891,11 +974,39 @@ export const domDrawEngine: DrawEngine = {
       width: `${sceneBounds.width}px`,
       height: `${sceneBounds.height}px`,
       zIndex: RENDER_Z_INDEX.pathLayer,
+      pointerEvents: "none",
     });
 
+    const backgroundContext: BackgroundRendererContext = {
+      sceneBounds,
+      camera,
+      viewportInfo,
+      theme,
+    };
+
+    if (input.backgroundRenderer) {
+      input.backgroundRenderer(backgroundLayer, backgroundContext);
+    }
+
+    mounts.background = {
+      host: backgroundLayer,
+      context: backgroundContext,
+    };
+
+    worldBgRoot.appendChild(backgroundLayer);
     worldRoot.appendChild(edgeSvg);
     worldRoot.appendChild(zoneLayer);
     worldRoot.appendChild(pathLayer);
+
+    viewportRoot.appendChild(worldBgRoot);
+    if (input.gridOptions?.enabled) {
+      const gridLayer = createGridLayer({
+        options: input.gridOptions,
+        camera,
+        theme,
+      });
+      if (gridLayer) viewportRoot.appendChild(gridLayer);
+    }
     viewportRoot.appendChild(worldRoot);
     host.appendChild(viewportRoot);
 

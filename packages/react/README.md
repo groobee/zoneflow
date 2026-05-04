@@ -139,7 +139,7 @@ export function ZoneflowScreen() {
 
 존/패스 내부 렌더링은 slot component로 주입합니다.
 
-zone slot:
+기본 zone slot:
 
 - `title`
 - `type`
@@ -154,6 +154,54 @@ path slot:
 - `target`
 - `body`
 
+기본 5종 외에 임의의 zone slot (코멘트 버튼, 전환수 카드 등) 을 추가하려면 **확장형 layout engine** 을 주입합니다. 자세한 사용은 root README 의 "슬롯 확장" 섹션을 참조하세요.
+
+```tsx
+import {
+  createExtensibleComponentLayoutEngine,
+  type ExtensibleZoneSlot,
+} from "@zoneflow/renderer-dom";
+
+const layoutEngine = createExtensibleComponentLayoutEngine({
+  extraSlots: [
+    { name: "comment", placement: { kind: "top", height: 22 } },
+    { name: "convStats", placement: { kind: "bottom", height: 26 } },
+  ],
+});
+
+<UniverseEditorCanvas
+  editor={editor}
+  componentLayoutEngine={layoutEngine}
+  zoneComponents={{ title, badge, body, comment, convStats }}
+/>
+```
+
+빈 config 로 호출하면 default 와 동일한 출력이라 호환성 100%.
+
+### `background` / `backgroundRenderer`
+
+캔버스 전체에 월드 좌표계 배경 (지도, blueprint 패턴, 이미지 등) 을 깔 수 있습니다. 카메라 pan/zoom 에 같이 따라가며, 레이어 순서는 `background → grid → zones`.
+
+```tsx
+function MapBackground({ mount }: BackgroundComponentProps) {
+  const { sceneBounds } = mount.context;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        width: sceneBounds.width,
+        height: sceneBounds.height,
+        backgroundImage: "url('/my-map.png')",
+      }}
+    />
+  );
+}
+
+<UniverseEditorCanvas editor={editor} background={MapBackground} />
+```
+
+DOM 직접 렌더링은 `backgroundRenderer={(host, ctx) => {...}}`. 배경 host 는 자동으로 `pointer-events: none` 이라 클릭 방해 없음.
+
 ## 편집기 주입 포인트
 
 실서비스 폼은 외부에서 주입하면 됩니다.
@@ -163,6 +211,9 @@ path slot:
 - `renderPathEditor`
 - `onPathLabelDoubleClick`
 - `onPathLabelContextMenu`
+- `canConnectPath` — zone 간 path 연결 검증
+- `onPathCreated` — zone outlet 에서 새 path 가 만들어진 직후 호출, rule/name 등 옵션을 즉석 설정 (생성 + 옵션 적용이 단일 commit)
+- `onPathDropOnEmptySpace` — 기존 path 의 output anchor 를 빈 공간에 드롭했을 때 새 zone 을 만들고 자동 연결 (zone outlet 에서 새 path 를 만드는 흐름은 해당 없음)
 
 예:
 

@@ -13,6 +13,10 @@ import type {
   PlaygroundThemePresetId,
 } from "../../theme/playgroundThemes";
 import type { SampleType } from "../../hooks/useSampleSwitcher";
+import {
+  weatherBackgroundOptions,
+  type WeatherBackgroundId,
+} from "../renderers/customBackground";
 
 type Props = {
   sampleType: SampleType;
@@ -20,6 +24,8 @@ type Props = {
   themePreset: PlaygroundThemePreset;
   themePresetId: PlaygroundThemePresetId;
   setThemePresetId: (value: PlaygroundThemePresetId) => void;
+  weatherBackgroundId: WeatherBackgroundId;
+  setWeatherBackgroundId: (value: WeatherBackgroundId) => void;
   editor: UniverseEditorController;
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
@@ -35,6 +41,8 @@ export function Topbar({
   themePreset,
   themePresetId,
   setThemePresetId,
+  weatherBackgroundId,
+  setWeatherBackgroundId,
   editor,
   overlayHudVisible,
   onToggleOverlayHud,
@@ -103,6 +111,20 @@ export function Topbar({
             {sampleType === "custom" ? (
               <option value="custom">Loaded file</option>
             ) : null}
+          </select>
+          <select
+            style={themedSelectStyle}
+            value={weatherBackgroundId}
+            onChange={(e) =>
+              setWeatherBackgroundId(e.target.value as WeatherBackgroundId)
+            }
+            title="Background weather"
+          >
+            {weatherBackgroundOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                BG: {opt.label}
+              </option>
+            ))}
           </select>
         </>
       }

@@ -121,6 +121,8 @@ export function createRenderer(): ZoneflowRenderer {
 
         zoneComponentRenderers,
         pathComponentRenderers,
+        backgroundRenderer,
+        gridOptions,
         interactionHandlers,
         exclusionState,
 
@@ -166,6 +168,7 @@ export function createRenderer(): ZoneflowRenderer {
           mounts: {
             zones: [],
             paths: [],
+            background: null,
           },
         } satisfies RendererFrame;
       }
@@ -181,6 +184,8 @@ export function createRenderer(): ZoneflowRenderer {
         pipeline,
         zoneComponentRenderers,
         pathComponentRenderers,
+        backgroundRenderer,
+        gridOptions,
         interactionHandlers,
         exclusionState,
       });

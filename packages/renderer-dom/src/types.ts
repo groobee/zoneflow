@@ -106,18 +106,22 @@ export type VisibilityResult = {
   pathVisibilityById: Record<PathId, PathVisibility>;
 };
 
-export type ZoneComponentSlotName =
+export type BuiltInZoneSlotName =
   | "title"
   | "type"
   | "badge"
   | "body"
   | "footer";
 
-export type PathComponentSlotName =
+export type ZoneComponentSlotName = BuiltInZoneSlotName | (string & {});
+
+export type BuiltInPathSlotName =
   | "label"
   | "rule"
   | "target"
   | "body";
+
+export type PathComponentSlotName = BuiltInPathSlotName | (string & {});
 
 export type ZoneComponentLayout = {
   zoneId: ZoneId;
@@ -196,9 +200,36 @@ export type PathComponentMount = {
   context: PathComponentRendererContext;
 };
 
+export type BackgroundRendererContext = {
+  sceneBounds: Rect;
+  camera: CameraState;
+  viewportInfo: RenderViewportInfo;
+  theme: ZoneflowTheme;
+};
+
+export type GridOptions = {
+  enabled?: boolean;
+  size?: number;
+  color?: string;
+  majorEvery?: number;
+  majorColor?: string;
+  backgroundColor?: string;
+};
+
+export type BackgroundRenderer = (
+  host: HTMLElement,
+  context: BackgroundRendererContext
+) => void;
+
+export type BackgroundMount = {
+  host: HTMLElement;
+  context: BackgroundRendererContext;
+};
+
 export type RenderMountRegistry = {
   zones: ZoneComponentMount[];
   paths: PathComponentMount[];
+  background: BackgroundMount | null;
 };
 
 export type RendererInteractionHandlers = {
@@ -240,6 +271,8 @@ export type RendererDrawInput = {
   pipeline: RenderPipelineResult;
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  backgroundRenderer?: BackgroundRenderer;
+  gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
 };
@@ -319,6 +352,8 @@ export type RendererInput = {
 
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  backgroundRenderer?: BackgroundRenderer;
+  gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
 

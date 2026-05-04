@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
+import { updatePath } from "@zoneflow/core";
 import {
   createZoneFromDropTemplate,
   UniverseEditorCanvas,
@@ -10,6 +11,14 @@ import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
 import { getThemePresetComponents } from "../renderers/presetComponents";
+import {
+  customZoneComponents,
+  customZoneLayoutEngine,
+} from "../renderers/customSlots";
+import {
+  makeWeatherBackground,
+  type WeatherBackgroundId,
+} from "../renderers/customBackground";
 import {
   PlaygroundZoneEditButton,
   PlaygroundZoneEditor,
@@ -23,6 +32,7 @@ type Props = {
   onResize: (size: { width: number; height: number }) => void;
   overlayHudVisible: boolean;
   themePreset: PlaygroundThemePreset;
+  weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
 };
 
@@ -32,12 +42,20 @@ export function CanvasHost({
   onResize,
   overlayHudVisible,
   themePreset,
+  weatherBackgroundId,
   canConnectPath,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const { zoneComponents, pathComponents } = useMemo(
-    () => getThemePresetComponents(themePreset.id),
-    [themePreset.id]
+  const { zoneComponents, pathComponents } = useMemo(() => {
+    const preset = getThemePresetComponents(themePreset.id);
+    return {
+      zoneComponents: { ...preset.zoneComponents, ...customZoneComponents },
+      pathComponents: preset.pathComponents,
+    };
+  }, [themePreset.id]);
+  const Background = useMemo(
+    () => makeWeatherBackground(weatherBackgroundId),
+    [weatherBackgroundId]
   );
 
   useEffect(() => {
@@ -83,12 +101,73 @@ export function CanvasHost({
     editor.updateDraftLayoutModel(next.layoutModel);
   };
 
+  const handlePathCreated = (params: {
+    pathId: string;
+    sourceZoneId: string;
+    targetZoneId: string | null;
+    model: typeof editor.model;
+    layoutModel: typeof editor.layoutModel;
+  }) => {
+    const allowedRules = ["allow", "deny", "match", "fallback"];
+    const ruleType = window.prompt(
+      `새 패스 옵션 선택 (${allowedRules.join(" / ")}, 빈 값=옵션 없음)`,
+      "allow"
+    );
+    if (ruleType === null) return;
+
+    const trimmed = ruleType.trim();
+    const nextRule = trimmed ? { type: trimmed } : null;
+
+    return {
+      model: updatePath(
+        params.model,
+        params.sourceZoneId,
+        params.pathId,
+        {
+          name: trimmed,
+          rule: nextRule,
+        }
+      ),
+    };
+  };
+
+  const handlePathDropOnEmptySpace = (params: {
+    worldPoint: { x: number; y: number };
+    model: typeof editor.model;
+    layoutModel: typeof editor.layoutModel;
+  }) => {
+    const name = window.prompt("새 zone 이름을 입력하세요", "New Zone");
+    if (!name) return null;
+
+    const next = createZoneFromDropTemplate({
+      model: params.model,
+      layoutModel: params.layoutModel,
+      worldPoint: params.worldPoint,
+      gridSnapEnabled: editor.gridSnapEnabled,
+      gridSnapSize: editor.gridSnapSize,
+      template: {
+        name,
+        zoneType: "container",
+        width: 220,
+        height: 140,
+      },
+    });
+
+    return {
+      model: next.model,
+      layoutModel: next.layoutModel,
+      targetZoneId: next.zoneId,
+    };
+  };
+
   return (
     <main ref={ref} style={canvasHostStyle}>
       <UniverseEditorCanvas
         editor={editor}
         theme={themePreset.rendererTheme}
         viewport={debug.viewport}
+        componentLayoutEngine={customZoneLayoutEngine}
+        background={Background}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{
@@ -100,6 +179,8 @@ export function CanvasHost({
             enabled: true,
             onDrop: handlePaletteZoneDrop,
           },
+          onPathCreated: handlePathCreated,
+          onPathDropOnEmptySpace: handlePathDropOnEmptySpace,
           deleteInteraction: {
             animation: true,
             confirm: true,

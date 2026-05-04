@@ -22,6 +22,7 @@ import {
   playgroundThemePresets,
   type PlaygroundThemePresetId,
 } from "./theme/playgroundThemes";
+import type { WeatherBackgroundId } from "./components/renderers/customBackground";
 
 /**
  * Zoneflow Playground (Sample App)
@@ -67,6 +68,8 @@ export default function App() {
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
     defaultPlaygroundThemePresetId
   );
+  const [weatherBackgroundId, setWeatherBackgroundId] =
+    useState<WeatherBackgroundId>("sunny");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isEditMode = editor.isEditMode;
   const workingModel = editor.model;
@@ -174,6 +177,8 @@ export default function App() {
         themePreset={themePreset}
         themePresetId={themePresetId}
         setThemePresetId={handleThemePresetChange}
+        weatherBackgroundId={weatherBackgroundId}
+        setWeatherBackgroundId={setWeatherBackgroundId}
         editor={editor}
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
@@ -190,6 +195,7 @@ export default function App() {
         onResize={setHostSize}
         overlayHudVisible={overlayHudVisible}
         themePreset={themePreset}
+        weatherBackgroundId={weatherBackgroundId}
         canConnectPath={canConnectPath}
       />
 

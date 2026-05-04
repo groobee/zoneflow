@@ -290,6 +290,206 @@ export function ZoneflowScreen() {
 
 `canConnectPath` 는 pointermove 마다 호출되므로 동기적이고 가벼워야 합니다. 콜백이 throw 하면 `false` 로 처리됩니다.
 
+### 패스 생성 직후 옵션 설정 (onPathCreated)
+
+Zone outlet 에서 끌어 새 path 가 만들어지는 순간, 외부에서 path 의 rule type / name / payload 같은 옵션을 즉석에서 설정할 수 있습니다. path 생성과 옵션 적용이 단일 commit 으로 묶여 undo 가 한 단계로 처리됩니다.
+
+```tsx
+import { updatePath } from "@zoneflow/core";
+
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    onPathCreated: ({ pathId, sourceZoneId, targetZoneId, model }) => {
+      const ruleType = window.prompt(
+        "새 패스 rule (allow / deny / match …)",
+        "allow"
+      );
+      if (ruleType === null) return; // 변경 없이 그대로 commit
+
+      return {
+        model: updatePath(model, sourceZoneId, pathId, {
+          rule: ruleType.trim() ? { type: ruleType.trim() } : null,
+        }),
+      };
+    },
+  }}
+/>
+```
+
+콜백 파라미터:
+
+- `pathId` — 방금 만들어진 path 의 id
+- `sourceZoneId` — path 가 속한 zone
+- `targetZoneId` — 연결된 target zone (`null` 이면 dangling)
+- `model` / `layoutModel` — path 가 들어간 직후의 모델 (commit 직전)
+
+반환값:
+
+- `{ model?, layoutModel? }` — 추가로 변경한 모델을 돌려주면 path 생성과 그 변경을 한 commit 으로 묶어 적용
+- `null` / `undefined` / 콜백 미지정 — path 만 만들어진 상태로 그대로 commit (기존 동작)
+
+비동기 modal 이 필요하면 콜백에서는 commit 만 두고, modal 이 닫힌 뒤 별도 `setModel` 로 후속 mutation 하는 패턴이 더 깔끔합니다 (단, undo 는 두 단계가 됩니다).
+
+### 빈 공간 패스 드롭 → 존 생성
+
+**기존 path 의 output anchor (path label) 를 끌어** zone 위가 아닌 빈 캔버스에 놓을 때, 외부에서 즉석으로 새 zone 을 만들고 그 zone 에 path 를 자동 연결하도록 콜백을 등록할 수 있습니다. "존을 먼저 만들고 연결" 이 아니라 **"패스 라벨에서 바로 존을 만든다"** 흐름.
+
+> zone outlet 에서 새 path 를 만드는 흐름 (path-create) 에서는 호출되지 않습니다 — 그 경우는 빈 공간에 떨어뜨리면 기존 동작대로 dangling path 가 만들어집니다.
+
+```tsx
+import { createZoneFromDropTemplate } from "@zoneflow/react";
+
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    onPathDropOnEmptySpace: ({ worldPoint, model, layoutModel }) => {
+      const name = window.prompt("새 zone 이름");
+      if (!name) return null;
+
+      const next = createZoneFromDropTemplate({
+        model,
+        layoutModel,
+        worldPoint,
+        gridSnapEnabled: editor.gridSnapEnabled,
+        gridSnapSize: editor.gridSnapSize,
+        template: { name, zoneType: "container", width: 220, height: 140 },
+      });
+
+      return {
+        model: next.model,
+        layoutModel: next.layoutModel,
+        targetZoneId: next.zoneId,
+      };
+    },
+  }}
+/>
+```
+
+콜백 파라미터:
+
+- `sourceZoneId` — path 가 출발하는 zone
+- `pathId` — 재지정 중인 path 의 id
+- `worldPoint` / `screenPoint` — 드롭 위치
+- `model` / `layoutModel` — 드롭 시점의 최신 모델
+
+반환값:
+
+- `{ model, layoutModel, targetZoneId }` — 새 zone 을 만든 결과를 돌려주면 editor 가 그 zone 을 path 의 target 으로 자동 연결. zone 생성 + path 연결이 단일 commit 으로 처리됨.
+- `null` / `undefined` / 콜백 미지정 — 기존 동작 (dangling path 로 처리)
+
+`createZoneFromDropTemplate` 외에도 `@zoneflow/core` 의 mutation 으로 직접 만들어도 됩니다. 핵심은 변경된 `model`/`layoutModel` 과 새 `targetZoneId` 만 돌려주면 path 연결은 editor 가 알아서 한다는 점.
+
+## 슬롯 확장 (커스텀 UI 요소 추가)
+
+기본 zone 슬롯은 `title | type | badge | body | footer` 5종으로 고정되어 있습니다. 이외에 코멘트 버튼, 전환수, 전환금액 카드 같은 임의의 UI 요소를 zone 안에 끼워 넣고 싶다면 **확장형 layout engine** 을 주입합니다.
+
+```tsx
+import {
+  createExtensibleComponentLayoutEngine,
+  type ExtensibleZoneSlot,
+} from "@zoneflow/renderer-dom";
+
+const extraSlots: ExtensibleZoneSlot[] = [
+  {
+    name: "comment",
+    placement: { kind: "top", height: 22 },
+    shouldRender: ({ density, zone }) =>
+      zone.childZoneIds.length === 0 &&
+      (density === "near" || density === "detail"),
+  },
+  {
+    name: "convStats",
+    placement: { kind: "bottom", height: 26 },
+    shouldRender: ({ density }) => density === "detail",
+  },
+];
+
+const layoutEngine = createExtensibleComponentLayoutEngine({
+  extraSlots,
+  // disabledBuiltIns: ["footer"],            // 기본 슬롯 끄기 (선택)
+  // builtInDensityOverride: {                // 기본 줌별 가시성 재정의 (선택)
+  //   badge: ({ density }) => density !== "far",
+  // },
+});
+
+<UniverseEditorCanvas
+  editor={editor}
+  componentLayoutEngine={layoutEngine}
+  zoneComponents={{
+    title: TitleSlot,
+    badge: BadgeSlot,
+    body:  BodySlot,
+    comment: ({ mount }) => (
+      <button onClick={(e) => {
+        e.stopPropagation();          // zone 클릭으로 bubble 안 시키기
+        openComments(mount.context.zone.id);
+      }}>💬 코멘트</button>
+    ),
+    convStats: ({ mount }) => <ConvStats zoneId={mount.context.zone.id} />,
+  }}
+/>
+```
+
+핵심 포인트:
+
+- `extraSlots` 항목은 `placement: "top"` (badge/title/type 다음에 stack) 또는 `"bottom"` (footer 위) 로 배치
+- 빈 config 호출 시 (`createExtensibleComponentLayoutEngine()`) `defaultComponentLayoutEngine` 과 출력이 동일 — 기존 동작과 100% 호환
+- 슬롯 컴포넌트는 React `onClick` 등 일반 이벤트 그대로 사용. `stopPropagation()` 호출하면 zone 단위 click 도 차단 가능
+- 줌 단계별 (`far / mid / near / detail`) 가시성은 슬롯마다 `shouldRender` 로 제어
+- `disabledBuiltIns` 로 `footer` 같은 기본 슬롯을 꺼서 그 자리를 다른 슬롯이나 body 가 차지하도록 만들 수 있음
+
+zone 의 컨테이너/자식 관계 때문에 부모 zone 의 슬롯 영역 위에 자식 zone 이 그려지는 경우, 마우스 클릭이 자식 zone 에 가로채집니다. 인터랙티브한 슬롯 (버튼 등) 은 leaf zone 에서만 렌더하도록 `shouldRender` 에서 `zone.childZoneIds.length === 0` 조건을 거는 것이 안전합니다.
+
+## 월드 배경 (지도/이미지)
+
+캔버스 전체에 월드 좌표계로 동작하는 배경을 깔 수 있습니다. (지도 타일, blueprint 패턴 등) 카메라 pan/zoom 에 같이 따라가며, 시각 순서는 **`background → grid → zones`** 입니다.
+
+React 컴포넌트로 주입:
+
+```tsx
+import type { BackgroundComponentProps } from "@zoneflow/react";
+
+function MapBackground({ mount }: BackgroundComponentProps) {
+  const { sceneBounds } = mount.context;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: sceneBounds.width,
+        height: sceneBounds.height,
+        backgroundImage: "url('/my-map.png')",
+        backgroundRepeat: "repeat",
+      }}
+    />
+  );
+}
+
+<UniverseEditorCanvas
+  editor={editor}
+  background={MapBackground}
+/>
+```
+
+DOM 직접 렌더링이 필요하면:
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  backgroundRenderer={(host, { sceneBounds }) => {
+    host.style.backgroundImage = "url('/my-map.png')";
+    host.style.width = `${sceneBounds.width}px`;
+    host.style.height = `${sceneBounds.height}px`;
+  }}
+/>
+```
+
+`mount.context` 에는 `sceneBounds`, `camera`, `viewportInfo`, `theme` 가 들어옵니다. 배경 host 에는 자동으로 `pointer-events: none` 이 적용되어 zone/path 클릭을 가로채지 않습니다.
+
+화면 고정 배경 (카메라에 안 따라오는 단색/그라데이션) 은 `theme.background` 또는 캔버스 컨테이너의 CSS 배경으로 처리하는 쪽이 더 적합합니다.
+
 ## 테마 주입
 
 `@zoneflow/react`는 렌더러 테마와 editor HUD/preview 테마를 각각 주입할 수 있습니다.

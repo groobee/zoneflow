@@ -2,6 +2,7 @@ import type { CSSProperties, ComponentType, ReactNode } from "react";
 import { Fragment } from "react";
 import { createPortal } from "react-dom";
 import type {
+  BackgroundMount,
   PathComponentMount,
   PathComponentSlotName,
   RenderMountRegistry,
@@ -17,8 +18,13 @@ export type PathSlotComponentProps = {
   mount: PathComponentMount;
 };
 
+export type BackgroundComponentProps = {
+  mount: BackgroundMount;
+};
+
 export type ZoneSlotComponent = ComponentType<ZoneSlotComponentProps>;
 export type PathSlotComponent = ComponentType<PathSlotComponentProps>;
+export type BackgroundComponent = ComponentType<BackgroundComponentProps>;
 
 export type ZoneSlotComponentMap = Partial<
   Record<ZoneComponentSlotName, ZoneSlotComponent>
@@ -60,15 +66,26 @@ export function SlotPortals(props: {
   mounts: RenderMountRegistry;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
+  background?: BackgroundComponent;
 }) {
   const {
     mounts,
     zoneComponents,
     pathComponents,
+    background: BackgroundComponent,
   } = props;
 
   return (
     <>
+      {BackgroundComponent && mounts.background ? (
+        <Fragment key="background">
+          {createPortal(
+            <BackgroundComponent mount={mounts.background} />,
+            mounts.background.host
+          )}
+        </Fragment>
+      ) : null}
+
       {mounts.zones.map((mount: ZoneComponentMount) => {
         const Component = zoneComponents?.[mount.slot];
         if (!Component) return null;

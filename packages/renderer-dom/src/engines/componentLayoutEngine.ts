@@ -1,4 +1,6 @@
+import type { Zone } from "@zoneflow/core";
 import type {
+  BuiltInZoneSlotName,
   ComponentLayoutEngine,
   PathComponentLayout,
   PathVisualMode,
@@ -272,3 +274,245 @@ export const defaultComponentLayoutEngine: ComponentLayoutEngine = {
     };
   },
 };
+
+export type ZoneSlotPlacement =
+  | { kind: "top"; height: number; widthCap?: number }
+  | { kind: "bottom"; height: number };
+
+export type ZoneSlotDensityRule = (params: {
+  density: DensityLevel;
+  zone: Zone;
+}) => boolean;
+
+export type ExtensibleZoneSlot = {
+  name: string;
+  placement: ZoneSlotPlacement;
+  shouldRender?: ZoneSlotDensityRule;
+};
+
+export type ExtensibleComponentLayoutConfig = {
+  extraSlots?: ExtensibleZoneSlot[];
+  disabledBuiltIns?: BuiltInZoneSlotName[];
+  builtInDensityOverride?: Partial<
+    Record<BuiltInZoneSlotName, ZoneSlotDensityRule>
+  >;
+};
+
+const DEFAULT_BUILT_IN_DENSITY: Record<BuiltInZoneSlotName, ZoneSlotDensityRule> = {
+  title: ({ density }) =>
+    density === "mid" || density === "near" || density === "detail",
+  type: ({ density }) => density === "near" || density === "detail",
+  badge: ({ density }) => density === "near" || density === "detail",
+  body: ({ density }) => density === "detail",
+  footer: ({ density }) => density === "detail",
+};
+
+const DEFAULT_EXTRA_DENSITY: ZoneSlotDensityRule = ({ density }) =>
+  density === "near" || density === "detail";
+
+type ZoneSlotDescriptor = {
+  name: string;
+  height: number;
+  widthCap?: number;
+  shouldRender: ZoneSlotDensityRule;
+};
+
+function buildBuiltInDescriptor(
+  name: BuiltInZoneSlotName,
+  base: { height: number; widthCap?: number },
+  disabled: Set<BuiltInZoneSlotName>,
+  overrides: Partial<Record<BuiltInZoneSlotName, ZoneSlotDensityRule>>
+): ZoneSlotDescriptor | null {
+  if (disabled.has(name)) return null;
+  return {
+    name,
+    height: base.height,
+    widthCap: base.widthCap,
+    shouldRender: overrides[name] ?? DEFAULT_BUILT_IN_DENSITY[name],
+  };
+}
+
+function computeExtensibleZoneSlots(params: {
+  rect: Rect;
+  density: DensityLevel;
+  zone: Zone;
+  config: ExtensibleComponentLayoutConfig;
+}): ZoneComponentLayout["slots"] {
+  const { rect, density, zone, config } = params;
+  const slots: ZoneComponentLayout["slots"] = {};
+
+  const disabled = new Set(config.disabledBuiltIns ?? []);
+  const overrides = config.builtInDensityOverride ?? {};
+
+  const titleDesc = buildBuiltInDescriptor(
+    "title",
+    { height: ZONE_TITLE_HEIGHT },
+    disabled,
+    overrides
+  );
+  const typeDesc = buildBuiltInDescriptor(
+    "type",
+    { height: ZONE_TYPE_HEIGHT },
+    disabled,
+    overrides
+  );
+  const badgeDesc = buildBuiltInDescriptor(
+    "badge",
+    { height: ZONE_BADGE_HEIGHT, widthCap: 96 },
+    disabled,
+    overrides
+  );
+  const footerDesc = buildBuiltInDescriptor(
+    "footer",
+    { height: ZONE_FOOTER_HEIGHT },
+    disabled,
+    overrides
+  );
+  const bodyDesc = buildBuiltInDescriptor(
+    "body",
+    { height: ZONE_BODY_MIN_HEIGHT },
+    disabled,
+    overrides
+  );
+
+  const extraTops: ZoneSlotDescriptor[] = [];
+  const extraBottoms: ZoneSlotDescriptor[] = [];
+  for (const slot of config.extraSlots ?? []) {
+    const desc: ZoneSlotDescriptor = {
+      name: slot.name,
+      height: slot.placement.height,
+      widthCap:
+        slot.placement.kind === "top" ? slot.placement.widthCap : undefined,
+      shouldRender: slot.shouldRender ?? DEFAULT_EXTRA_DENSITY,
+    };
+    if (slot.placement.kind === "top") extraTops.push(desc);
+    else extraBottoms.push(desc);
+  }
+
+  let content = insetRect(rect, ZONE_PADDING_X, ZONE_PADDING_Y);
+
+  const topQueue: ZoneSlotDescriptor[] = [
+    ...(titleDesc ? [titleDesc] : []),
+    ...(typeDesc ? [typeDesc] : []),
+    ...(badgeDesc ? [badgeDesc] : []),
+    ...extraTops,
+  ];
+
+  for (const desc of topQueue) {
+    if (content.height <= 0) break;
+    if (!desc.shouldRender({ density, zone })) continue;
+
+    if (desc.widthCap !== undefined) {
+      const slotWidth = Math.min(desc.widthCap, content.width);
+      const slotHeight = Math.min(desc.height, content.height);
+      slots[desc.name] = {
+        x: content.x,
+        y: content.y,
+        width: slotWidth,
+        height: slotHeight,
+      };
+      content = addTopGap(
+        {
+          x: content.x,
+          y: content.y + slotHeight,
+          width: content.width,
+          height: Math.max(0, content.height - desc.height),
+        },
+        ZONE_GAP_Y
+      );
+    } else {
+      const { slot, rest } = takeTop(content, desc.height);
+      slots[desc.name] = slot;
+      content = addTopGap(rest, ZONE_GAP_Y);
+    }
+  }
+
+  const bottomQueue: ZoneSlotDescriptor[] = [
+    ...(footerDesc ? [footerDesc] : []),
+    ...extraBottoms,
+  ];
+
+  for (const desc of bottomQueue) {
+    if (content.height <= 0) break;
+    if (!desc.shouldRender({ density, zone })) continue;
+
+    const { slot, rest } = takeBottom(content, desc.height);
+    slots[desc.name] = slot;
+    content = rest;
+  }
+
+  if (
+    bodyDesc &&
+    bodyDesc.shouldRender({ density, zone }) &&
+    content.width > 0 &&
+    content.height >= bodyDesc.height
+  ) {
+    slots[bodyDesc.name] = content;
+  }
+
+  return slots;
+}
+
+export function createExtensibleComponentLayoutEngine(
+  config: ExtensibleComponentLayoutConfig = {}
+): ComponentLayoutEngine {
+  return {
+    compute(input) {
+      const { graphLayout, density, visibility } = input;
+
+      const zonesById = Object.fromEntries(
+        Object.values(graphLayout.zonesById).map((zoneVisual) => {
+          const zoneVisibility =
+            visibility.zoneVisibilityById[zoneVisual.zoneId];
+          const zoneDensity = density.zoneDensityById[zoneVisual.zoneId];
+
+          const slots =
+            zoneVisibility?.shouldRenderBody !== false
+              ? computeExtensibleZoneSlots({
+                rect: zoneVisual.rect,
+                density: zoneDensity,
+                zone: zoneVisual.zone,
+                config,
+              })
+              : {};
+
+          return [
+            zoneVisual.zoneId,
+            {
+              zoneId: zoneVisual.zoneId,
+              slots,
+            },
+          ];
+        })
+      );
+
+      const pathsById = Object.fromEntries(
+        Object.values(graphLayout.pathsById).map((path) => {
+          const pathVisibility = visibility.pathVisibilityById[path.pathId];
+          const pathDensity = density.pathDensityById[path.pathId];
+
+          const slots =
+            path.rect && pathVisibility?.shouldRenderNode
+              ? computePathSlots({
+                rect: path.rect,
+                density: pathDensity,
+              })
+              : {};
+
+          return [
+            path.pathId,
+            {
+              pathId: path.pathId,
+              slots,
+            },
+          ];
+        })
+      );
+
+      return {
+        zonesById,
+        pathsById,
+      };
+    },
+  };
+}
