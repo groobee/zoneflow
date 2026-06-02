@@ -1884,12 +1884,16 @@ export function ZoneMoveEditorOverlay(props: {
         event.preventDefault();
         setObjectSnapGuideLines(null);
 
+        const resizingZone =
+          latestRef.current.model.zonesById[resize.origin.zoneId];
         const nextLayoutModel = resizeZoneByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: resize.origin,
           deltaX: event.clientX - resize.startClientX,
           deltaY: event.clientY - resize.startClientY,
+          lockWidth: !!resizingZone?.fixedWidth,
+          lockHeight: !!resizingZone?.fixedHeight,
           gridSnap: latestRef.current.gridSnap,
         });
 
@@ -3168,8 +3172,12 @@ export function ZoneMoveEditorOverlay(props: {
               top: `${Math.max(18, selectionBounds.y - 18)}px`,
               transform: "translate(-50%, -100%)",
               display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
               alignItems: "center",
+              rowGap: 6,
               gap: 8,
+              maxWidth: `${Math.max(160, overlayWidth - 32)}px`,
               padding: "8px 10px",
               borderRadius: 14,
               border: resolvedEditorTheme.overlay.floatingToolbar.border,
@@ -3305,8 +3313,12 @@ export function ZoneMoveEditorOverlay(props: {
               top: `${Math.max(18, pathSelectionBounds.y - 18)}px`,
               transform: "translate(-50%, -100%)",
               display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
               alignItems: "center",
+              rowGap: 6,
               gap: 8,
+              maxWidth: `${Math.max(160, overlayWidth - 32)}px`,
               padding: "8px 10px",
               borderRadius: 14,
               border: resolvedEditorTheme.overlay.floatingToolbar.border,
@@ -3712,7 +3724,6 @@ export function ZoneMoveEditorOverlay(props: {
         {targets.map((target) => {
           const isDragging = draggingTarget?.key === target.key;
           const isResizingTarget = isResizing && isDragging;
-          const resizeCursor = "nwse-resize";
           const isZoneSelected =
             target.kind === "zone" && selectedZoneIds.includes(target.zoneId);
           const isPathSelected =
@@ -3798,10 +3809,20 @@ export function ZoneMoveEditorOverlay(props: {
             !isDeleteArmed &&
             !isDragging &&
             (visualState !== "idle" || isEditingZone);
+          const zoneLockWidth = target.kind === "zone" && !!zone?.fixedWidth;
+          const zoneLockHeight = target.kind === "zone" && !!zone?.fixedHeight;
+          const zoneFullyLocked = zoneLockWidth && zoneLockHeight;
+          const resizeCursor: "nwse-resize" | "ns-resize" | "ew-resize" =
+            zoneLockWidth
+              ? "ns-resize"
+              : zoneLockHeight
+                ? "ew-resize"
+                : "nwse-resize";
           const shouldShowResizeHandle =
             target.kind === "zone" &&
             !creatingPath &&
             !isDeleteArmed &&
+            !zoneFullyLocked &&
             (visualState === "hover" ||
               visualState === "selected" ||
               isResizingTarget);
@@ -4163,7 +4184,7 @@ export function ZoneMoveEditorOverlay(props: {
                     setSelectedTargetKey(target.key);
                     setHoveredTargetKey(target.key);
                     onExclusionStateChange?.(getExclusionState(target));
-                    document.body.style.cursor = "nwse-resize";
+                    document.body.style.cursor = resizeCursor;
                     document.body.style.userSelect = "none";
                     event.currentTarget.setPointerCapture?.(event.pointerId);
                   }}
@@ -4177,7 +4198,7 @@ export function ZoneMoveEditorOverlay(props: {
                     borderRadius: 999,
                     background: resolvedEditorTheme.overlay.handles.zoneResize.background,
                     boxShadow: resolvedEditorTheme.overlay.handles.zoneResize.shadow,
-                    cursor: "nwse-resize",
+                    cursor: resizeCursor,
                     pointerEvents: "auto",
                     touchAction: "none",
                   }}

@@ -93,6 +93,8 @@ export function CanvasHost({
         action: template.action,
         inputDisabled: template.inputDisabled,
         outputDisabled: template.outputDisabled,
+        fixedWidth: template.fixedWidth,
+        fixedHeight: template.fixedHeight,
         meta: template.meta,
       },
     });

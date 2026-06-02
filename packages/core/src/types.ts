@@ -66,6 +66,16 @@ export type Zone = {
   zoneType: ZoneType;
   inputDisabled?: boolean;
   outputDisabled?: boolean;
+  /**
+   * When true, the zone's width cannot be changed by the resize handle.
+   * Useful for chip-like or one-line zones.
+   */
+  fixedWidth?: boolean;
+  /**
+   * When true, the zone's height cannot be changed by the resize handle.
+   * Useful for chip-like or one-line zones.
+   */
+  fixedHeight?: boolean;
   childZoneIds: ZoneId[];
   action?: ZoneAction;
   pathIds: PathId[];

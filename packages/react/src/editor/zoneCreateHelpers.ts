@@ -21,6 +21,8 @@ export type ZoneDropTemplate = {
   action?: ZoneAction;
   inputDisabled?: boolean;
   outputDisabled?: boolean;
+  fixedWidth?: boolean;
+  fixedHeight?: boolean;
   meta?: Record<string, unknown>;
 };
 
@@ -84,6 +86,8 @@ export function createZoneFromDropTemplate(params: {
     action: template.action,
     inputDisabled: template.inputDisabled,
     outputDisabled: template.outputDisabled,
+    fixedWidth: template.fixedWidth,
+    fixedHeight: template.fixedHeight,
     meta: template.meta,
   });
   const nextLayoutModel = setZoneLayout(

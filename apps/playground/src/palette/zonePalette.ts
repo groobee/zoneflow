@@ -12,6 +12,8 @@ export type PaletteZoneTemplate = {
   action?: ZoneAction;
   inputDisabled?: boolean;
   outputDisabled?: boolean;
+  fixedWidth?: boolean;
+  fixedHeight?: boolean;
   meta?: Record<string, unknown>;
 };
 
@@ -92,6 +94,43 @@ export const paletteZoneTemplates: PaletteZoneTemplate[] = [
     inputDisabled: true,
     meta: {
       color: "#2563eb",
+    },
+  },
+  {
+    id: "chip-tag",
+    label: "Tag (Chip)",
+    description: "Action · One-line, height locked",
+    zoneType: "action",
+    width: 140,
+    height: 36,
+    fixedHeight: true,
+    action: {
+      type: "tag",
+      payload: {
+        label: "new-tag",
+      },
+    },
+    meta: {
+      color: "#34d399",
+    },
+  },
+  {
+    id: "chip-flag",
+    label: "Flag (Chip)",
+    description: "Action · Compact, fully locked",
+    zoneType: "action",
+    width: 120,
+    height: 32,
+    fixedWidth: true,
+    fixedHeight: true,
+    action: {
+      type: "flag",
+      payload: {
+        key: "feature-flag",
+      },
+    },
+    meta: {
+      color: "#f97316",
     },
   },
 ];

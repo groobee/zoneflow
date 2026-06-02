@@ -68,7 +68,9 @@ export {
 
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
 const DEFAULT_MIN_ZONE_WIDTH = 140;
-const DEFAULT_MIN_ZONE_HEIGHT = 96;
+// Kept below the renderer's chip-layout height threshold (44px) so a normal
+// zone can be dragged down into chip size via the resize handle.
+const DEFAULT_MIN_ZONE_HEIGHT = 28;
 
 function collectDescendantZoneIds(model: UniverseModel, zoneId: ZoneId): Set<ZoneId> {
   const descendants = new Set<ZoneId>();
@@ -504,6 +506,14 @@ export function resizeZoneByScreenDelta(params: {
   deltaY: number;
   minWidth?: number;
   minHeight?: number;
+  /**
+   * When true, the width is locked to its origin value and deltaX is ignored.
+   */
+  lockWidth?: boolean;
+  /**
+   * When true, the height is locked to its origin value and deltaY is ignored.
+   */
+  lockHeight?: boolean;
   gridSnap?: GridSnapOptions;
 }): UniverseLayoutModel {
   const {
@@ -514,20 +524,26 @@ export function resizeZoneByScreenDelta(params: {
     deltaY,
     minWidth = DEFAULT_MIN_ZONE_WIDTH,
     minHeight = DEFAULT_MIN_ZONE_HEIGHT,
+    lockWidth = false,
+    lockHeight = false,
     gridSnap,
   } = params;
 
   const currentLayout = getZoneLayout(layoutModel, origin.zoneId);
   if (!currentLayout) return layoutModel;
 
-  const nextWidth = Math.max(
-    minWidth,
-    snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
-  );
-  const nextHeight = Math.max(
-    minHeight,
-    snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
-  );
+  const nextWidth = lockWidth
+    ? origin.originWidth
+    : Math.max(
+        minWidth,
+        snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
+      );
+  const nextHeight = lockHeight
+    ? origin.originHeight
+    : Math.max(
+        minHeight,
+        snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
+      );
 
   return updateZoneLayout(layoutModel, origin.zoneId, {
     width: nextWidth,

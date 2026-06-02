@@ -19,6 +19,16 @@ const ZONE_BADGE_HEIGHT = 20;
 const ZONE_BODY_MIN_HEIGHT = 28;
 const ZONE_FOOTER_HEIGHT = 18;
 
+const ZONE_CHIP_PADDING_X = 10;
+const ZONE_CHIP_PADDING_Y = 2;
+/**
+ * When the zone's rendered height drops below this threshold the slot stack
+ * (padding + title) no longer fits, so we collapse into a compact single-slot
+ * layout that reads as a chip. Derived from the smallest normal layout height
+ * (ZONE_PADDING_Y * 2 + ZONE_TITLE_HEIGHT = 44).
+ */
+const ZONE_CHIP_HEIGHT_THRESHOLD = ZONE_PADDING_Y * 2 + ZONE_TITLE_HEIGHT;
+
 const PATH_PADDING_X = 8;
 const PATH_PADDING_Y = 6;
 const PATH_GAP_Y = 4;
@@ -129,6 +139,18 @@ function computeZoneSlots(params: {
 }): ZoneComponentLayout["slots"] {
   const { rect, density } = params;
   const slots: ZoneComponentLayout["slots"] = {};
+
+  // When the zone is short enough that the standard slot stack would not
+  // fit, fall back to a compact single-slot chip layout. Density "far" still
+  // renders no slots, matching the standard layout's behavior.
+  if (rect.height < ZONE_CHIP_HEIGHT_THRESHOLD) {
+    if (density === "far") return slots;
+    const content = insetRect(rect, ZONE_CHIP_PADDING_X, ZONE_CHIP_PADDING_Y);
+    if (content.width > 0 && content.height > 0) {
+      slots.title = content;
+    }
+    return slots;
+  }
 
   let content = insetRect(rect, ZONE_PADDING_X, ZONE_PADDING_Y);
 
