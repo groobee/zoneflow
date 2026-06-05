@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { updatePath } from "@zoneflow/core";
 import {
   createZoneFromDropTemplate,
+  editorPermissionPresets,
   UniverseEditorCanvas,
   type CanConnectPath,
   type CanvasExternalDropPayload,
@@ -43,6 +44,9 @@ const resolveZoneShape: ResolveZoneShape = (zone) =>
 const resolveZoneColor: ResolveZoneColor = (zone) =>
   zone.meta?.color as string | undefined;
 
+/** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
+export type EditPermissionMode = keyof typeof editorPermissionPresets;
+
 type Props = {
   editor: UniverseEditorController;
   debug: DebugState;
@@ -51,6 +55,7 @@ type Props = {
   themePreset: PlaygroundThemePreset;
   weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
+  editPermissionMode: EditPermissionMode;
 };
 
 export function CanvasHost({
@@ -61,6 +66,7 @@ export function CanvasHost({
   themePreset,
   weatherBackgroundId,
   canConnectPath,
+  editPermissionMode,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const { zoneComponents, pathComponents } = useMemo(() => {
@@ -193,6 +199,7 @@ export function CanvasHost({
         pathComponents={pathComponents}
         editorConfig={{
           theme: themePreset.editorTheme,
+          permissions: editorPermissionPresets[editPermissionMode],
           overlayControls: {
             enabled: overlayHudVisible,
           },

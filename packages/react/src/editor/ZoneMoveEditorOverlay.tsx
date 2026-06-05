@@ -66,6 +66,10 @@ import type {
   ZoneSlotComponentMap,
 } from "../slots/slotComponents";
 import {
+  resolvePermissions,
+  type EditorPermissions,
+} from "./editorPermissions";
+import {
   formatDeleteSelectionLabel,
   formatDeleteTargetLabel,
   getGridToggleLabel,
@@ -302,6 +306,11 @@ export type ZoneMoveEditorConfig = {
     | null
     | undefined
     | void;
+  /**
+   * 에디터에서 허용할 동작을 세분화 제어합니다. 미지정 시 전부 허용(기존 동작과 동일).
+   * 자주 쓰는 조합은 `editorPermissionPresets` 를 넣으세요.
+   */
+  permissions?: Partial<EditorPermissions>;
   deleteInteraction?: {
     animation?: boolean;
     confirm?: boolean;
@@ -1126,6 +1135,10 @@ export function ZoneMoveEditorOverlay(props: {
     resolveZoneShape,
     onExclusionStateChange,
   } = props;
+  const permissions = useMemo(
+    () => resolvePermissions(editor?.permissions),
+    [editor?.permissions]
+  );
   const resolvedEditorTheme = useMemo(
     () => resolveEditorTheme(editor?.theme),
     [editor?.theme]
@@ -1265,6 +1278,7 @@ export function ZoneMoveEditorOverlay(props: {
     layoutModel,
     camera,
     frame,
+    permissions,
     includeRoot: editor?.includeRoot,
     gridSnap: editor?.gridSnap,
     objectSnap: editor?.objectSnap,
@@ -1286,6 +1300,7 @@ export function ZoneMoveEditorOverlay(props: {
       layoutModel,
       camera,
       frame,
+      permissions,
       includeRoot: editor?.includeRoot,
       gridSnap: editor?.gridSnap,
       objectSnap: editor?.objectSnap,
@@ -1446,6 +1461,12 @@ export function ZoneMoveEditorOverlay(props: {
   };
 
   const armDeleteTarget = (target: MoveEditorTarget) => {
+    if (
+      target.kind === "zone"
+        ? !latestRef.current.permissions.deleteZone
+        : !latestRef.current.permissions.deletePath
+    )
+      return;
     dragRef.current = null;
     setDraggingTarget(null);
     setObjectSnapGuideLines(null);
@@ -1478,6 +1499,8 @@ export function ZoneMoveEditorOverlay(props: {
   };
 
   const commitDeleteTarget = (target: MoveEditorTarget) => {
+    const perms = latestRef.current.permissions;
+    if (target.kind === "zone" ? !perms.deleteZone : !perms.deletePath) return;
     const previousModel = latestRef.current.model;
     const previousLayoutModel = latestRef.current.layoutModel;
 
@@ -1515,6 +1538,7 @@ export function ZoneMoveEditorOverlay(props: {
 
   const commitDeleteZoneSelection = (zoneIds: ZoneId[]) => {
     if (zoneIds.length === 0) return;
+    if (!latestRef.current.permissions.deleteZone) return;
 
     const previousModel = latestRef.current.model;
     const previousLayoutModel = latestRef.current.layoutModel;
@@ -1549,6 +1573,7 @@ export function ZoneMoveEditorOverlay(props: {
 
   const commitDeletePathSelection = (pathIds: PathId[]) => {
     if (pathIds.length === 0) return;
+    if (!latestRef.current.permissions.deletePath) return;
 
     const previousModel = latestRef.current.model;
     const previousLayoutModel = latestRef.current.layoutModel;
@@ -1669,7 +1694,8 @@ export function ZoneMoveEditorOverlay(props: {
         drag?.target.kind === "zone" &&
         drag.hasMoved &&
         !resize &&
-        !pathResize
+        !pathResize &&
+        latestRef.current.permissions.reparentZone
       ) {
         const reparented =
           drag.origin.kind === "zone-group"
@@ -1690,7 +1716,11 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
-      if (pathCreate?.hasMoved && latestRef.current.frame) {
+      if (
+        pathCreate?.hasMoved &&
+        latestRef.current.frame &&
+        latestRef.current.permissions.createPath
+      ) {
         const targetZoneId = resolveInputAnchorTargetZoneId({
           model: latestRef.current.model,
           frame: latestRef.current.frame,
@@ -1738,7 +1768,11 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
-      if (pathRetarget?.hasMoved && latestRef.current.frame) {
+      if (
+        pathRetarget?.hasMoved &&
+        latestRef.current.frame &&
+        latestRef.current.permissions.retargetPath
+      ) {
         let workingModel = latestRef.current.model;
         let workingLayoutModel = latestRef.current.layoutModel;
         let targetZoneId = resolveInputAnchorTargetZoneId({
@@ -1756,7 +1790,8 @@ export function ZoneMoveEditorOverlay(props: {
 
         if (
           targetZoneId === null &&
-          latestRef.current.onPathDropOnEmptySpace
+          latestRef.current.onPathDropOnEmptySpace &&
+          latestRef.current.permissions.createZone
         ) {
           const dropWorldPoint = screenPointToWorldPoint(
             pathRetarget.currentScreenPoint,
@@ -2487,16 +2522,19 @@ export function ZoneMoveEditorOverlay(props: {
     if (deleteConfirmState) return;
 
     if (selectedZoneIds.length > 1) {
+      if (!permissions.deleteZone) return;
       requestDeleteZoneSelection();
       return;
     }
 
     if (selectedPathIds.length > 1) {
+      if (!permissions.deletePath) return;
       requestDeletePathSelection();
       return;
     }
 
     if (selectedZoneIds.length === 1) {
+      if (!permissions.deleteZone) return;
       const target =
         targets.find(
           (candidate) =>
@@ -2514,6 +2552,7 @@ export function ZoneMoveEditorOverlay(props: {
     }
 
     if (selectedPathIds.length === 1) {
+      if (!permissions.deletePath) return;
       const target =
         targets.find(
           (candidate) =>
@@ -2531,6 +2570,12 @@ export function ZoneMoveEditorOverlay(props: {
     }
 
     if (!selectedTarget) return;
+    if (
+      selectedTarget.kind === "zone"
+        ? !permissions.deleteZone
+        : !permissions.deletePath
+    )
+      return;
     if (shouldConfirmDelete) {
       setDeleteConfirmState({ kind: "target", target: selectedTarget });
     } else {
@@ -2585,9 +2630,10 @@ export function ZoneMoveEditorOverlay(props: {
     (typeof window === "undefined" ? 0 : window.innerWidth);
   const canDeleteSelection =
     !deleteConfirmState &&
-    (selectedZoneIds.length > 0 ||
-      selectedPathIds.length > 0 ||
-      selectedTarget !== null);
+    ((permissions.deleteZone &&
+      (selectedZoneIds.length > 0 || selectedTarget?.kind === "zone")) ||
+      (permissions.deletePath &&
+        (selectedPathIds.length > 0 || selectedTarget?.kind === "path")));
 
   const editingZone = editingZoneId ? model.zonesById[editingZoneId] : undefined;
   const editingPathSourceZone = editingPathState
@@ -3309,19 +3355,21 @@ export function ZoneMoveEditorOverlay(props: {
                 })}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                requestDeleteCurrentSelection();
-              }}
-              style={{
-                ...floatingToolbarDangerButtonStyle,
-              }}
-            >
-              {editorStrings.selectionToolbar.delete}
-            </button>
+            {permissions.deleteZone ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  requestDeleteCurrentSelection();
+                }}
+                style={{
+                  ...floatingToolbarDangerButtonStyle,
+                }}
+              >
+                {editorStrings.selectionToolbar.delete}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -3445,19 +3493,21 @@ export function ZoneMoveEditorOverlay(props: {
                 })}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                requestDeleteCurrentSelection();
-              }}
-              style={{
-                ...floatingToolbarDangerButtonStyle,
-              }}
-            >
-              {editorStrings.selectionToolbar.delete}
-            </button>
+            {permissions.deletePath ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  requestDeleteCurrentSelection();
+                }}
+                style={{
+                  ...floatingToolbarDangerButtonStyle,
+                }}
+              >
+                {editorStrings.selectionToolbar.delete}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -3809,6 +3859,7 @@ export function ZoneMoveEditorOverlay(props: {
               ? frame.pipeline.graphLayout.pathsById[target.pathId]
               : undefined;
           const shouldShowPathRetargetHandle =
+            permissions.retargetPath &&
             target.kind === "path" &&
             !creatingPath &&
             !retargetingPath &&
@@ -3816,6 +3867,7 @@ export function ZoneMoveEditorOverlay(props: {
             !!pathOutputAnchorLocalRect &&
             (visualState === "hover" || visualState === "selected");
           const shouldShowPathResizeHandle =
+            permissions.routePath &&
             target.kind === "path" &&
             !creatingPath &&
             !retargetingPath &&
@@ -3840,6 +3892,7 @@ export function ZoneMoveEditorOverlay(props: {
                 ? "ew-resize"
                 : "nwse-resize";
           const shouldShowResizeHandle =
+            permissions.resizeZone &&
             target.kind === "zone" &&
             !creatingPath &&
             !isDeleteArmed &&
@@ -3994,13 +4047,19 @@ export function ZoneMoveEditorOverlay(props: {
                 }
                 event.stopPropagation();
 
-                dragRef.current = {
-                  target,
-                  origin,
-                  startClientX: event.clientX,
-                  startClientY: event.clientY,
-                  hasMoved: false,
-                };
+                if (
+                  target.kind === "zone"
+                    ? permissions.moveZone
+                    : permissions.routePath
+                ) {
+                  dragRef.current = {
+                    target,
+                    origin,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    hasMoved: false,
+                  };
+                }
 
                 setSelectedTargetKey(target.key);
                 setHoveredTargetKey(target.key);
@@ -4012,6 +4071,12 @@ export function ZoneMoveEditorOverlay(props: {
                 longPressTimerRef.current = window.setTimeout(() => {
                   const active = longPressRef.current;
                   if (!active || active.target.key !== target.key) return;
+                  if (
+                    active.target.kind === "zone"
+                      ? !permissions.deleteZone
+                      : !permissions.deletePath
+                  )
+                    return;
                   cancelLongPress();
                   armDeleteTarget(target);
                 }, deleteLongPressMs);
@@ -4040,7 +4105,9 @@ export function ZoneMoveEditorOverlay(props: {
                 ...getTargetOutlineStyle(target, visualState, resolvedEditorTheme),
               }}
             >
-              {sourceAnchorLocalRect && target.kind === "zone" ? (
+              {sourceAnchorLocalRect &&
+              target.kind === "zone" &&
+              permissions.createPath ? (
                 <button
                   type="button"
                   title={`${target.label} add path`}

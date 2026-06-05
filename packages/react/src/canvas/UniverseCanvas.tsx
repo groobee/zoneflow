@@ -31,6 +31,7 @@ import {
   type ZoneMoveEditorConfig,
   ZoneMoveEditorOverlay,
 } from "../editor/ZoneMoveEditorOverlay";
+import {resolvePermissions} from "../editor/editorPermissions";
 import {
   type BackgroundComponent,
   type PathSlotComponentMap,
@@ -153,7 +154,8 @@ export function UniverseCanvas({
   const externalDropEnabled =
     zoneMoveEditor?.enabled &&
     zoneMoveEditor.externalDrop?.enabled !== false &&
-    Boolean(zoneMoveEditor.externalDrop?.onDrop);
+    Boolean(zoneMoveEditor.externalDrop?.onDrop) &&
+    resolvePermissions(zoneMoveEditor?.permissions).createZone;
 
   const effectiveZoneComponentRenderers = useMemo(() => {
     if (!zoneComponents) return zoneComponentRenderers;

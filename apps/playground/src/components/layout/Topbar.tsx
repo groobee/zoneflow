@@ -8,6 +8,7 @@ import {
   selectStyle,
   topbarStyle,
 } from "./layout.styles";
+import type { EditPermissionMode } from "./CanvasHost";
 import type {
   PlaygroundThemePreset,
   PlaygroundThemePresetId,
@@ -27,6 +28,8 @@ type Props = {
   weatherBackgroundId: WeatherBackgroundId;
   setWeatherBackgroundId: (value: WeatherBackgroundId) => void;
   editor: UniverseEditorController;
+  editPermissionMode: EditPermissionMode;
+  setEditPermissionMode: (value: EditPermissionMode) => void;
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
   floatingEnabled: boolean;
@@ -46,6 +49,8 @@ export function Topbar({
   weatherBackgroundId,
   setWeatherBackgroundId,
   editor,
+  editPermissionMode,
+  setEditPermissionMode,
   overlayHudVisible,
   onToggleOverlayHud,
   floatingEnabled,
@@ -134,6 +139,20 @@ export function Topbar({
       }
       trailing={
         <>
+          {editor.isEditMode ? (
+            <select
+              style={themedSelectStyle}
+              value={editPermissionMode}
+              onChange={(e) =>
+                setEditPermissionMode(e.target.value as EditPermissionMode)
+              }
+              title="편집 권한 모드 — 레이아웃만 변경 / 보기 잠금"
+            >
+              <option value="full">권한: 전체 편집</option>
+              <option value="layoutOnly">권한: 레이아웃만</option>
+              <option value="locked">권한: 잠금(보기)</option>
+            </select>
+          ) : null}
           <button
             type="button"
             style={themedControlStyle}

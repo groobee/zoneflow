@@ -15,7 +15,10 @@ import { shellStyle } from "./components/layout/layout.styles";
 import { Topbar } from "./components/layout/Topbar";
 import { LeftPanel } from "./components/layout/LeftPanel";
 import { RightPanel } from "./components/layout/RightPanel";
-import { CanvasHost } from "./components/layout/CanvasHost";
+import {
+  CanvasHost,
+  type EditPermissionMode,
+} from "./components/layout/CanvasHost";
 import { ModelDataModal } from "./components/data/ModelDataModal";
 import {
   defaultPlaygroundThemePresetId,
@@ -66,6 +69,8 @@ export default function App() {
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
   const [floatingEnabled, setFloatingEnabled] = useState(false);
+  const [editPermissionMode, setEditPermissionMode] =
+    useState<EditPermissionMode>("full");
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
     defaultPlaygroundThemePresetId
   );
@@ -191,6 +196,8 @@ export default function App() {
         weatherBackgroundId={weatherBackgroundId}
         setWeatherBackgroundId={setWeatherBackgroundId}
         editor={editor}
+        editPermissionMode={editPermissionMode}
+        setEditPermissionMode={setEditPermissionMode}
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
         floatingEnabled={floatingEnabled}
@@ -204,6 +211,7 @@ export default function App() {
 
       <CanvasHost
         editor={editor}
+        editPermissionMode={editPermissionMode}
         debug={debug}
         onResize={setHostSize}
         overlayHudVisible={overlayHudVisible}
