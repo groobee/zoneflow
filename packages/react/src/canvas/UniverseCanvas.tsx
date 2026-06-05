@@ -17,6 +17,8 @@ import {
   type PathComponentSlotName,
   type RendererDebugOptions,
   type RendererInteractionHandlers,
+  type ResolveZoneColor,
+  type ResolveZoneShape,
   type TextScaleLevel,
   type ViewportConfig,
   type VisibilityEngine,
@@ -52,6 +54,8 @@ export type UniverseCanvasProps = {
 
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  resolveZoneShape?: ResolveZoneShape;
+  resolveZoneColor?: ResolveZoneColor;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   backgroundRenderer?: BackgroundRenderer;
@@ -89,6 +93,8 @@ export function UniverseCanvas({
 
                                  zoneComponentRenderers,
                                  pathComponentRenderers,
+                                 resolveZoneShape,
+                                 resolveZoneColor,
                                  zoneComponents,
                                  pathComponents,
                                  backgroundRenderer,
@@ -220,6 +226,8 @@ export function UniverseCanvas({
 
       zoneComponentRenderers: effectiveZoneComponentRenderers,
       pathComponentRenderers: effectivePathComponentRenderers,
+      resolveZoneShape,
+      resolveZoneColor,
       backgroundRenderer: effectiveBackgroundRenderer,
       gridOptions: grid,
       interactionHandlers,
@@ -249,6 +257,8 @@ export function UniverseCanvas({
     drawEngine,
     effectiveZoneComponentRenderers,
     effectivePathComponentRenderers,
+    resolveZoneShape,
+    resolveZoneColor,
     effectiveBackgroundRenderer,
     zoneComponents,
     pathComponents,
@@ -327,6 +337,7 @@ export function UniverseCanvas({
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editor={zoneMoveEditor}
+        resolveZoneShape={resolveZoneShape}
         onExclusionStateChange={setExclusionState}
       />
     </div>

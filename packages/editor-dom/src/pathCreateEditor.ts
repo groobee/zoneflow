@@ -15,9 +15,12 @@ import {
   type ZoneId,
 } from "@zoneflow/core";
 import {
+  normalizeZoneShape,
   type CameraState,
   type Rect,
   type RendererFrame,
+  type ResolveZoneShape,
+  type ZoneAnchorRenderMode,
 } from "@zoneflow/renderer-dom";
 import type { GridSnapOptions } from "./zoneMoveEditor";
 
@@ -46,6 +49,9 @@ const DEFAULT_PATH_NODE_OFFSET_X = 32;
 const DEFAULT_PATH_NODE_GAP_Y = 40;
 const DEFAULT_ANCHOR_WIDTH = 24;
 const DEFAULT_ANCHOR_ATTACH_DEPTH = 10;
+// Square hit area for vertex-mode anchors (circle/diamond/…), centered on the
+// shape's left/right vertex to match the vertex dot drawn by the renderer.
+const VERTEX_ANCHOR_HIT_SIZE = 28;
 const DEFAULT_PATH_OUTPUT_HANDLE_WIDTH = 18;
 const DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT = 22;
 const DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT = 40;
@@ -109,8 +115,23 @@ function resolveZoneAnchorRect(params: {
   zoneRect: Rect;
   anchor: { point: Point; rect?: AnchorRect };
   kind: "inlet" | "outlet";
+  mode?: ZoneAnchorRenderMode;
 }): Rect {
-  const { zoneRect, anchor, kind } = params;
+  const { zoneRect, anchor, kind, mode = "edge" } = params;
+
+  if (mode === "vertex") {
+    // Non-rectangular zones expose their anchor only at the shape vertex, so
+    // the grab/drop hit area is a compact square centered on the anchor point
+    // instead of the full-height edge band used for rectangular zones.
+    // `anchor.point` is already in world coordinates (zone position + offset),
+    // so it is used directly — do NOT add zoneRect again.
+    return {
+      x: anchor.point.x - VERTEX_ANCHOR_HIT_SIZE / 2,
+      y: anchor.point.y - VERTEX_ANCHOR_HIT_SIZE / 2,
+      width: VERTEX_ANCHOR_HIT_SIZE,
+      height: VERTEX_ANCHOR_HIT_SIZE,
+    };
+  }
 
   if (anchor.rect) {
     return {
@@ -147,17 +168,20 @@ export function resolveZoneAnchorScreenRect(params: {
   camera: CameraState;
   zoneId: ZoneId;
   kind: "inlet" | "outlet";
+  resolveZoneShape?: ResolveZoneShape;
 }): Rect | undefined {
-  const { frame, camera, zoneId, kind } = params;
+  const { frame, camera, zoneId, kind, resolveZoneShape } = params;
   const zoneVisual = frame.pipeline.graphLayout.zonesById[zoneId];
   if (!zoneVisual) return undefined;
   if (kind === "inlet" && !isZoneInputEnabled(zoneVisual.zone)) return undefined;
   if (kind === "outlet" && !isZoneOutputEnabled(zoneVisual.zone)) return undefined;
 
+  const mode = normalizeZoneShape(resolveZoneShape?.(zoneVisual.zone)).anchors;
   const anchorRect = resolveZoneAnchorRect({
     zoneRect: zoneVisual.rect,
     anchor: zoneVisual.anchors[kind],
     kind,
+    mode,
   });
 
   return projectWorldRectToScreenRect(anchorRect, camera);
@@ -170,8 +194,17 @@ export function resolveInputAnchorTargetZoneId(params: {
   point: Point;
   excludeZoneIds?: ZoneId[];
   canConnect?: (targetZoneId: ZoneId) => boolean;
+  resolveZoneShape?: ResolveZoneShape;
 }): ZoneId | null {
-  const { model, frame, camera, point, excludeZoneIds, canConnect } = params;
+  const {
+    model,
+    frame,
+    camera,
+    point,
+    excludeZoneIds,
+    canConnect,
+    resolveZoneShape,
+  } = params;
   const excluded = new Set(excludeZoneIds ?? []);
   let bestZoneId: ZoneId | null = null;
   let bestArea = Number.POSITIVE_INFINITY;
@@ -190,6 +223,7 @@ export function resolveInputAnchorTargetZoneId(params: {
       camera,
       zoneId: zoneVisual.zoneId,
       kind: "inlet",
+      resolveZoneShape,
     });
     if (!rect || !containsPoint(rect, point)) continue;
     if (canConnect && !canConnect(zoneVisual.zoneId)) continue;

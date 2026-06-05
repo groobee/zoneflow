@@ -5,7 +5,7 @@ import {
   parseZoneflowDocument,
   serializeZoneflowDocument,
 } from "@zoneflow/core";
-import { useUniverseEditor } from "@zoneflow/react";
+import { useFloatingLayout, useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import {
   useSampleSwitcher,
@@ -65,6 +65,7 @@ export default function App() {
   });
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
+  const [floatingEnabled, setFloatingEnabled] = useState(false);
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
     defaultPlaygroundThemePresetId
   );
@@ -75,6 +76,16 @@ export default function App() {
   const workingModel = editor.model;
   const workingLayoutModel = editor.layoutModel;
   const themePreset = playgroundThemePresets[themePresetId];
+
+  // Floating mode: gently drift action zones into flow-aligned positions.
+  // Paused during edit mode, where positions are driven by draft transactions.
+  useFloatingLayout({
+    enabled: floatingEnabled,
+    paused: editor.isEditMode,
+    model: editor.model,
+    layoutModel: editor.layoutModel,
+    onLayoutModelChange: setLayoutModel,
+  });
 
   const handleCreateNewDocument = () => {
     const universeId = createUniverseId();
@@ -182,6 +193,8 @@ export default function App() {
         editor={editor}
         overlayHudVisible={overlayHudVisible}
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
+        floatingEnabled={floatingEnabled}
+        onToggleFloating={() => setFloatingEnabled((current) => !current)}
         onOpenDataModal={() => setIsDataModalOpen(true)}
         onCreateNewDocument={handleCreateNewDocument}
         onExportFile={handleExportFile}

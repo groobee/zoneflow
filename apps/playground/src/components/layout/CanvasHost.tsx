@@ -7,6 +7,11 @@ import {
   type CanvasExternalDropPayload,
   type UniverseEditorController,
 } from "@zoneflow/react";
+import type {
+  ResolveZoneColor,
+  ResolveZoneShape,
+  ZoneShape,
+} from "@zoneflow/renderer-dom";
 import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
@@ -25,6 +30,18 @@ import {
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
+
+/**
+ * Special zones are drawn by shape, decided entirely here by the consumer.
+ * Zones carry their intended shape in `meta.shape` (set by the palette
+ * templates / zone editor); everything else falls back to the default rect.
+ */
+const resolveZoneShape: ResolveZoneShape = (zone) =>
+  zone.meta?.shape as ZoneShape | undefined;
+
+/** Per-zone accent color, also decided by the consumer from `meta.color`. */
+const resolveZoneColor: ResolveZoneColor = (zone) =>
+  zone.meta?.color as string | undefined;
 
 type Props = {
   editor: UniverseEditorController;
@@ -170,6 +187,8 @@ export function CanvasHost({
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
         background={Background}
+        resolveZoneShape={resolveZoneShape}
+        resolveZoneColor={resolveZoneColor}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{

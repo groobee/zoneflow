@@ -121,6 +121,8 @@ export function createRenderer(): ZoneflowRenderer {
 
         zoneComponentRenderers,
         pathComponentRenderers,
+        resolveZoneShape,
+        resolveZoneColor,
         backgroundRenderer,
         gridOptions,
         interactionHandlers,
@@ -184,6 +186,8 @@ export function createRenderer(): ZoneflowRenderer {
         pipeline,
         zoneComponentRenderers,
         pathComponentRenderers,
+        resolveZoneShape,
+        resolveZoneColor,
         backgroundRenderer,
         gridOptions,
         interactionHandlers,

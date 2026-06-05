@@ -6,5 +6,6 @@ export * from "./editor/UniverseEditorCanvas";
 export * from "./editor/ZoneMoveEditorOverlay";
 export * from "./editor/useUniverseEditor";
 export * from "./editor/useUniverseEditorSession";
+export * from "./editor/useFloatingLayout";
 export * from "./editor/zoneCreateHelpers";
 export * from "./slots/slotComponents";

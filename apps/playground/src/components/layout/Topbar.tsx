@@ -29,6 +29,8 @@ type Props = {
   editor: UniverseEditorController;
   overlayHudVisible: boolean;
   onToggleOverlayHud: () => void;
+  floatingEnabled: boolean;
+  onToggleFloating: () => void;
   onOpenDataModal: () => void;
   onCreateNewDocument: () => void;
   onExportFile: () => void;
@@ -46,6 +48,8 @@ export function Topbar({
   editor,
   overlayHudVisible,
   onToggleOverlayHud,
+  floatingEnabled,
+  onToggleFloating,
   onOpenDataModal,
   onCreateNewDocument,
   onExportFile,
@@ -149,6 +153,32 @@ export function Topbar({
             onClick={onToggleOverlayHud}
           >
             HUD {overlayHudVisible ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            style={{
+              ...themedControlStyle,
+              ...(floatingEnabled
+                ? {
+                    background: "#2563eb",
+                    color: "#eff6ff",
+                    fontWeight: 700,
+                  }
+                : null),
+            }}
+            onClick={onToggleFloating}
+            title={
+              floatingEnabled && editor.isEditMode
+                ? "Floating paused while editing"
+                : "Toggle floating layout"
+            }
+          >
+            Floating{" "}
+            {floatingEnabled
+              ? editor.isEditMode
+                ? "On (paused)"
+                : "On"
+              : "Off"}
           </button>
           <button
             type="button"

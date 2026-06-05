@@ -133,6 +133,43 @@ export const paletteZoneTemplates: PaletteZoneTemplate[] = [
       color: "#f97316",
     },
   },
+  {
+    id: "start-node",
+    label: "Start",
+    description: "Terminal · Entry point, drawn as a circle",
+    zoneType: "action",
+    width: 104,
+    height: 104,
+    fixedWidth: true,
+    fixedHeight: true,
+    inputDisabled: true,
+    action: {
+      type: "start",
+      payload: {},
+    },
+    meta: {
+      color: "#10b981",
+      // Consumer-controlled shape — see resolveZoneShape in CanvasHost.
+      shape: "circle",
+    },
+  },
+  {
+    id: "end-node",
+    label: "End",
+    description: "Terminal · Exit point, drawn as a diamond",
+    zoneType: "action",
+    width: 128,
+    height: 112,
+    outputDisabled: true,
+    action: {
+      type: "end",
+      payload: {},
+    },
+    meta: {
+      color: "#ef4444",
+      shape: "diamond",
+    },
+  },
 ];
 
 export function writePaletteZoneDragData(

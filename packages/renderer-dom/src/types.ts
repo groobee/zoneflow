@@ -10,6 +10,7 @@ import type {
   ZoneId,
 } from "@zoneflow/core";
 import type { TextScaleLevel, ZoneflowTheme } from "./theme";
+import type { ResolveZoneColor, ResolveZoneShape } from "./zoneShape";
 
 export type CameraState = {
   x: number;
@@ -271,6 +272,8 @@ export type RendererDrawInput = {
   pipeline: RenderPipelineResult;
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  resolveZoneShape?: ResolveZoneShape;
+  resolveZoneColor?: ResolveZoneColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
@@ -352,6 +355,8 @@ export type RendererInput = {
 
   zoneComponentRenderers?: ZoneComponentRendererMap;
   pathComponentRenderers?: PathComponentRendererMap;
+  resolveZoneShape?: ResolveZoneShape;
+  resolveZoneColor?: ResolveZoneColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;

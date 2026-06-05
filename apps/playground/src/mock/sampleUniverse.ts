@@ -221,6 +221,7 @@ export const sampleUniverse: UniverseModel = {
       pathsById: {},
       meta: {
         color: "#16a34a",
+        shape: "pill",
       },
     },
     fallback: {
@@ -240,6 +241,7 @@ export const sampleUniverse: UniverseModel = {
       pathsById: {},
       meta: {
         color: "#f59e0b",
+        shape: "diamond",
       },
     },
     reviewQueue: {
@@ -259,6 +261,7 @@ export const sampleUniverse: UniverseModel = {
       pathsById: {},
       meta: {
         color: "#a855f7",
+        shape: "circle",
       },
     },
   },

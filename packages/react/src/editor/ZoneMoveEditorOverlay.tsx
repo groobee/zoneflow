@@ -56,6 +56,7 @@ import type {
   RendererExclusionState,
   RendererFrame,
   Rect,
+  ResolveZoneShape,
   ZoneComponentMount,
   ZoneComponentRendererContext,
   ZoneComponentSlotName,
@@ -1111,6 +1112,7 @@ export function ZoneMoveEditorOverlay(props: {
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   editor?: ZoneMoveEditorConfig;
+  resolveZoneShape?: ResolveZoneShape;
   onExclusionStateChange?: (next: RendererExclusionState | undefined) => void;
 }) {
   const {
@@ -1121,6 +1123,7 @@ export function ZoneMoveEditorOverlay(props: {
     zoneComponents,
     pathComponents,
     editor,
+    resolveZoneShape,
     onExclusionStateChange,
   } = props;
   const resolvedEditorTheme = useMemo(
@@ -1273,6 +1276,7 @@ export function ZoneMoveEditorOverlay(props: {
     canConnectPath: editor?.canConnectPath,
     onPathCreated: editor?.onPathCreated,
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
+    resolveZoneShape,
     onExclusionStateChange,
   });
 
@@ -1293,9 +1297,18 @@ export function ZoneMoveEditorOverlay(props: {
       canConnectPath: editor?.canConnectPath,
       onPathCreated: editor?.onPathCreated,
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
+      resolveZoneShape,
       onExclusionStateChange,
     };
-  }, [model, layoutModel, camera, frame, editor, onExclusionStateChange]);
+  }, [
+    model,
+    layoutModel,
+    camera,
+    frame,
+    editor,
+    resolveZoneShape,
+    onExclusionStateChange,
+  ]);
 
   useEffect(() => {
     selectedZoneIdsRef.current = selectedZoneIds;
@@ -1684,6 +1697,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera: latestRef.current.camera,
           point: pathCreate.currentScreenPoint,
           canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
+          resolveZoneShape: latestRef.current.resolveZoneShape,
         });
 
         const createdPath = createPathFromOutputAnchorDrag({
@@ -1737,6 +1751,7 @@ export function ZoneMoveEditorOverlay(props: {
             "retarget",
             pathRetarget.pathId
           ),
+          resolveZoneShape: latestRef.current.resolveZoneShape,
         });
 
         if (
@@ -2071,6 +2086,7 @@ export function ZoneMoveEditorOverlay(props: {
               "retarget",
               pathRetarget.pathId
             ),
+            resolveZoneShape: latestRef.current.resolveZoneShape,
           })
         );
         return;
@@ -2110,6 +2126,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera: latestRef.current.camera,
           point: currentScreenPoint,
           canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
+          resolveZoneShape: latestRef.current.resolveZoneShape,
         })
       );
     };
@@ -2608,6 +2625,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera,
           zoneId: creatingPath.sourceZoneId,
           kind: "outlet",
+          resolveZoneShape,
         })
       : undefined;
   const pathCreateTargetAnchorRect =
@@ -2617,6 +2635,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera,
           zoneId: pathCreateTargetZoneId,
           kind: "inlet",
+          resolveZoneShape,
         })
       : undefined;
   const pathRetargetSourceAnchorRect =
@@ -2634,6 +2653,7 @@ export function ZoneMoveEditorOverlay(props: {
           camera,
           zoneId: retargetPathTargetZoneId,
           kind: "inlet",
+          resolveZoneShape,
         })
       : undefined;
 
@@ -3748,6 +3768,7 @@ export function ZoneMoveEditorOverlay(props: {
                   camera,
                   zoneId: target.zoneId,
                   kind: "outlet",
+                  resolveZoneShape,
                 })
               : undefined;
           const sourceAnchorLocalRect =

@@ -17,6 +17,7 @@ import type {
   ZoneVisualNode,
 } from "../types";
 import { resolveZoneAnchorRect } from "../anchors";
+import { normalizeZoneShape, type ZoneAnchorRenderMode } from "../zoneShape";
 import {
   getZoneDepth,
   isZoneInputEnabled,
@@ -736,17 +737,23 @@ function drawEdges(params: {
   }
 }
 
+// Depth for clipped shapes: box-shadow is cut away by clip-path, so a
+// polygon-following drop-shadow filter is used instead. Tuned to match the
+// zone surface box-shadow tokens (rgba(15, 23, 42, …)).
+const ZONE_CLIP_SHADOW =
+  "drop-shadow(0 14px 22px rgba(15, 23, 42, 0.12)) drop-shadow(0 3px 6px rgba(15, 23, 42, 0.08))";
+
 function createSurfaceChrome(params: {
   owner: HTMLElement;
   accent: string;
   radius: string;
   theme: RendererDrawInput["theme"];
+  header?: boolean;
   topBandOpacity?: number;
 }) {
-  const { owner, accent, radius, theme, topBandOpacity = 0.64 } = params;
+  const { owner, accent, radius, theme, header = true, topBandOpacity = 0.64 } =
+    params;
   const chrome = document.createElement("div");
-  const topBand = document.createElement("div");
-  const cornerGlow = document.createElement("div");
 
   applyStyles(chrome, {
     position: "absolute",
@@ -756,32 +763,51 @@ function createSurfaceChrome(params: {
     background: theme.surface.chrome.overlay,
   });
 
-  applyStyles(topBand, {
-    position: "absolute",
-    left: "0",
-    top: "0",
-    right: "0",
-    height: "44px",
-    borderTopLeftRadius: radius,
-    borderTopRightRadius: radius,
-    background: `linear-gradient(90deg, ${accent} 0%, ${theme.surface.chrome.accentFade} 72%)`,
-    opacity: topBandOpacity,
-    pointerEvents: "none",
-  });
+  if (header) {
+    const topBand = document.createElement("div");
+    const cornerGlow = document.createElement("div");
 
-  applyStyles(cornerGlow, {
-    position: "absolute",
-    right: "-20px",
-    top: "-24px",
-    width: "116px",
-    height: "116px",
-    borderRadius: "999px",
-    background: theme.surface.chrome.glow,
-    pointerEvents: "none",
-  });
+    applyStyles(topBand, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      right: "0",
+      height: "44px",
+      borderTopLeftRadius: radius,
+      borderTopRightRadius: radius,
+      background: `linear-gradient(90deg, ${accent} 0%, ${theme.surface.chrome.accentFade} 72%)`,
+      opacity: topBandOpacity,
+      pointerEvents: "none",
+    });
 
-  chrome.appendChild(topBand);
-  chrome.appendChild(cornerGlow);
+    applyStyles(cornerGlow, {
+      position: "absolute",
+      right: "-20px",
+      top: "-24px",
+      width: "116px",
+      height: "116px",
+      borderRadius: "999px",
+      background: theme.surface.chrome.glow,
+      pointerEvents: "none",
+    });
+
+    chrome.appendChild(topBand);
+    chrome.appendChild(cornerGlow);
+  } else {
+    // Header-less shapes (circle/pill/diamond/…) keep their accent identity
+    // via a soft top-centered wash instead of the rectangular band.
+    const accentWash = document.createElement("div");
+    applyStyles(accentWash, {
+      position: "absolute",
+      inset: "0",
+      borderRadius: radius,
+      background: `radial-gradient(135% 100% at 50% 0%, ${accent} 0%, ${theme.surface.chrome.accentFade} 70%)`,
+      opacity: 0.85,
+      pointerEvents: "none",
+    });
+    chrome.appendChild(accentWash);
+  }
+
   owner.appendChild(chrome);
 }
 
@@ -789,20 +815,72 @@ function drawZoneAnchors(params: {
   owner: HTMLElement;
   zone: ZoneVisualNode;
   input: RendererDrawInput;
+  mode?: ZoneAnchorRenderMode;
 }) {
-  const { owner, zone, input } = params;
+  const { owner, zone, input, mode = "edge" } = params;
+  const zoneColor = input.resolveZoneColor?.(zone.zone) ?? undefined;
   const zoneBorderColor =
-    zone.zone.zoneType === "action"
+    zoneColor ??
+    (zone.zone.zoneType === "action"
       ? input.theme.zoneActionBorder
-      : input.theme.zoneContainerBorder;
+      : input.theme.zoneContainerBorder);
   const anchorAccentColor =
-    zone.zone.zoneType === "action"
+    zoneColor ??
+    (zone.zone.zoneType === "action"
       ? input.theme.surface.anchor.actionAccent
-      : input.theme.surface.anchor.containerAccent;
+      : input.theme.surface.anchor.containerAccent);
+  const anchorGlowColor = zoneColor
+    ? `color-mix(in srgb, ${zoneColor} 12%, transparent)`
+    : anchorAccentColor.replace("0.96", "0.12");
   const shouldRenderAnchor = (kind: "inlet" | "outlet") =>
     kind === "inlet"
       ? isZoneInputEnabled(zone.zone)
       : isZoneOutputEnabled(zone.zone);
+
+  // Vertex mode: a compact dot centered on the left/right edge midpoint,
+  // sitting exactly on a round/diamond node's side. The interactive anchor
+  // geometry is unchanged — this only swaps the visual indicator.
+  if (mode === "vertex") {
+    const dotSize = 14;
+    for (const kind of ["inlet", "outlet"] as const) {
+      if (!shouldRenderAnchor(kind)) continue;
+      const dot = document.createElement("div");
+      const accentDot = document.createElement("div");
+
+      applyStyles(dot, {
+        position: "absolute",
+        top: "50%",
+        left: kind === "inlet" ? "0" : "auto",
+        right: kind === "outlet" ? "0" : "auto",
+        width: `${dotSize}px`,
+        height: `${dotSize}px`,
+        transform:
+          kind === "inlet"
+            ? "translate(-50%, -50%)"
+            : "translate(50%, -50%)",
+        borderRadius: "999px",
+        background: input.theme.surface.anchor.background,
+        border: `1px solid ${zoneBorderColor}`,
+        boxShadow: input.theme.surface.anchor.shadow,
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
+      });
+
+      applyStyles(accentDot, {
+        width: "6px",
+        height: "6px",
+        borderRadius: "999px",
+        background: anchorAccentColor,
+      });
+
+      dot.appendChild(accentDot);
+      owner.appendChild(dot);
+    }
+    return;
+  }
 
   for (const kind of ["inlet", "outlet"] as const) {
     if (!shouldRenderAnchor(kind)) continue;
@@ -853,7 +931,7 @@ function drawZoneAnchors(params: {
       background: anchorAccentColor,
       left: kind === "inlet" ? "8px" : "auto",
       right: kind === "outlet" ? "8px" : "auto",
-      boxShadow: `0 0 0 4px ${anchorAccentColor.replace("0.96", "0.12")}`,
+      boxShadow: `0 0 0 4px ${anchorGlowColor}`,
     });
 
     el.appendChild(seam);
@@ -1026,7 +1104,6 @@ export const domDrawEngine: DrawEngine = {
       const zoneDepth = getZoneDepth(input.model, zoneVisual.zoneId);
       const zoneEl = document.createElement("div");
       const zoneBodyEl = document.createElement("div");
-      const zoneChromeEl = document.createElement("div");
       zoneEl.dataset.zoneflowZoneId = zoneVisual.zoneId;
       zoneBodyEl.dataset.zoneflowZoneBody = zoneVisual.zoneId;
 
@@ -1041,40 +1118,90 @@ export const domDrawEngine: DrawEngine = {
         zIndex: zoneDepth + RENDER_Z_INDEX.zoneBase,
       });
 
-      applyStyles(zoneBodyEl, {
-        position: "absolute",
-        left: "0",
-        top: "0",
-        width: "100%",
-        height: "100%",
-        borderRadius: "0",
-        border: `1px solid ${
-          zoneVisual.zone.zoneType === "action"
-            ? theme.zoneActionBorder
-            : theme.zoneContainerBorder
-        }`,
-        background: theme.surface.zone.background,
-        boxSizing: "border-box",
-        boxShadow: theme.surface.zone.shadow,
-        overflow: "hidden",
-      });
+      const shape = normalizeZoneShape(
+        input.resolveZoneShape?.(zoneVisual.zone)
+      );
+      // Consumer-resolved per-zone color overrides the theme's border + accent
+      // (body background and text stay theme-driven to preserve contrast).
+      const zoneColor = input.resolveZoneColor?.(zoneVisual.zone) ?? undefined;
+      const zoneBorderColor =
+        zoneColor ??
+        (zoneVisual.zone.zoneType === "action"
+          ? theme.zoneActionBorder
+          : theme.zoneContainerBorder);
+      const zoneAccentColor = zoneColor
+        ? `color-mix(in srgb, ${zoneColor} 18%, transparent)`
+        : zoneVisual.zone.zoneType === "action"
+          ? theme.surface.zone.actionAccent
+          : theme.surface.zone.containerAccent;
+
+      if (shape.clipPath) {
+        // Clipped polygon (diamond/hexagon/custom). A CSS border would be
+        // cut by clip-path, so the outline is synthesized: a border-colored
+        // base layer with a 1px-inset fill layer on top. Depth comes from a
+        // drop-shadow filter since box-shadow is clipped away.
+        applyStyles(zoneBodyEl, {
+          position: "absolute",
+          left: "0",
+          top: "0",
+          width: "100%",
+          height: "100%",
+          background: zoneBorderColor,
+          clipPath: shape.clipPath,
+          boxSizing: "border-box",
+          overflow: "hidden",
+          filter: ZONE_CLIP_SHADOW,
+        });
+
+        const zoneFillEl = document.createElement("div");
+        applyStyles(zoneFillEl, {
+          position: "absolute",
+          inset: "1px",
+          background: theme.surface.zone.background,
+          clipPath: shape.clipPath,
+          boxSizing: "border-box",
+          overflow: "hidden",
+        });
+        zoneBodyEl.appendChild(zoneFillEl);
+
+        createSurfaceChrome({
+          owner: zoneFillEl,
+          accent: zoneAccentColor,
+          radius: "0",
+          theme,
+          header: shape.header,
+        });
+      } else {
+        applyStyles(zoneBodyEl, {
+          position: "absolute",
+          left: "0",
+          top: "0",
+          width: "100%",
+          height: "100%",
+          borderRadius: shape.borderRadius,
+          border: `1px solid ${zoneBorderColor}`,
+          background: theme.surface.zone.background,
+          boxSizing: "border-box",
+          boxShadow: theme.surface.zone.shadow,
+          overflow: "hidden",
+        });
+
+        const zoneChromeEl = document.createElement("div");
+        createSurfaceChrome({
+          owner: zoneChromeEl,
+          accent: zoneAccentColor,
+          radius: shape.borderRadius,
+          theme,
+          header: shape.header,
+        });
+        zoneBodyEl.appendChild(zoneChromeEl);
+      }
 
       zoneEl.addEventListener("click", (event) => {
         event.stopPropagation();
         interactionHandlers?.onZoneClick?.(zoneVisual.zoneId);
       });
 
-      createSurfaceChrome({
-        owner: zoneChromeEl,
-        accent:
-          zoneVisual.zone.zoneType === "action"
-            ? theme.surface.zone.actionAccent
-            : theme.surface.zone.containerAccent,
-        radius: "0",
-        theme,
-      });
-
-      zoneBodyEl.appendChild(zoneChromeEl);
       zoneEl.appendChild(zoneBodyEl);
 
       for (const slot of Object.keys(componentLayout?.slots ?? {}) as ZoneComponentSlotName[]) {
@@ -1092,6 +1219,7 @@ export const domDrawEngine: DrawEngine = {
         owner: zoneEl,
         zone: zoneVisual,
         input,
+        mode: shape.anchors,
       });
 
       zoneLayer.appendChild(zoneEl);
