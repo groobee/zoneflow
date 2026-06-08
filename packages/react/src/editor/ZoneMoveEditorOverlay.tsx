@@ -2254,7 +2254,7 @@ export function ZoneMoveEditorOverlay(props: {
     };
   }, [selectedPathTargets]);
 
-  const canRunZoneSelectionCommands = useMemo(() => {
+  const canRunZoneSelectionCommandsBase = useMemo(() => {
     if (selectedZoneTargets.length < 2) return false;
 
     const parentIds = new Set(
@@ -2264,9 +2264,15 @@ export function ZoneMoveEditorOverlay(props: {
     return parentIds.size === 1;
   }, [model, selectedZoneTargets]);
 
-  const canRunPathSelectionCommands = selectedPathTargets.length >= 2;
-  const canRunZoneZOrderCommands = selectedZoneTargets.length >= 1;
-  const canRunPathZOrderCommands = selectedPathTargets.length >= 1;
+  // 정렬·분배·순서(zorder)는 위치/순서 레이아웃 변경이므로 zone=moveZone, path=routePath 권한을 따른다.
+  const canRunZoneSelectionCommands =
+    canRunZoneSelectionCommandsBase && permissions.moveZone;
+  const canRunPathSelectionCommands =
+    selectedPathTargets.length >= 2 && permissions.routePath;
+  const canRunZoneZOrderCommands =
+    selectedZoneTargets.length >= 1 && permissions.moveZone;
+  const canRunPathZOrderCommands =
+    selectedPathTargets.length >= 1 && permissions.routePath;
   const selectedTarget = useMemo(
     () =>
       selectedTargetKey
@@ -3230,7 +3236,9 @@ export function ZoneMoveEditorOverlay(props: {
           </div>
         ) : null}
 
-        {selectionBounds && selectedZoneTargets.length > 0 ? (
+        {selectionBounds &&
+        selectedZoneTargets.length > 0 &&
+        (permissions.moveZone || permissions.deleteZone) ? (
           <div
             style={{
               position: "absolute",
@@ -3373,7 +3381,9 @@ export function ZoneMoveEditorOverlay(props: {
           </div>
         ) : null}
 
-        {pathSelectionBounds && selectedPathTargets.length > 0 ? (
+        {pathSelectionBounds &&
+        selectedPathTargets.length > 0 &&
+        (permissions.routePath || permissions.deletePath) ? (
           <div
             style={{
               position: "absolute",
