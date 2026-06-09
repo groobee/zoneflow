@@ -444,6 +444,9 @@ const lightPreset: ZoneflowThemePreset = {
         buttonBorder: "1px solid rgba(148, 163, 184, 0.22)",
         buttonText: "#0f172a",
         buttonDisabledText: "rgba(100, 116, 139, 0.48)",
+        dangerButtonBackground: "#dc2626",
+        dangerButtonBorder: "1px solid rgba(239, 68, 68, 0.42)",
+        dangerButtonText: "#fff7f7",
       },
       dialog: {
         background: "rgba(255, 255, 255, 0.98)",
@@ -966,6 +969,10 @@ const monoPreset: ZoneflowThemePreset = {
         buttonBackground: "#f5f5f5",
         buttonBorder: "1px solid rgba(23, 23, 23, 0.16)",
         buttonText: "#111111",
+        buttonDisabledText: "rgba(82, 82, 82, 0.5)",
+        dangerButtonBackground: "#111111",
+        dangerButtonBorder: "1px solid rgba(23, 23, 23, 0.52)",
+        dangerButtonText: "#ffffff",
       },
       connectTarget: {
         border: "2px solid rgba(23, 23, 23, 0.92)",

@@ -327,6 +327,45 @@ export function removePath(
   };
 }
 
+/**
+ * Default "empty path" predicate used by {@link removeEmptyPaths}: a path with
+ * a blank name and no rule — i.e. the ones the renderer labels `"Empty"`.
+ */
+export function isEmptyPath(path: Path): boolean {
+  return path.name.trim() === "" && path.rule === null;
+}
+
+/**
+ * Remove every "empty" path across all zones and return a new model. By default
+ * a path counts as empty when its name is blank and it has no rule (matching the
+ * `"Empty"` label shown in the canvas); pass `options.isEmpty` to use a
+ * different rule (e.g. also require `target == null` to keep unconditional
+ * fall-through paths). Pure model mutation — pair with {@link pruneLayoutModel}
+ * afterwards to drop the now-orphaned path layouts.
+ *
+ * @example
+ * const next = removeEmptyPaths(model);
+ * layoutModel = pruneLayoutModel(next, layoutModel);
+ */
+export function removeEmptyPaths(
+  model: UniverseModel,
+  options: { isEmpty?: (path: Path) => boolean } = {}
+): UniverseModel {
+  const isEmpty = options.isEmpty ?? isEmptyPath;
+
+  let next = model;
+  for (const zone of Object.values(model.zonesById)) {
+    for (const pathId of zone.pathIds) {
+      const path = zone.pathsById[pathId];
+      if (path && isEmpty(path)) {
+        next = removePath(next, zone.id, pathId);
+      }
+    }
+  }
+
+  return next;
+}
+
 export function setPathTarget(
   model: UniverseModel,
   zoneId: ZoneId,

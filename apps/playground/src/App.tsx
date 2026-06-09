@@ -3,6 +3,8 @@ import {
   createUniverseId,
   createUniverseLayoutModel,
   parseZoneflowDocument,
+  pruneLayoutModel,
+  removeEmptyPaths,
   serializeZoneflowDocument,
 } from "@zoneflow/core";
 import { useFloatingLayout, useUniverseEditor } from "@zoneflow/react";
@@ -173,6 +175,22 @@ export default function App() {
     }
   };
 
+  const handleRemoveEmptyPaths = () => {
+    const current = editor.model;
+    const nextModel = removeEmptyPaths(current);
+    if (nextModel === current) return; // 빈 패스 없음 — no-op
+    const nextLayoutModel = pruneLayoutModel(nextModel, editor.layoutModel);
+
+    if (editor.isEditMode) {
+      // 편집 중에는 draft 트랜잭션으로 — undo/적용 흐름에 포함
+      editor.updateDraftModel(nextModel);
+      editor.updateDraftLayoutModel(nextLayoutModel);
+    } else {
+      setModel(nextModel);
+      setLayoutModel(nextLayoutModel);
+    }
+  };
+
   return (
     <div
       style={{
@@ -206,6 +224,7 @@ export default function App() {
         onCreateNewDocument={handleCreateNewDocument}
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
+        onRemoveEmptyPaths={handleRemoveEmptyPaths}
       />
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 

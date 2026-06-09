@@ -38,6 +38,7 @@ type Props = {
   onCreateNewDocument: () => void;
   onExportFile: () => void;
   onImportFile: () => void;
+  onRemoveEmptyPaths: () => void;
 };
 
 export function Topbar({
@@ -59,6 +60,7 @@ export function Topbar({
   onCreateNewDocument,
   onExportFile,
   onImportFile,
+  onRemoveEmptyPaths,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -165,6 +167,14 @@ export function Topbar({
           </button>
           <button type="button" style={themedControlStyle} onClick={onExportFile}>
             저장
+          </button>
+          <button
+            type="button"
+            style={themedControlStyle}
+            onClick={onRemoveEmptyPaths}
+            title="이름이 비고 rule이 없는 'Empty' 패스를 모두 제거"
+          >
+            Empty 정리
           </button>
           <button
             type="button"
