@@ -8,6 +8,17 @@ import {
 } from "@zoneflow/core";
 import { OverlayModal } from "../ui/OverlayModal";
 
+function parseOptionalJson(label: string, value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`${label} JSON 형식이 올바르지 않습니다.`);
+  }
+}
+
 type PathTypeOption = {
   value: string;
   label: string;
@@ -59,6 +70,12 @@ export function PlaygroundPathEditor(props: {
   );
   const [name, setName] = useState(path?.name ?? "");
   const [type, setType] = useState(path?.rule?.type ?? EMPTY_RULE);
+  const initialMeta = useMemo(
+    () => (path?.meta ? JSON.stringify(path.meta, null, 2) : ""),
+    [path?.meta]
+  );
+  const [metaText, setMetaText] = useState(initialMeta);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!sourceZone || !path) {
     return null;
@@ -137,6 +154,42 @@ export function PlaygroundPathEditor(props: {
           />
         </label>
 
+        <label style={{ display: "grid", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>
+            Meta JSON
+          </span>
+          <textarea
+            value={metaText}
+            onChange={(event) => setMetaText(event.target.value)}
+            rows={6}
+            placeholder={'{\n  "color": "#ec4899"\n}'}
+            style={{
+              borderRadius: 12,
+              border: "1px solid rgba(148, 163, 184, 0.2)",
+              background: "#111827",
+              color: "#f8fafc",
+              padding: "12px 14px",
+              resize: "vertical",
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}
+          />
+        </label>
+
+        {errorMessage ? (
+          <div
+            style={{
+              borderRadius: 12,
+              background: "rgba(239, 68, 68, 0.12)",
+              border: "1px solid rgba(239, 68, 68, 0.28)",
+              color: "#fecaca",
+              padding: "12px 14px",
+              fontSize: 12,
+            }}
+          >
+            {errorMessage}
+          </div>
+        ) : null}
+
         <div
           style={{
             display: "flex",
@@ -162,15 +215,25 @@ export function PlaygroundPathEditor(props: {
           <button
             type="button"
             onClick={() => {
-              const selectedType =
-                typeOptions.find((option) => option.value === type)?.label ?? "Empty";
-              const nextModel = updatePath(model, sourceZoneId, pathId, {
-                name: name.trim() || selectedType,
-                rule: createRuleFromType(type),
-              });
+              try {
+                const meta = parseOptionalJson("Meta", metaText);
+                const selectedType =
+                  typeOptions.find((option) => option.value === type)?.label ?? "Empty";
+                const nextModel = updatePath(model, sourceZoneId, pathId, {
+                  name: name.trim() || selectedType,
+                  rule: createRuleFromType(type),
+                  meta,
+                });
 
-              onModelChange(nextModel);
-              onClose();
+                onModelChange(nextModel);
+                onClose();
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "저장 중 오류가 발생했습니다."
+                );
+              }
             }}
             style={{
               border: "1px solid #2563eb",
