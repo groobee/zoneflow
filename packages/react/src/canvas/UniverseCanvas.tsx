@@ -17,6 +17,7 @@ import {
   type PathComponentSlotName,
   type RendererDebugOptions,
   type RendererInteractionHandlers,
+  type ResolvePathColor,
   type ResolveZoneColor,
   type ResolveZoneShape,
   type TextScaleLevel,
@@ -57,6 +58,7 @@ export type UniverseCanvasProps = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolvePathColor?: ResolvePathColor;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   backgroundRenderer?: BackgroundRenderer;
@@ -96,6 +98,7 @@ export function UniverseCanvas({
                                  pathComponentRenderers,
                                  resolveZoneShape,
                                  resolveZoneColor,
+                                 resolvePathColor,
                                  zoneComponents,
                                  pathComponents,
                                  backgroundRenderer,
@@ -230,6 +233,7 @@ export function UniverseCanvas({
       pathComponentRenderers: effectivePathComponentRenderers,
       resolveZoneShape,
       resolveZoneColor,
+      resolvePathColor,
       backgroundRenderer: effectiveBackgroundRenderer,
       gridOptions: grid,
       interactionHandlers,
@@ -261,6 +265,7 @@ export function UniverseCanvas({
     effectivePathComponentRenderers,
     resolveZoneShape,
     resolveZoneColor,
+    resolvePathColor,
     effectiveBackgroundRenderer,
     zoneComponents,
     pathComponents,

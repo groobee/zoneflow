@@ -87,6 +87,8 @@ export function ZoneflowScreen() {
           width: "100%",
           height: "100%",
           fontSize: 12,
+          // resolvePathColor 가 준 per-path 색 (없으면 상속색)
+          color: mount.context.pathColor,
         }}
       >
         {mount.context.path.name || "Empty"}
@@ -139,6 +141,8 @@ export function ZoneflowScreen() {
 
 존/패스 내부 렌더링은 slot component로 주입합니다.
 
+> React slot component(`zoneComponents` / `pathComponents`)를 주면 해당 슬롯의 저수준 DOM 렌더러(`zoneComponentRenderers` / `pathComponentRenderers`)와 내장 기본 렌더러를 **덮어씁니다.** 즉 그 슬롯의 모양·색은 전적으로 주입한 컴포넌트가 결정합니다.
+
 기본 zone slot:
 
 - `title`
@@ -177,6 +181,47 @@ const layoutEngine = createExtensibleComponentLayoutEngine({
 ```
 
 빈 config 로 호출하면 default 와 동일한 출력이라 호환성 100%.
+
+### 개별 색상 / 모양 (per-instance color & shape)
+
+zone/path 마다 다른 색·모양은 canvas 의 resolver prop 으로 줍니다. 모두 순수 표현 계층 hook 이라 모델 구조·연결·히트테스트에는 영향이 없습니다.
+
+| prop | 시그니처 | 효과 |
+|---|---|---|
+| `resolveZoneColor` | `(zone) => string \| null \| undefined` | zone 의 테두리/accent/anchor 색을 덮어씀(DOM 도형). 슬롯엔 `mount.context.zoneColor` 로 노출 |
+| `resolvePathColor` | `(path) => string \| null \| undefined` | path 의 per-instance 색. 내장 label 폴백이 사용하고, 슬롯엔 `mount.context.pathColor` 로 노출 |
+| `resolveZoneShape` | `(zone) => ZoneShape \| null \| undefined` | zone 도형(`"rect" \| "pill" \| "circle" \| "diamond" \| "hexagon"` 또는 커스텀 clip) |
+
+`null` / `undefined` 를 반환하면 테마 기본값으로 폴백합니다. 보통 `meta` 에서 값을 읽도록 배선합니다.
+
+```tsx
+import type { ZoneShape } from "@zoneflow/renderer-dom";
+
+<UniverseEditorCanvas
+  editor={editor}
+  resolveZoneColor={(zone) => zone.meta?.color as string | undefined}
+  resolvePathColor={(path) => path.meta?.color as string | undefined}
+  resolveZoneShape={(zone) => zone.meta?.shape as ZoneShape | undefined}
+  zoneComponents={zoneComponents}
+  pathComponents={pathComponents}
+/>
+```
+
+> **중요:** React slot component 를 직접 주는 경우(대부분), 그 슬롯의 텍스트 색은 슬롯이 결정합니다. resolver 색이 라벨에 반영되게 하려면 슬롯에서 `mount.context.pathColor` / `mount.context.zoneColor` 를 읽으세요. (이 레포의 예제 슬롯은 이미 그렇게 동작합니다.)
+
+```tsx
+const pathComponents: PathSlotComponentMap = {
+  label: ({ mount }) => (
+    <Pathed
+      style={{ color: mount.context.pathColor ?? mount.context.theme.pathLabel }}
+    >
+      {mount.context.path.name || "Empty"}
+    </Pathed>
+  ),
+};
+```
+
+zone 은 `resolveZoneColor` 가 도형(테두리/accent)을 자동으로 칠합니다. 타이틀 텍스트까지 같은 색으로 맞추고 싶을 때만 슬롯에서 `mount.context.zoneColor` 를 읽으면 됩니다(대비 유지를 위해 기본 타이틀은 테마색).
 
 ### `background` / `backgroundRenderer`
 

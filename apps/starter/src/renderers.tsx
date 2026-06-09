@@ -82,7 +82,7 @@ export const starterPathComponents: PathSlotComponentMap = {
       <Pathed style={{ display: "flex", alignItems: "center" }}>
         <div
           style={{
-            color: mount.context.theme.pathLabel,
+            color: mount.context.pathColor ?? mount.context.theme.pathLabel,
             fontFamily: sans,
             fontSize: 13,
             fontWeight: 700,

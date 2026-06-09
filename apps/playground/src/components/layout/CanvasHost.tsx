@@ -9,6 +9,7 @@ import {
   type UniverseEditorController,
 } from "@zoneflow/react";
 import type {
+  ResolvePathColor,
   ResolveZoneColor,
   ResolveZoneShape,
   ZoneShape,
@@ -43,6 +44,10 @@ const resolveZoneShape: ResolveZoneShape = (zone) =>
 /** Per-zone accent color, also decided by the consumer from `meta.color`. */
 const resolveZoneColor: ResolveZoneColor = (zone) =>
   zone.meta?.color as string | undefined;
+
+/** Per-path label color, likewise decided by the consumer from `meta.color`. */
+const resolvePathColor: ResolvePathColor = (path) =>
+  path.meta?.color as string | undefined;
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -195,6 +200,7 @@ export function CanvasHost({
         background={Background}
         resolveZoneShape={resolveZoneShape}
         resolveZoneColor={resolveZoneColor}
+        resolvePathColor={resolvePathColor}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{

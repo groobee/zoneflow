@@ -396,9 +396,15 @@ function createPathComponents(variant: Variant): PathSlotComponentMap {
   return {
     label({ mount }: PathSlotComponentProps) {
       const label = mount.context.path.name.trim() || "Empty";
+      // Per-path color comes from the resolvePathColor prop (context.pathColor),
+      // mirroring how zones receive resolveZoneColor — not read from meta here.
+      const style = pathLabelStyle(variant, mount.context);
+      const pathColor = mount.context.pathColor;
       return (
         <Pathed style={{ display: "flex", alignItems: "center" }}>
-          <div style={pathLabelStyle(variant, mount.context)}>{label}</div>
+          <div style={pathColor ? { ...style, color: pathColor } : style}>
+            {label}
+          </div>
         </Pathed>
       );
     },

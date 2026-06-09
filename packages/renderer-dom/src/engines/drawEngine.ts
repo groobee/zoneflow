@@ -456,6 +456,8 @@ function renderPathFallback(
     host.textContent = title;
     applyStyles(host, {
       ...base,
+      // Consumer-resolved per-path color (resolvePathColor) overrides the theme.
+      color: context.pathColor ?? context.theme.pathLabel,
       fontSize: "12px",
       fontWeight: 700,
     });
@@ -566,6 +568,7 @@ function createZoneSlotHost(params: {
     componentLayout,
     camera: input.camera,
     theme: input.theme,
+    zoneColor: input.resolveZoneColor?.(zoneVisual.zone) ?? undefined,
     textScale: input.textScale,
   };
 
@@ -633,6 +636,7 @@ function createPathSlotHost(params: {
     componentLayout,
     camera: input.camera,
     theme: input.theme,
+    pathColor: input.resolvePathColor?.(pathVisual.path) ?? undefined,
     textScale: input.textScale,
   };
 

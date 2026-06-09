@@ -441,6 +441,29 @@ const layoutEngine = createExtensibleComponentLayoutEngine({
 
 zone 의 컨테이너/자식 관계 때문에 부모 zone 의 슬롯 영역 위에 자식 zone 이 그려지는 경우, 마우스 클릭이 자식 zone 에 가로채집니다. 인터랙티브한 슬롯 (버튼 등) 은 leaf zone 에서만 렌더하도록 `shouldRender` 에서 `zone.childZoneIds.length === 0` 조건을 거는 것이 안전합니다.
 
+## 개별 색상 / 모양 (per-instance color & shape)
+
+zone/path 마다 다른 색·모양은 canvas 의 resolver prop 으로 줍니다. 순수 표현 계층 hook 이라 모델/연결/히트테스트에는 영향이 없습니다.
+
+- `resolveZoneColor(zone) => string | null | undefined` — zone 테두리/accent/anchor 색(DOM 도형). 슬롯엔 `mount.context.zoneColor` 노출
+- `resolvePathColor(path) => string | null | undefined` — path per-instance 색. 내장 label 폴백이 사용, 슬롯엔 `mount.context.pathColor` 노출
+- `resolveZoneShape(zone) => ZoneShape | null | undefined` — `rect | pill | circle | diamond | hexagon` 또는 커스텀 clip
+
+`null` / `undefined` 를 반환하면 테마 기본값으로 폴백합니다. 보통 `meta` 에서 값을 읽습니다.
+
+```tsx
+import type { ZoneShape } from "@zoneflow/renderer-dom";
+
+<UniverseEditorCanvas
+  editor={editor}
+  resolveZoneColor={(z) => z.meta?.color as string | undefined}
+  resolvePathColor={(p) => p.meta?.color as string | undefined}
+  resolveZoneShape={(z) => z.meta?.shape as ZoneShape | undefined}
+/>
+```
+
+> React slot component(`zoneComponents` / `pathComponents`)는 그 슬롯의 저수준 DOM 렌더러와 내장 폴백을 **덮어씁니다.** 따라서 직접 슬롯을 주는 경우, 라벨/타이틀 색이 resolver 색을 따르게 하려면 슬롯에서 `mount.context.pathColor` / `mount.context.zoneColor` 를 읽어야 합니다(이 레포의 예제 슬롯은 이미 그렇게 동작).
+
 ## 월드 배경 (지도/이미지)
 
 캔버스 전체에 월드 좌표계로 동작하는 배경을 깔 수 있습니다. (지도 타일, blueprint 패턴 등) 카메라 pan/zoom 에 같이 따라가며, 시각 순서는 **`background → grid → zones`** 입니다.

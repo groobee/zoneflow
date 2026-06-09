@@ -149,6 +149,15 @@ export type ZoneComponentRendererContext = {
   componentLayout: ZoneComponentLayout;
   camera: CameraState;
   theme: ZoneflowTheme;
+  /**
+   * Per-zone color resolved once from the consumer's `resolveZoneColor` prop —
+   * the same value that tints the zone's border/accent on the DOM shape
+   * (undefined when not provided or it returned nullish). Symmetric with
+   * {@link PathComponentRendererContext.pathColor}: custom slot renderers can
+   * read this to match the accent instead of reaching into `zone.meta`. The
+   * built-in title/body fallbacks stay theme-driven to preserve contrast.
+   */
+  zoneColor?: string;
   textScale: TextScaleLevel;
 };
 
@@ -162,6 +171,14 @@ export type PathComponentRendererContext = {
   componentLayout: PathComponentLayout;
   camera: CameraState;
   theme: ZoneflowTheme;
+  /**
+   * Per-path color resolved once from the consumer's `resolvePathColor` prop
+   * (undefined when not provided or it returned nullish). Single source of
+   * truth for both the DOM fallback label and custom slot renderers — mirrors
+   * how `resolveZoneColor` drives a zone's accent, so slots should read this
+   * rather than reaching into `path.meta` themselves.
+   */
+  pathColor?: string;
   textScale: TextScaleLevel;
 };
 
@@ -182,6 +199,16 @@ export type ZoneComponentRendererMap = Partial<
 export type PathComponentRendererMap = Partial<
   Record<PathComponentSlotName, PathComponentRenderer>
 >;
+
+/**
+ * Resolver invoked once per path to decide its label color. Return a CSS color
+ * to override the path label's text color for that path; return
+ * `undefined`/`null` to fall back to the theme's `pathLabel` color. Like
+ * {@link ResolveZoneColor}, a purely presentational hook decided by the
+ * consumer (e.g. from `path.meta.color`, `path.rule`, …). Only the label text
+ * is affected — the rule/target/body slots stay theme-driven for contrast.
+ */
+export type ResolvePathColor = (path: Path) => string | null | undefined;
 
 export type ZoneComponentMount = {
   key: string;
@@ -274,6 +301,7 @@ export type RendererDrawInput = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolvePathColor?: ResolvePathColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
@@ -357,6 +385,7 @@ export type RendererInput = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolvePathColor?: ResolvePathColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;

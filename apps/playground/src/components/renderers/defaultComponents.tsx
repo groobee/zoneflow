@@ -314,7 +314,7 @@ export const pathComponents: PathSlotComponentMap = {
       <Pathed style={{ display: "flex", alignItems: "center" }}>
         <div
           style={{
-            color: mount.context.theme.pathLabel,
+            color: mount.context.pathColor ?? mount.context.theme.pathLabel,
             fontSize: 13,
             fontWeight: 730,
             letterSpacing: "-0.02em",

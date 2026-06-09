@@ -37,6 +37,11 @@ export const sampleUniverse: UniverseModel = {
               eventName: "purchase",
             },
           },
+          // Per-path label color — read by resolvePathColor (path.meta.color).
+          // This label renders pink while uncolored paths use the theme default.
+          meta: {
+            color: "#ec4899",
+          },
         },
         "path-offsite-timeout": {
           id: "path-offsite-timeout",
@@ -51,6 +56,10 @@ export const sampleUniverse: UniverseModel = {
             payload: {
               seconds: 86400,
             },
+          },
+          // Per-path label color example (amber).
+          meta: {
+            color: "#f59e0b",
           },
         },
         "path-offsite-review": {
@@ -153,6 +162,10 @@ export const sampleUniverse: UniverseModel = {
             payload: {
               eventName: "purchase",
             },
+          },
+          // Per-path label color example (green).
+          meta: {
+            color: "#22c55e",
           },
         },
         "path-waitResponse-fallback": {
