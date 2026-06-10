@@ -8,8 +8,11 @@ type UseCameraControlsParams = {
   setCamera: React.Dispatch<React.SetStateAction<CameraState>>;
 };
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 3;
+export const CAMERA_MIN_ZOOM = 0.25;
+export const CAMERA_MAX_ZOOM = 3;
+
+const MIN_ZOOM = CAMERA_MIN_ZOOM;
+const MAX_ZOOM = CAMERA_MAX_ZOOM;
 const ZOOM_STEP = 1.1;
 const TOUCH_PAN_MIN_POINTERS = 2;
 

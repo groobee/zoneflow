@@ -56,6 +56,9 @@ pnpm add @zoneflow/core @zoneflow/react react react-dom
   - `DefaultEditorToolbar + UniverseEditorCanvas + 간단한 sample model`만 포함합니다
 - `apps/playground`
   - 테마, 샘플, import/export, 디버그, 편집 기능을 모두 보여주는 확장 예제
+- `apps/kittyflow`
+  - 편집 없는 read-only viewer 예제 — 골목 고양이 관계도
+  - `UniverseCanvas + interactionHandlers.onZoneClick` 으로 존 클릭 시 우측에 정보 패널(모달 아님)을 띄우는 패턴과, 슬롯 커스터마이즈(ASCII 얼굴) / `resolveZoneColor` / `resolvePathColor` 활용을 보여줍니다
 
 ## 핵심 개념
 
@@ -202,6 +205,35 @@ export function ZoneflowScreen() {
 }
 ```
 
+## 특정 존으로 카메라 이동 (focusZone)
+
+"그래프의 시작 존으로 이동" 같은 외부 내비게이션 수요를 위해, 캔버스 ref 로 특정 존을 화면 중앙에 가져올 수 있습니다.
+
+```tsx
+import { useRef } from "react";
+import { UniverseCanvas, type UniverseCanvasHandle } from "@zoneflow/react";
+
+function Viewer() {
+  const canvasRef = useRef<UniverseCanvasHandle | null>(null);
+
+  return (
+    <>
+      <button onClick={() => canvasRef.current?.focusZone("startZone")}>
+        시작 존으로
+      </button>
+      <UniverseCanvas ref={canvasRef} model={model} layoutModel={layoutModel} />
+    </>
+  );
+}
+```
+
+- `focusZone(zoneId, options?)` — 해당 존이 뷰포트 중앙에 오도록 카메라를 이동합니다. 존을 찾지 못했거나 아직 첫 프레임이 그려지기 전이면 `false` 를 반환합니다.
+- `options.zoom` — 이동 후 zoom (미지정 시 현재 zoom 유지, 0.25~3 으로 clamp).
+- controlled camera(`cameraState`/`onCameraChange`) 모드에서도 동작합니다 — 계산된 카메라가 `onCameraChange` 로 전달됩니다. ref 없이 직접 계산하고 싶으면 `computeZoneFocusCamera()` 헬퍼를 쓰세요.
+- `UniverseEditorCanvas` 도 같은 핸들을 제공합니다 (`UniverseEditorCanvasHandle` — `focusZone` + `fitToView`).
+
+활용 예는 `apps/kittyflow` 의 "시작 존으로" 버튼과 정보 패널의 관계 행 클릭(상대 고양이로 이동)을 참고하세요.
+
 ## 편집 UI 주입
 
 실서비스에서는 존/패스 편집 폼을 외부에서 주입하면 됩니다.
@@ -213,6 +245,8 @@ export function ZoneflowScreen() {
 - `renderPathEditor`
 - `onPathLabelDoubleClick`
 - `onPathLabelContextMenu`
+- `onZoneSelectionChange`
+- `onPathSelectionChange`
 - `canConnectPath`
 
 예:
@@ -379,6 +413,34 @@ import { createZoneFromDropTemplate } from "@zoneflow/react";
 - `null` / `undefined` / 콜백 미지정 — 기존 동작 (dangling path 로 처리)
 
 `createZoneFromDropTemplate` 외에도 `@zoneflow/core` 의 mutation 으로 직접 만들어도 됩니다. 핵심은 변경된 `model`/`layoutModel` 과 새 `targetZoneId` 만 돌려주면 path 연결은 editor 가 알아서 한다는 점.
+
+### 선택 변경 이벤트
+
+캔버스에서 zone / path 선택이 바뀔 때마다 외부에서 알 수 있습니다. 선택된 대상에 맞춰 사이드 패널을 띄우거나, 외부 목록 UI 와 선택 상태를 동기화할 때 사용합니다.
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    onZoneSelectionChange: (zoneIds) => {
+      // 단일 클릭이면 [zoneId], shift/ctrl 토글·마퀴 선택이면 여러 개,
+      // 선택 해제면 []
+      setInspectorZoneIds(zoneIds);
+    },
+    onPathSelectionChange: (pathIds) => {
+      setInspectorPathIds(pathIds);
+    },
+  }}
+/>
+```
+
+동작:
+
+- 단일 클릭 선택, shift/ctrl/cmd 토글, 마퀴(드래그 박스) 선택이 모두 같은 콜백으로 옵니다. `zoneIds.length` 로 단일/다중을 구분하면 됩니다.
+- 선택 해제(빈 캔버스 클릭, 편집 모드 종료, 선택 대상 삭제) 시 빈 배열로 호출됩니다.
+- 선택 **내용이 실제로 바뀔 때만** 호출됩니다. 이미 선택된 zone 을 다시 클릭해도 재호출되지 않습니다.
+- zone 과 path 선택은 상호 배타입니다. zone 을 선택하면 path 선택이 풀리면서 `onPathSelectionChange([])` 가 함께 호출될 수 있습니다 (반대도 동일).
+- 선택된 zone 이 모델에서 삭제되면 남은 선택만 담아 다시 호출됩니다.
 
 ## 슬롯 확장 (커스텀 UI 요소 추가)
 

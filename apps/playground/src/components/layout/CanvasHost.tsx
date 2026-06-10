@@ -215,6 +215,12 @@ export function CanvasHost({
           },
           onPathCreated: handlePathCreated,
           onPathDropOnEmptySpace: handlePathDropOnEmptySpace,
+          onZoneSelectionChange: (zoneIds) => {
+            console.log("[zoneflow selection] zones", zoneIds);
+          },
+          onPathSelectionChange: (pathIds) => {
+            console.log("[zoneflow selection] paths", pathIds);
+          },
           deleteInteraction: {
             animation: true,
             confirm: true,

@@ -203,6 +203,20 @@ export type ZoneMoveEditorConfig = {
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
   onPathLabelContextMenu?: (event: PathLabelEventPayload) => void;
   /**
+   * zone 선택이 바뀔 때마다 호출됩니다.
+   *
+   * - 단일 클릭, shift/ctrl/cmd 토글, 마퀴(드래그 박스) 선택 모두 같은 콜백으로 옵니다.
+   * - 선택 해제(빈 캔버스 클릭, 편집 모드 종료, 선택된 zone 삭제 등) 시 빈 배열로 호출됩니다.
+   * - 선택 내용이 실제로 바뀔 때만 호출됩니다 (같은 zone 재클릭 시 재호출되지 않음).
+   * - zone 과 path 선택은 상호 배타라서, zone 선택 시 path 선택이 비워지며
+   *   `onPathSelectionChange` 도 빈 배열로 함께 호출될 수 있습니다.
+   */
+  onZoneSelectionChange?: (zoneIds: ZoneId[]) => void;
+  /**
+   * path 선택이 바뀔 때마다 호출됩니다. 규칙은 `onZoneSelectionChange` 와 동일합니다.
+   */
+  onPathSelectionChange?: (pathIds: PathId[]) => void;
+  /**
    * 외부에서 zone 간 path 연결 가능 여부를 검증하는 콜백.
    *
    * - 미지정 시 기본 동작: 모든 연결 허용 (기존 동작과 동일).
@@ -638,6 +652,13 @@ function togglePathSelection(pathIds: PathId[], pathId: PathId): PathId[] {
   return pathIds.includes(pathId)
     ? pathIds.filter((current) => current !== pathId)
     : [...pathIds, pathId];
+}
+
+function areIdListsEqual<Id extends string>(left: Id[], right: Id[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((id, index) => id === right[index])
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1262,6 +1283,8 @@ export function ZoneMoveEditorOverlay(props: {
   const marqueeSelectionRef = useRef<MarqueeSelectionState | null>(null);
   const selectedZoneIdsRef = useRef<ZoneId[]>([]);
   const selectedPathIdsRef = useRef<PathId[]>([]);
+  const notifiedZoneSelectionRef = useRef<ZoneId[]>([]);
+  const notifiedPathSelectionRef = useRef<PathId[]>([]);
   const longPressRef = useRef<LongPressState | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const deleteUndoTimerRef = useRef<number | null>(null);
@@ -1290,6 +1313,8 @@ export function ZoneMoveEditorOverlay(props: {
     canConnectPath: editor?.canConnectPath,
     onPathCreated: editor?.onPathCreated,
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
+    onZoneSelectionChange: editor?.onZoneSelectionChange,
+    onPathSelectionChange: editor?.onPathSelectionChange,
     resolveZoneShape,
     onExclusionStateChange,
   });
@@ -1312,6 +1337,8 @@ export function ZoneMoveEditorOverlay(props: {
       canConnectPath: editor?.canConnectPath,
       onPathCreated: editor?.onPathCreated,
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
+      onZoneSelectionChange: editor?.onZoneSelectionChange,
+      onPathSelectionChange: editor?.onPathSelectionChange,
       resolveZoneShape,
       onExclusionStateChange,
     };
@@ -1331,6 +1358,24 @@ export function ZoneMoveEditorOverlay(props: {
 
   useEffect(() => {
     selectedPathIdsRef.current = selectedPathIds;
+  }, [selectedPathIds]);
+
+  // state 배열의 identity 가 아니라 내용이 바뀔 때만 외부에 알린다 —
+  // 같은 선택을 유지한 채 새 배열로 set 되는 경로(모델 prune, 재클릭 등)가 많다.
+  useEffect(() => {
+    if (areIdListsEqual(notifiedZoneSelectionRef.current, selectedZoneIds)) {
+      return;
+    }
+    notifiedZoneSelectionRef.current = selectedZoneIds;
+    latestRef.current.onZoneSelectionChange?.([...selectedZoneIds]);
+  }, [selectedZoneIds]);
+
+  useEffect(() => {
+    if (areIdListsEqual(notifiedPathSelectionRef.current, selectedPathIds)) {
+      return;
+    }
+    notifiedPathSelectionRef.current = selectedPathIds;
+    latestRef.current.onPathSelectionChange?.([...selectedPathIds]);
   }, [selectedPathIds]);
 
   useEffect(() => {

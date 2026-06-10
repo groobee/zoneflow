@@ -1120,6 +1120,9 @@ export const domDrawEngine: DrawEngine = {
         opacity: getOpacity(visibility.emphasis),
         overflow: "visible",
         zIndex: zoneDepth + RENDER_Z_INDEX.zoneBase,
+        // zoneLayer 가 pointer-events: none 이고 이 속성은 상속되므로,
+        // 명시하지 않으면 카드에서 슬롯 사각형 밖 영역의 클릭이 배경으로 빠진다.
+        pointerEvents: "auto",
       });
 
       const shape = normalizeZoneShape(
@@ -1261,6 +1264,8 @@ export const domDrawEngine: DrawEngine = {
         opacity: getOpacity(visibility.emphasis),
         zIndex: RENDER_Z_INDEX.pathNode,
         overflow: "hidden",
+        // pathLayer 의 pointer-events: none 상속 차단 — zoneEl 과 동일한 이유.
+        pointerEvents: "auto",
       });
 
       pathEl.addEventListener("click", (event) => {

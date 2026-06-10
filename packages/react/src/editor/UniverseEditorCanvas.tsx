@@ -1,6 +1,20 @@
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import type { ZoneId } from "@zoneflow/core";
 import type { CameraState, RendererFrame, Rect } from "@zoneflow/renderer-dom";
-import { UniverseCanvas, type UniverseCanvasProps } from "../canvas/UniverseCanvas";
+import {
+  computeZoneFocusCamera,
+  UniverseCanvas,
+  type UniverseCanvasFocusZoneOptions,
+  type UniverseCanvasProps,
+} from "../canvas/UniverseCanvas";
 import {
   getGridToggleLabel,
   getGridSnapToggleLabel,
@@ -35,6 +49,13 @@ export type UniverseEditorCanvasProps = Omit<
 > & {
   editor: UniverseEditorController;
   editorConfig?: ControlledZoneMoveEditorConfig;
+};
+
+export type UniverseEditorCanvasHandle = {
+  /** 특정 zone 이 화면 중앙에 오도록 카메라를 이동. zone 을 못 찾으면 false. */
+  focusZone: (zoneId: ZoneId, options?: UniverseCanvasFocusZoneOptions) => boolean;
+  /** 모든 zone/path 가 화면에 들어오도록 카메라를 맞춤. */
+  fitToView: () => void;
 };
 
 const DEFAULT_CAMERA: CameraState = {
@@ -131,7 +152,10 @@ function fitCameraToWorldRect(params: {
   };
 }
 
-export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
+export const UniverseEditorCanvas = forwardRef<
+  UniverseEditorCanvasHandle,
+  UniverseEditorCanvasProps
+>(function UniverseEditorCanvas(props, handleRef) {
   const { editor, editorConfig, grid, ...canvasProps } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
@@ -215,6 +239,39 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
       })
     );
   }, []);
+
+  const focusZone = useCallback(
+    (zoneId: ZoneId, options?: UniverseCanvasFocusZoneOptions): boolean => {
+      const rect = hostRef.current?.getBoundingClientRect();
+      const frame = frameRef.current;
+      const zoneRect = frame?.pipeline.graphLayout.zonesById[zoneId]?.rect;
+
+      if (!rect || rect.width <= 0 || rect.height <= 0 || !zoneRect) {
+        return false;
+      }
+
+      setCamera((prev) => {
+        const zoom = clamp(options?.zoom ?? prev.zoom, MIN_ZOOM, MAX_ZOOM);
+        return (
+          computeZoneFocusCamera({
+            frame,
+            zoneId,
+            viewportWidth: rect.width,
+            viewportHeight: rect.height,
+            zoom,
+          }) ?? prev
+        );
+      });
+      return true;
+    },
+    []
+  );
+
+  useImperativeHandle(
+    handleRef,
+    () => ({ focusZone, fitToView }),
+    [focusZone, fitToView]
+  );
 
   const zoneMoveEditor: ZoneMoveEditorConfig | undefined = editor.isEditMode
     ? {
@@ -435,4 +492,4 @@ export function UniverseEditorCanvas(props: UniverseEditorCanvasProps) {
       ) : null}
     </div>
   );
-}
+});
