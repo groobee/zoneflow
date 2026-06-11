@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./zoneCapabilities";
 
+export * from "./diff";
 export * from "./lookup";
 export * from "./path";
 export * from "./hierarchy";

@@ -41,6 +41,8 @@ pnpm add @zoneflow/core
   - `createZoneflowDocument`
   - `serializeZoneflowDocument`
   - `parseZoneflowDocument`
+- diff
+  - `diffUniverseModels`
 
 ## 최소 예제
 
@@ -127,6 +129,32 @@ const documentBundle = parseZoneflowDocument(json);
 ```
 
 레거시 호환을 위해 raw `{ "model": ..., "layoutModel": ... }` 형태도 읽을 수 있습니다.
+
+## 모델 diff
+
+두 `UniverseModel`을 zone/path id 기준으로 비교해 구조적 변경 내역을 돌려줍니다.
+자동 정리(`removeEmptyPaths` 등)를 적용하기 전에 무엇이 바뀌는지 미리 보여주는
+용도로 설계되었습니다.
+
+```ts
+import { diffUniverseModels, removeEmptyPaths } from "@zoneflow/core";
+
+const cleaned = removeEmptyPaths(model);
+const diff = diffUniverseModels(model, cleaned);
+
+if (!diff.isEmpty) {
+  diff.paths.removed; // [{ pathId, sourceZoneId }, ...]
+  diff.zones.changed; // { [zoneId]: [{ field, before, after }, ...] }
+}
+```
+
+- `zones.added` / `zones.removed` / `zones.changed` — zone 추가/삭제/필드 변경
+- `paths.added` / `paths.removed` / `paths.changed` — path 추가/삭제/변경 (retarget 은 `target` 필드 변경으로 보고)
+- zone 삭제 시 그 zone 의 path 들도 `paths.removed` 에 함께 보고됩니다
+  (`sourceZoneId` 를 `zones.removed` 와 대조하면 묶어서 요약할 수 있음)
+- 의미 없는 차이는 무시합니다: optional 플래그의 `undefined` ≡ `false`,
+  `meta` 의 `undefined` ≡ `{}`
+- 레이아웃(`UniverseLayoutModel`) 변경은 다루지 않습니다
 
 ## 함께 쓰는 패키지
 
