@@ -43,6 +43,7 @@ pnpm add @zoneflow/core
   - `parseZoneflowDocument`
 - diff
   - `diffUniverseModels`
+  - `diffUniverseLayoutModels`
 
 ## 최소 예제
 
@@ -154,7 +155,15 @@ if (!diff.isEmpty) {
   (`sourceZoneId` 를 `zones.removed` 와 대조하면 묶어서 요약할 수 있음)
 - 의미 없는 차이는 무시합니다: optional 플래그의 `undefined` ≡ `false`,
   `meta` 의 `undefined` ≡ `{}`
-- 레이아웃(`UniverseLayoutModel`) 변경은 다루지 않습니다
+
+레이아웃 쪽은 `diffUniverseLayoutModels`가 같은 방식으로 다룹니다
+(`zoneLayouts`/`pathLayouts`의 added·removed·changed — 이동은 `x`/`y`,
+리사이즈는 `width`/`height` 필드 변경으로 보고):
+
+```ts
+const cleanedLayout = pruneLayoutModel(cleanedModel, layoutModel);
+const layoutDiff = diffUniverseLayoutModels(layoutModel, cleanedLayout);
+```
 
 ## 함께 쓰는 패키지
 

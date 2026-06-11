@@ -1,4 +1,13 @@
-import type { Path, PathId, UniverseModel, Zone, ZoneId } from "./types";
+import type {
+  Path,
+  PathId,
+  PathLayout,
+  UniverseLayoutModel,
+  UniverseModel,
+  Zone,
+  ZoneId,
+  ZoneLayout,
+} from "./types";
 
 /**
  * One field-level change: the changed `field` name plus the raw `before` and
@@ -103,13 +112,16 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
   const aRecord = a as Record<string, unknown>;
   const bRecord = b as Record<string, unknown>;
-  const aKeys = Object.keys(aRecord);
-  if (aKeys.length !== Object.keys(bRecord).length) return false;
-  return aKeys.every(
-    (key) =>
-      Object.prototype.hasOwnProperty.call(bRecord, key) &&
-      deepEqual(aRecord[key], bRecord[key])
+  // Keys holding `undefined` count as absent (JSON semantics) so that e.g.
+  // `{ point, rect: undefined }` equals `{ point }`.
+  const aKeys = Object.keys(aRecord).filter(
+    (key) => aRecord[key] !== undefined
   );
+  const bKeys = Object.keys(bRecord).filter(
+    (key) => bRecord[key] !== undefined
+  );
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => deepEqual(aRecord[key], bRecord[key]));
 }
 
 /**
@@ -389,6 +401,216 @@ export function diffUniverseModels(
       changed: zonesChanged,
     },
     paths: {
+      added: pathsAdded,
+      removed: pathsRemoved,
+      changed: pathsChanged,
+    },
+    isEmpty,
+  };
+}
+
+export type ZoneLayoutFieldChange = FieldChangeEntry<
+  ZoneLayout,
+  "x" | "y" | "width" | "height" | "zOrder" | "anchors"
+>;
+
+export type PathLayoutFieldChange = FieldChangeEntry<
+  PathLayout,
+  "zOrder" | "routeOffset" | "componentLayoutsById"
+>;
+
+export type LayoutModelFieldChange = FieldChangeEntry<
+  UniverseLayoutModel,
+  "version" | "universeId" | "meta"
+>;
+
+export type UniverseLayoutModelDiff = {
+  /** Top-level layout-model changes: `version`, `universeId`, `meta`. */
+  model: LayoutModelFieldChange[];
+  zoneLayouts: {
+    added: ZoneId[];
+    removed: ZoneId[];
+    changed: Record<ZoneId, ZoneLayoutFieldChange[]>;
+  };
+  pathLayouts: {
+    added: PathId[];
+    removed: PathId[];
+    changed: Record<PathId, PathLayoutFieldChange[]>;
+  };
+  /** True when the two layout models are semantically identical. */
+  isEmpty: boolean;
+};
+
+function diffZoneLayoutFields(
+  before: ZoneLayout,
+  after: ZoneLayout
+): ZoneLayoutFieldChange[] {
+  const changes: ZoneLayoutFieldChange[] = [];
+
+  if (before.x !== after.x) {
+    changes.push({ field: "x", before: before.x, after: after.x });
+  }
+  if (before.y !== after.y) {
+    changes.push({ field: "y", before: before.y, after: after.y });
+  }
+  if (before.width !== after.width) {
+    changes.push({ field: "width", before: before.width, after: after.width });
+  }
+  if (before.height !== after.height) {
+    changes.push({
+      field: "height",
+      before: before.height,
+      after: after.height,
+    });
+  }
+  if (before.zOrder !== after.zOrder) {
+    changes.push({
+      field: "zOrder",
+      before: before.zOrder,
+      after: after.zOrder,
+    });
+  }
+  if (!deepEqual(before.anchors, after.anchors)) {
+    changes.push({
+      field: "anchors",
+      before: before.anchors,
+      after: after.anchors,
+    });
+  }
+
+  return changes;
+}
+
+function diffPathLayoutFields(
+  before: PathLayout,
+  after: PathLayout
+): PathLayoutFieldChange[] {
+  const changes: PathLayoutFieldChange[] = [];
+
+  if (before.zOrder !== after.zOrder) {
+    changes.push({
+      field: "zOrder",
+      before: before.zOrder,
+      after: after.zOrder,
+    });
+  }
+  if (!deepEqual(before.routeOffset ?? null, after.routeOffset ?? null)) {
+    changes.push({
+      field: "routeOffset",
+      before: before.routeOffset,
+      after: after.routeOffset,
+    });
+  }
+  if (
+    !deepEqual(
+      normalizeEmptyObject(before.componentLayoutsById),
+      normalizeEmptyObject(after.componentLayoutsById)
+    )
+  ) {
+    changes.push({
+      field: "componentLayoutsById",
+      before: before.componentLayoutsById,
+      after: after.componentLayoutsById,
+    });
+  }
+
+  return changes;
+}
+
+/**
+ * Compute a structural diff between two universe layout models, matching
+ * entries by zone/path id. The companion of {@link diffUniverseModels} for the
+ * placement side: run both to preview a full model + layout transformation,
+ * e.g. a cleanup paired with {@link pruneLayoutModel}:
+ *
+ * @example
+ * const cleanedModel = removeEmptyPaths(model);
+ * const cleanedLayout = pruneLayoutModel(cleanedModel, layoutModel);
+ * const modelDiff = diffUniverseModels(model, cleanedModel);
+ * const layoutDiff = diffUniverseLayoutModels(layoutModel, cleanedLayout);
+ *
+ * Comparison semantics match {@link diffUniverseModels}: ids on one side only
+ * land in `added`/`removed`, ids on both sides get field-level comparison,
+ * `meta`/`componentLayoutsById` treat `undefined` ≡ `{}`, and object keys
+ * holding `undefined` count as absent (so anchors written with an explicit
+ * `rect: undefined` compare equal to anchors without a `rect` key).
+ */
+export function diffUniverseLayoutModels(
+  before: UniverseLayoutModel,
+  after: UniverseLayoutModel
+): UniverseLayoutModelDiff {
+  const modelChanges: LayoutModelFieldChange[] = [];
+  if (before.version !== after.version) {
+    modelChanges.push({
+      field: "version",
+      before: before.version,
+      after: after.version,
+    });
+  }
+  if (before.universeId !== after.universeId) {
+    modelChanges.push({
+      field: "universeId",
+      before: before.universeId,
+      after: after.universeId,
+    });
+  }
+  if (
+    !deepEqual(normalizeEmptyObject(before.meta), normalizeEmptyObject(after.meta))
+  ) {
+    modelChanges.push({ field: "meta", before: before.meta, after: after.meta });
+  }
+
+  const zonesAdded: ZoneId[] = [];
+  const zonesRemoved: ZoneId[] = [];
+  const zonesChanged: Record<ZoneId, ZoneLayoutFieldChange[]> = {};
+
+  for (const zoneId of Object.keys(before.zoneLayoutsById)) {
+    if (!after.zoneLayoutsById[zoneId]) zonesRemoved.push(zoneId);
+  }
+  for (const [zoneId, afterLayout] of Object.entries(after.zoneLayoutsById)) {
+    const beforeLayout = before.zoneLayoutsById[zoneId];
+    if (!beforeLayout) {
+      zonesAdded.push(zoneId);
+      continue;
+    }
+    const changes = diffZoneLayoutFields(beforeLayout, afterLayout);
+    if (changes.length > 0) zonesChanged[zoneId] = changes;
+  }
+
+  const pathsAdded: PathId[] = [];
+  const pathsRemoved: PathId[] = [];
+  const pathsChanged: Record<PathId, PathLayoutFieldChange[]> = {};
+
+  for (const pathId of Object.keys(before.pathLayoutsById)) {
+    if (!after.pathLayoutsById[pathId]) pathsRemoved.push(pathId);
+  }
+  for (const [pathId, afterLayout] of Object.entries(after.pathLayoutsById)) {
+    const beforeLayout = before.pathLayoutsById[pathId];
+    if (!beforeLayout) {
+      pathsAdded.push(pathId);
+      continue;
+    }
+    const changes = diffPathLayoutFields(beforeLayout, afterLayout);
+    if (changes.length > 0) pathsChanged[pathId] = changes;
+  }
+
+  const isEmpty =
+    modelChanges.length === 0 &&
+    zonesAdded.length === 0 &&
+    zonesRemoved.length === 0 &&
+    Object.keys(zonesChanged).length === 0 &&
+    pathsAdded.length === 0 &&
+    pathsRemoved.length === 0 &&
+    Object.keys(pathsChanged).length === 0;
+
+  return {
+    model: modelChanges,
+    zoneLayouts: {
+      added: zonesAdded,
+      removed: zonesRemoved,
+      changed: zonesChanged,
+    },
+    pathLayouts: {
       added: pathsAdded,
       removed: pathsRemoved,
       changed: pathsChanged,

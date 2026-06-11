@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { diffUniverseModels } from "./diff";
+import { diffUniverseLayoutModels, diffUniverseModels } from "./diff";
+import {
+  createUniverseLayoutModel,
+  createZoneLayout,
+  pruneLayoutModel,
+  updatePathLayout,
+  updateZoneLayout,
+} from "./layout";
 import {
   createZone,
   removeEmptyPaths,
@@ -229,5 +236,97 @@ describe("diffUniverseModels", () => {
         expect(change.after).toBe("renamed");
       }
     }
+  });
+});
+
+describe("diffUniverseLayoutModels", () => {
+  function layoutModel(
+    zoneLayouts: Record<string, ReturnType<typeof createZoneLayout>> = {}
+  ) {
+    return createUniverseLayoutModel({
+      universeId: "u1",
+      zoneLayoutsById: zoneLayouts,
+    });
+  }
+
+  it("returns an empty diff for identical layout models", () => {
+    const a = layoutModel({
+      z1: createZoneLayout({ x: 0, y: 0, width: 100, height: 50 }),
+    });
+    const diff = diffUniverseLayoutModels(a, a);
+    expect(diff.isEmpty).toBe(true);
+  });
+
+  it("reports a zone move as x/y field changes", () => {
+    const before = layoutModel({
+      z1: createZoneLayout({ x: 0, y: 0, width: 100, height: 50 }),
+    });
+    const after = updateZoneLayout(before, "z1", { x: 40, y: 16 });
+
+    const diff = diffUniverseLayoutModels(before, after);
+    expect(diff.zoneLayouts.changed.z1).toEqual([
+      { field: "x", before: 0, after: 40 },
+      { field: "y", before: 0, after: 16 },
+    ]);
+  });
+
+  it("treats anchors with explicit `rect: undefined` as equal to anchors without rect", () => {
+    const base = createZoneLayout({ x: 0, y: 0, width: 100, height: 50 });
+    const before = layoutModel({ z1: base });
+    // updateZoneLayout round-trips anchors through mergeAnchors, which writes
+    // an explicit `rect: undefined` — semantically the same layout.
+    const after = updateZoneLayout(before, "z1", {});
+
+    expect(diffUniverseLayoutModels(before, after).isEmpty).toBe(true);
+  });
+
+  it("reports routeOffset changes on path layouts", () => {
+    const base = layoutModel();
+    const before = updatePathLayout(base, "p1", {
+      routeOffset: { x: 0, y: 0 },
+    });
+    const after = updatePathLayout(base, "p1", {
+      routeOffset: { x: 24, y: -8 },
+    });
+
+    const diff = diffUniverseLayoutModels(before, after);
+    expect(diff.pathLayouts.changed.p1).toEqual([
+      {
+        field: "routeOffset",
+        before: { x: 0, y: 0 },
+        after: { x: 24, y: -8 },
+      },
+    ]);
+  });
+
+  it("previews pruneLayoutModel as layout removals", () => {
+    const m = model([
+      zone("z1", { pathIds: ["p1"], pathsById: { p1: path("p1") } }),
+      zone("z2"),
+    ]);
+    let lm = layoutModel({
+      z1: createZoneLayout({ x: 0, y: 0, width: 100, height: 50 }),
+      z2: createZoneLayout({ x: 200, y: 0, width: 100, height: 50 }),
+    });
+    lm = updatePathLayout(lm, "p1", { routeOffset: { x: 10, y: 0 } });
+
+    const cleanedModel = removeZone(m, "z2");
+    const cleanedLayout = pruneLayoutModel(cleanedModel, lm);
+
+    const diff = diffUniverseLayoutModels(lm, cleanedLayout);
+    expect(diff.zoneLayouts.removed).toEqual(["z2"]);
+    expect(diff.pathLayouts.removed).toEqual([]);
+    expect(diff.zoneLayouts.changed).toEqual({});
+  });
+
+  it("treats undefined≡{} componentLayoutsById as equal", () => {
+    const base = layoutModel();
+    const a = updatePathLayout(base, "p1", { zOrder: 1 });
+    const b = updatePathLayout(base, "p1", {
+      zOrder: 1,
+      componentLayoutsById: {},
+    });
+
+    expect(diffUniverseLayoutModels(a, b).isEmpty).toBe(true);
   });
 });
