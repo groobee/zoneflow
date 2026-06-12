@@ -38,7 +38,7 @@ type Props = {
   onCreateNewDocument: () => void;
   onExportFile: () => void;
   onImportFile: () => void;
-  onRemoveEmptyPaths: () => void;
+  onOpenCleanupPreview: () => void;
 };
 
 export function Topbar({
@@ -60,7 +60,7 @@ export function Topbar({
   onCreateNewDocument,
   onExportFile,
   onImportFile,
-  onRemoveEmptyPaths,
+  onOpenCleanupPreview,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -171,10 +171,10 @@ export function Topbar({
           <button
             type="button"
             style={themedControlStyle}
-            onClick={onRemoveEmptyPaths}
-            title="이름이 비고 rule이 없는 'Empty' 패스를 모두 제거"
+            onClick={onOpenCleanupPreview}
+            title="빈 패스/고아 존 정리 결과를 적용 전에 미리보기 (diffUniverseModels)"
           >
-            Empty 정리
+            정리 미리보기
           </button>
           <button
             type="button"

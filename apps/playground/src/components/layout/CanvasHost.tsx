@@ -32,6 +32,11 @@ import {
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
+import {
+  CLEANUP_REMOVED_COLOR,
+  makeCleanupResolvers,
+  type CleanupPreviewData,
+} from "../../cleanupPreview";
 
 /**
  * Special zones are drawn by shape, decided entirely here by the consumer.
@@ -61,6 +66,15 @@ type Props = {
   weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
   editPermissionMode: EditPermissionMode;
+  /**
+   * 정리 미리보기 상태.
+   * - `undefined`: 미리보기 꺼짐
+   * - `null`: 미리보기를 열었지만 정리할 항목이 없음
+   * - 데이터: diff 결과 — 캔버스 데코레이션 + 요약 패널 표시
+   */
+  cleanupPreview?: CleanupPreviewData | null;
+  onApplyCleanup?: () => void;
+  onCloseCleanupPreview?: () => void;
 };
 
 export function CanvasHost({
@@ -72,6 +86,9 @@ export function CanvasHost({
   weatherBackgroundId,
   canConnectPath,
   editPermissionMode,
+  cleanupPreview,
+  onApplyCleanup,
+  onCloseCleanupPreview,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const { zoneComponents, pathComponents } = useMemo(() => {
@@ -84,6 +101,15 @@ export function CanvasHost({
   const Background = useMemo(
     () => makeWeatherBackground(weatherBackgroundId),
     [weatherBackgroundId]
+  );
+
+  // 미리보기 중에는 diff 기반 데코레이션이 meta.color 리졸버를 감싼다.
+  const cleanupResolvers = useMemo(
+    () =>
+      cleanupPreview
+        ? makeCleanupResolvers(cleanupPreview, resolvePathColor)
+        : null,
+    [cleanupPreview]
   );
 
   useEffect(() => {
@@ -200,7 +226,9 @@ export function CanvasHost({
         background={Background}
         resolveZoneShape={resolveZoneShape}
         resolveZoneColor={resolveZoneColor}
-        resolvePathColor={resolvePathColor}
+        resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
+        resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
+        resolvePathLineColor={cleanupResolvers?.resolvePathLineColor}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{
@@ -254,6 +282,116 @@ export function CanvasHost({
           layers: debug.layers,
         }}
       />
+      {cleanupPreview !== undefined ? (
+        <CleanupPreviewPanel
+          preview={cleanupPreview}
+          onApply={onApplyCleanup}
+          onClose={onCloseCleanupPreview}
+        />
+      ) : null}
     </main>
+  );
+}
+
+const cleanupPanelButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "7px 0",
+  borderRadius: 8,
+  border: "1px solid rgba(148, 163, 184, 0.35)",
+  background: "transparent",
+  color: "#e2e8f0",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+/** 정리 미리보기 요약 패널 — diff 를 사람이 읽는 목록으로 보여준다. */
+function CleanupPreviewPanel({
+  preview,
+  onApply,
+  onClose,
+}: {
+  preview: CleanupPreviewData | null;
+  onApply?: () => void;
+  onClose?: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 16,
+        top: 16,
+        zIndex: 40,
+        width: 248,
+        maxHeight: "70%",
+        overflowY: "auto",
+        borderRadius: 12,
+        border: "1px solid rgba(148, 163, 184, 0.28)",
+        background: "rgba(2, 6, 23, 0.92)",
+        color: "#e2e8f0",
+        padding: "14px 16px",
+        display: "grid",
+        gap: 10,
+        fontSize: 12,
+        boxShadow: "0 18px 40px rgba(2, 6, 23, 0.5)",
+      }}
+    >
+      <strong style={{ fontSize: 13 }}>정리 미리보기</strong>
+      {preview ? (
+        <>
+          {preview.removedPaths.length > 0 ? (
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ color: "#94a3b8" }}>
+                제거될 패스 {preview.removedPaths.length}
+              </span>
+              {preview.removedPaths.map((entry) => (
+                <span key={entry.pathId} style={{ color: CLEANUP_REMOVED_COLOR }}>
+                  · {entry.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {preview.removedZones.length > 0 ? (
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ color: "#94a3b8" }}>
+                제거될 존 {preview.removedZones.length}
+              </span>
+              {preview.removedZones.map((entry) => (
+                <span key={entry.zoneId} style={{ color: CLEANUP_REMOVED_COLOR }}>
+                  · {entry.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <span style={{ color: "#64748b" }}>
+            캔버스에서 빨간 연결선·점선 존이 제거 대상입니다.
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              style={{
+                ...cleanupPanelButtonStyle,
+                background: "#dc2626",
+                borderColor: "#dc2626",
+                color: "#fef2f2",
+              }}
+              onClick={onApply}
+            >
+              적용
+            </button>
+            <button type="button" style={cleanupPanelButtonStyle} onClick={onClose}>
+              취소
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span style={{ color: "#94a3b8" }}>정리할 항목이 없습니다.</span>
+          <button type="button" style={cleanupPanelButtonStyle} onClick={onClose}>
+            닫기
+          </button>
+        </>
+      )}
+    </div>
   );
 }

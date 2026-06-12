@@ -1,12 +1,11 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   createUniverseId,
   createUniverseLayoutModel,
   parseZoneflowDocument,
-  pruneLayoutModel,
-  removeEmptyPaths,
   serializeZoneflowDocument,
 } from "@zoneflow/core";
+import { buildCleanupPreview } from "./cleanupPreview";
 import { useFloatingLayout, useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import {
@@ -175,20 +174,29 @@ export default function App() {
     }
   };
 
-  const handleRemoveEmptyPaths = () => {
-    const current = editor.model;
-    const nextModel = removeEmptyPaths(current);
-    if (nextModel === current) return; // 빈 패스 없음 — no-op
-    const nextLayoutModel = pruneLayoutModel(nextModel, editor.layoutModel);
+  // 정리 미리보기 — diffUniverseModels 기반. 모델이 바뀌면(편집 드래프트 포함)
+  // useMemo 가 diff 를 다시 계산하므로 미리보기가 항상 현재 모델을 따라간다.
+  const [cleanupPreviewOpen, setCleanupPreviewOpen] = useState(false);
+  const cleanupPreview = useMemo(
+    () =>
+      cleanupPreviewOpen
+        ? buildCleanupPreview(workingModel, workingLayoutModel)
+        : undefined,
+    [cleanupPreviewOpen, workingModel, workingLayoutModel]
+  );
+
+  const handleApplyCleanup = () => {
+    if (!cleanupPreview) return;
 
     if (editor.isEditMode) {
       // 편집 중에는 draft 트랜잭션으로 — undo/적용 흐름에 포함
-      editor.updateDraftModel(nextModel);
-      editor.updateDraftLayoutModel(nextLayoutModel);
+      editor.updateDraftModel(cleanupPreview.nextModel);
+      editor.updateDraftLayoutModel(cleanupPreview.nextLayoutModel);
     } else {
-      setModel(nextModel);
-      setLayoutModel(nextLayoutModel);
+      setModel(cleanupPreview.nextModel);
+      setLayoutModel(cleanupPreview.nextLayoutModel);
     }
+    setCleanupPreviewOpen(false);
   };
 
   return (
@@ -224,7 +232,7 @@ export default function App() {
         onCreateNewDocument={handleCreateNewDocument}
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
-        onRemoveEmptyPaths={handleRemoveEmptyPaths}
+        onOpenCleanupPreview={() => setCleanupPreviewOpen(true)}
       />
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
@@ -237,6 +245,9 @@ export default function App() {
         themePreset={themePreset}
         weatherBackgroundId={weatherBackgroundId}
         canConnectPath={canConnectPath}
+        cleanupPreview={cleanupPreview}
+        onApplyCleanup={handleApplyCleanup}
+        onCloseCleanupPreview={() => setCleanupPreviewOpen(false)}
       />
 
       <RightPanel
