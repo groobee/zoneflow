@@ -2,6 +2,7 @@ export * from "./theme";
 export * from "./themes/defaultTheme";
 export * from "./types";
 export * from "./zoneShape";
+export * from "./diffDecorations";
 export * from "./anchors";
 export * from "./pipeline";
 export * from "./renderer";

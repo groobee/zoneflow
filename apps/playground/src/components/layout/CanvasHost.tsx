@@ -6,13 +6,16 @@ import {
   UniverseEditorCanvas,
   type CanConnectPath,
   type CanvasExternalDropPayload,
+  type UniverseEditorCanvasHandle,
   type UniverseEditorController,
 } from "@zoneflow/react";
-import type {
-  ResolvePathColor,
-  ResolveZoneColor,
-  ResolveZoneShape,
-  ZoneShape,
+import {
+  createDiffDecorations,
+  DIFF_DECORATION_COLORS,
+  type ResolvePathColor,
+  type ResolveZoneColor,
+  type ResolveZoneShape,
+  type ZoneShape,
 } from "@zoneflow/renderer-dom";
 import type { DebugState } from "../../hooks/useDebugState";
 import { readPaletteZoneDragData } from "../../palette/zonePalette";
@@ -32,11 +35,7 @@ import {
 } from "../editor/PlaygroundZoneEditor";
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
-import {
-  CLEANUP_REMOVED_COLOR,
-  makeCleanupResolvers,
-  type CleanupPreviewData,
-} from "../../cleanupPreview";
+import type { CleanupPreviewData } from "../../cleanupPreview";
 
 /**
  * Special zones are drawn by shape, decided entirely here by the consumer.
@@ -107,10 +106,17 @@ export function CanvasHost({
   const cleanupResolvers = useMemo(
     () =>
       cleanupPreview
-        ? makeCleanupResolvers(cleanupPreview, resolvePathColor)
+        ? createDiffDecorations(cleanupPreview.diff, {
+            base: { resolvePathColor, resolveZoneColor },
+          })
         : null,
     [cleanupPreview]
   );
+
+  const editorCanvasRef = useRef<UniverseEditorCanvasHandle | null>(null);
+  const handleJumpToZone = (zoneId: string) => {
+    editorCanvasRef.current?.focusZone(zoneId);
+  };
 
   useEffect(() => {
     if (!ref.current) return;
@@ -219,13 +225,14 @@ export function CanvasHost({
   return (
     <main ref={ref} style={canvasHostStyle}>
       <UniverseEditorCanvas
+        ref={editorCanvasRef}
         editor={editor}
         theme={themePreset.rendererTheme}
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
         background={Background}
         resolveZoneShape={resolveZoneShape}
-        resolveZoneColor={resolveZoneColor}
+        resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={cleanupResolvers?.resolvePathLineColor}
@@ -287,6 +294,7 @@ export function CanvasHost({
           preview={cleanupPreview}
           onApply={onApplyCleanup}
           onClose={onCloseCleanupPreview}
+          onJumpToZone={handleJumpToZone}
         />
       ) : null}
     </main>
@@ -305,15 +313,36 @@ const cleanupPanelButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-/** 정리 미리보기 요약 패널 — diff 를 사람이 읽는 목록으로 보여준다. */
+const cleanupItemButtonStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  textAlign: "left",
+  padding: "2px 4px",
+  margin: "-2px -4px",
+  borderRadius: 6,
+  border: "none",
+  background: "transparent",
+  color: DIFF_DECORATION_COLORS.removed,
+  fontSize: 12,
+  cursor: "pointer",
+  textDecoration: "underline",
+  textUnderlineOffset: 2,
+};
+
+/**
+ * 정리 미리보기 요약 패널 — diff 를 사람이 읽는 목록으로 보여주고,
+ * 항목 클릭 시 해당 존으로 카메라를 이동한다 (focusZone).
+ */
 function CleanupPreviewPanel({
   preview,
   onApply,
   onClose,
+  onJumpToZone,
 }: {
   preview: CleanupPreviewData | null;
   onApply?: () => void;
   onClose?: () => void;
+  onJumpToZone?: (zoneId: string) => void;
 }) {
   return (
     <div
@@ -345,9 +374,15 @@ function CleanupPreviewPanel({
                 제거될 패스 {preview.removedPaths.length}
               </span>
               {preview.removedPaths.map((entry) => (
-                <span key={entry.pathId} style={{ color: CLEANUP_REMOVED_COLOR }}>
+                <button
+                  key={entry.pathId}
+                  type="button"
+                  style={cleanupItemButtonStyle}
+                  title="클릭하면 해당 존으로 이동"
+                  onClick={() => onJumpToZone?.(entry.sourceZoneId)}
+                >
                   · {entry.label}
-                </span>
+                </button>
               ))}
             </div>
           ) : null}
@@ -357,14 +392,21 @@ function CleanupPreviewPanel({
                 제거될 존 {preview.removedZones.length}
               </span>
               {preview.removedZones.map((entry) => (
-                <span key={entry.zoneId} style={{ color: CLEANUP_REMOVED_COLOR }}>
+                <button
+                  key={entry.zoneId}
+                  type="button"
+                  style={cleanupItemButtonStyle}
+                  title="클릭하면 해당 존으로 이동"
+                  onClick={() => onJumpToZone?.(entry.zoneId)}
+                >
                   · {entry.label}
-                </span>
+                </button>
               ))}
             </div>
           ) : null}
           <span style={{ color: "#64748b" }}>
-            캔버스에서 빨간 연결선·점선 존이 제거 대상입니다.
+            캔버스에서 빨간 연결선·점선 존이 제거 대상입니다. 항목을 클릭하면
+            해당 존으로 이동합니다.
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button

@@ -9,11 +9,6 @@ import {
   type UniverseModelDiff,
   type ZoneId,
 } from "@zoneflow/core";
-import type {
-  ResolvePathColor,
-  ResolvePathLineColor,
-  ResolveZoneStyle,
-} from "@zoneflow/renderer-dom";
 
 /**
  * 정리 미리보기 데모 — diffUniverseModels + 렌더러 데코레이션 훅 사용 예제.
@@ -23,11 +18,9 @@ import type {
  * 2. 고아 leaf 존 제거 — 루트가 아니고, 자식/패스가 없고,
  *    어떤 패스의 target 으로도 참조되지 않는 존
  *
- * 적용 전에 diff 를 계산해 두고, 캔버스에는 "무엇이 사라질지"를
- * resolvePathLineColor / resolveZoneStyle 로 표시합니다.
+ * 적용 전에 diff 를 계산해 두고, 캔버스 데코레이션은 renderer-dom 의
+ * createDiffDecorations 가 diff 로부터 만들어 줍니다 (CanvasHost 참고).
  */
-
-export const CLEANUP_REMOVED_COLOR = "#dc2626";
 
 export function cleanupUniverse(model: UniverseModel): UniverseModel {
   let next = removeEmptyPaths(model);
@@ -60,11 +53,9 @@ export type CleanupPreviewData = {
   nextModel: UniverseModel;
   nextLayoutModel: UniverseLayoutModel;
   diff: UniverseModelDiff;
-  /** 패널 표시용 라벨: "존 이름 › 패스 이름" */
-  removedPaths: { pathId: PathId; label: string }[];
+  /** 패널 표시용 — label 은 "존 이름 › 패스 이름", sourceZoneId 는 점프 대상. */
+  removedPaths: { pathId: PathId; sourceZoneId: ZoneId; label: string }[];
   removedZones: { zoneId: ZoneId; label: string }[];
-  removedPathIds: Set<PathId>;
-  removedZoneIds: Set<ZoneId>;
 };
 
 export function buildCleanupPreview(
@@ -86,6 +77,7 @@ export function buildCleanupPreview(
       const pathName = path?.name?.trim() ? path.name : "Empty";
       return {
         pathId: ref.pathId,
+        sourceZoneId: ref.sourceZoneId,
         label: `${zone?.name ?? ref.sourceZoneId} › ${pathName}`,
       };
     });
@@ -100,35 +92,5 @@ export function buildCleanupPreview(
     diff,
     removedPaths,
     removedZones,
-    removedPathIds: new Set(diff.paths.removed.map((ref) => ref.pathId)),
-    removedZoneIds,
-  };
-}
-
-/**
- * 미리보기 중 캔버스에 끼울 데코레이션 리졸버들.
- * - 제거될 패스: 연결선 + 라벨을 빨간색으로
- * - 제거될 존: 점선 테두리 + 반투명 ghost
- * 미리보기 대상이 아닌 요소는 base 리졸버(meta.color 등)로 폴백합니다.
- */
-export function makeCleanupResolvers(
-  preview: CleanupPreviewData,
-  basePathColor: ResolvePathColor
-): {
-  resolveZoneStyle: ResolveZoneStyle;
-  resolvePathColor: ResolvePathColor;
-  resolvePathLineColor: ResolvePathLineColor;
-} {
-  return {
-    resolveZoneStyle: (zone) =>
-      preview.removedZoneIds.has(zone.id)
-        ? { borderStyle: "dashed", opacity: 0.45 }
-        : undefined,
-    resolvePathColor: (path) =>
-      preview.removedPathIds.has(path.id)
-        ? CLEANUP_REMOVED_COLOR
-        : basePathColor(path),
-    resolvePathLineColor: (path) =>
-      preview.removedPathIds.has(path.id) ? CLEANUP_REMOVED_COLOR : undefined,
   };
 }
