@@ -681,13 +681,22 @@ function drawEdges(params: {
       visibility,
     });
 
+    // Consumer-resolved per-path line color overrides the theme's edge colors
+    // for every segment of this path, collapsed ones included.
+    const pathVisual = input.pipeline.graphLayout.pathsById[pathId];
+    const lineColor = pathVisual
+      ? input.resolvePathLineColor?.(pathVisual.path) ?? undefined
+      : undefined;
+
     for (const { edge, collapsed } of drawableEdges) {
-      const stroke = collapsed
-        ? resolveCollapsedEdgeStroke(input.theme)
-        : getEdgeColor({
-            kind: edge.kind,
-            theme: input.theme,
-          });
+      const stroke =
+        lineColor ??
+        (collapsed
+          ? resolveCollapsedEdgeStroke(input.theme)
+          : getEdgeColor({
+              kind: edge.kind,
+              theme: input.theme,
+            }));
       const pathD = getBezierCurvePathD({
         source: edge.source,
         target: edge.target,
@@ -1111,13 +1120,19 @@ export const domDrawEngine: DrawEngine = {
       zoneEl.dataset.zoneflowZoneId = zoneVisual.zoneId;
       zoneBodyEl.dataset.zoneflowZoneBody = zoneVisual.zoneId;
 
+      // Consumer-resolved style overrides (diff-preview ghosts etc.). Opacity
+      // composes onto the visibility-driven value and dims the whole subtree —
+      // body, slots, and anchors alike.
+      const zoneStyle = input.resolveZoneStyle?.(zoneVisual.zone) ?? undefined;
+      const zoneStyleOpacity = Math.min(Math.max(zoneStyle?.opacity ?? 1, 0), 1);
+
       applyStyles(zoneEl, {
         position: "absolute",
         left: `${zoneVisual.rect.x}px`,
         top: `${zoneVisual.rect.y}px`,
         width: `${zoneVisual.rect.width}px`,
         height: `${zoneVisual.rect.height}px`,
-        opacity: getOpacity(visibility.emphasis),
+        opacity: getOpacity(visibility.emphasis) * zoneStyleOpacity,
         overflow: "visible",
         zIndex: zoneDepth + RENDER_Z_INDEX.zoneBase,
         // zoneLayer 가 pointer-events: none 이고 이 속성은 상속되므로,
@@ -1186,7 +1201,7 @@ export const domDrawEngine: DrawEngine = {
           width: "100%",
           height: "100%",
           borderRadius: shape.borderRadius,
-          border: `1px solid ${zoneBorderColor}`,
+          border: `1px ${zoneStyle?.borderStyle ?? "solid"} ${zoneBorderColor}`,
           background: theme.surface.zone.background,
           boxSizing: "border-box",
           boxShadow: theme.surface.zone.shadow,

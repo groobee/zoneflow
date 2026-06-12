@@ -65,6 +65,34 @@ export type ResolveZoneShape = (zone: Zone) => ZoneShape | null | undefined;
  */
 export type ResolveZoneColor = (zone: Zone) => string | null | undefined;
 
+/**
+ * Per-zone presentation overrides beyond color — built for transient states
+ * like a diff preview's "will be removed" ghost (dashed outline + dimmed).
+ */
+export type ZoneStyleOverride = {
+  /**
+   * CSS `border-style` for the zone outline. Applies to radius-based shapes;
+   * clipped shapes (diamond/hexagon/custom `clipPath`) synthesize their
+   * outline from a fill layer, so `borderStyle` is ignored there.
+   */
+  borderStyle?: "solid" | "dashed" | "dotted";
+  /**
+   * 0..1 multiplier composed onto the zone's computed visibility opacity.
+   * Dims the whole zone including its slots and anchors.
+   */
+  opacity?: number;
+};
+
+/**
+ * Resolver invoked once per zone to decide its style overrides. Return
+ * `undefined`/`null` for the default presentation. Like
+ * {@link ResolveZoneColor}, purely presentational — geometry, hit-testing,
+ * and anchors are unaffected.
+ */
+export type ResolveZoneStyle = (
+  zone: Zone
+) => ZoneStyleOverride | null | undefined;
+
 /** Normalized geometry consumed by the draw engine. */
 export type ResolvedZoneShape = {
   borderRadius: string;

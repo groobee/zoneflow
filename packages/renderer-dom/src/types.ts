@@ -10,7 +10,11 @@ import type {
   ZoneId,
 } from "@zoneflow/core";
 import type { TextScaleLevel, ZoneflowTheme } from "./theme";
-import type { ResolveZoneColor, ResolveZoneShape } from "./zoneShape";
+import type {
+  ResolveZoneColor,
+  ResolveZoneShape,
+  ResolveZoneStyle,
+} from "./zoneShape";
 
 export type CameraState = {
   x: number;
@@ -210,6 +214,17 @@ export type PathComponentRendererMap = Partial<
  */
 export type ResolvePathColor = (path: Path) => string | null | undefined;
 
+/**
+ * Resolver invoked once per path to decide the color of its connector lines
+ * (the zone→path and path→zone edge strokes, including the flow animation).
+ * Return `undefined`/`null` to fall back to the theme's edge colors. The
+ * override also applies to the path's collapsed edge segments so a decorated
+ * path stays recognizable while a subtree is folded. Pair with
+ * {@link ResolvePathColor} when the label should match the line — built for
+ * states like a diff preview ("this connection will be removed/retargeted").
+ */
+export type ResolvePathLineColor = (path: Path) => string | null | undefined;
+
 export type ZoneComponentMount = {
   key: string;
   zoneId: ZoneId;
@@ -301,7 +316,9 @@ export type RendererDrawInput = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolveZoneStyle?: ResolveZoneStyle;
   resolvePathColor?: ResolvePathColor;
+  resolvePathLineColor?: ResolvePathLineColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
@@ -385,7 +402,9 @@ export type RendererInput = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolveZoneStyle?: ResolveZoneStyle;
   resolvePathColor?: ResolvePathColor;
+  resolvePathLineColor?: ResolvePathLineColor;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;

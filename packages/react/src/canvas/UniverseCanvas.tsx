@@ -26,8 +26,10 @@ import {
   type RendererDebugOptions,
   type RendererInteractionHandlers,
   type ResolvePathColor,
+  type ResolvePathLineColor,
   type ResolveZoneColor,
   type ResolveZoneShape,
+  type ResolveZoneStyle,
   type TextScaleLevel,
   type ViewportConfig,
   type VisibilityEngine,
@@ -70,7 +72,9 @@ export type UniverseCanvasProps = {
   pathComponentRenderers?: PathComponentRendererMap;
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
+  resolveZoneStyle?: ResolveZoneStyle;
   resolvePathColor?: ResolvePathColor;
+  resolvePathLineColor?: ResolvePathLineColor;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   backgroundRenderer?: BackgroundRenderer;
@@ -155,7 +159,9 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     pathComponentRenderers,
     resolveZoneShape,
     resolveZoneColor,
+    resolveZoneStyle,
     resolvePathColor,
+    resolvePathLineColor,
     zoneComponents,
     pathComponents,
     backgroundRenderer,
@@ -371,7 +377,9 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       pathComponentRenderers: effectivePathComponentRenderers,
       resolveZoneShape,
       resolveZoneColor,
+      resolveZoneStyle,
       resolvePathColor,
+      resolvePathLineColor,
       backgroundRenderer: effectiveBackgroundRenderer,
       gridOptions: grid,
       interactionHandlers,
@@ -404,7 +412,9 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     effectivePathComponentRenderers,
     resolveZoneShape,
     resolveZoneColor,
+    resolveZoneStyle,
     resolvePathColor,
+    resolvePathLineColor,
     effectiveBackgroundRenderer,
     zoneComponents,
     pathComponents,
