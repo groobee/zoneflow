@@ -1,8 +1,11 @@
 import { useCallback, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
+import type { UniverseLayoutModel, UniverseModel, ZoneId } from "@zoneflow/core";
 import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay";
-import { useUniverseEditorSession } from "./useUniverseEditorSession";
+import {
+  useUniverseEditorSession,
+  type ZoneSizeInput,
+} from "./useUniverseEditorSession";
 
 export type UniverseEditorGridSize = 8 | 12 | 16 | 24;
 
@@ -33,9 +36,16 @@ export type UniverseEditorController = {
   beginTransaction: (transaction: EditorTransactionMeta) => void;
   commitTransaction: (transaction?: EditorTransactionMeta) => void;
   cancelTransaction: (transaction?: EditorTransactionMeta) => void;
+  /**
+   * Programmatically resize a zone (e.g. a view-mode toggle). Lands as one
+   * undo step in edit mode, or commits directly to the layout model otherwise.
+   */
+  resizeZone: (zoneId: ZoneId, size: ZoneSizeInput) => void;
   undo: () => void;
   redo: () => void;
 };
+
+export type { ZoneSizeInput };
 
 export function useUniverseEditor(params: {
   model: UniverseModel;

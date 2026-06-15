@@ -217,6 +217,20 @@ export type ZoneMoveEditorConfig = {
    */
   onPathSelectionChange?: (pathIds: PathId[]) => void;
   /**
+   * 사용자가 리사이즈 핸들을 드래그해 zone 크기를 바꾼 뒤(제스처 종료 시)
+   * 한 번 호출됩니다. `from`/`to` 는 각각 드래그 시작·종료 시점의 크기입니다.
+   *
+   * - 핸들 리사이즈에만 발생합니다. 프로그래매틱 변경
+   *   (`editor.resizeZone`)은 앱이 직접 호출하는 동작이므로 여기서 다시
+   *   통지하지 않습니다 — 필요하면 호출부에서 처리하세요.
+   * - 크기가 실제로 바뀐 경우에만 호출됩니다.
+   */
+  onZoneResize?: (event: {
+    zoneId: ZoneId;
+    from: { width: number; height: number };
+    to: { width: number; height: number };
+  }) => void;
+  /**
    * 외부에서 zone 간 path 연결 가능 여부를 검증하는 콜백.
    *
    * - 미지정 시 기본 동작: 모든 연결 허용 (기존 동작과 동일).
@@ -1321,6 +1335,7 @@ export function ZoneMoveEditorOverlay(props: {
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
     onZoneSelectionChange: editor?.onZoneSelectionChange,
     onPathSelectionChange: editor?.onPathSelectionChange,
+    onZoneResize: editor?.onZoneResize,
     resolveZoneShape,
     onExclusionStateChange,
   });
@@ -1345,6 +1360,7 @@ export function ZoneMoveEditorOverlay(props: {
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
       onZoneSelectionChange: editor?.onZoneSelectionChange,
       onPathSelectionChange: editor?.onPathSelectionChange,
+    onZoneResize: editor?.onZoneResize,
       resolveZoneShape,
       onExclusionStateChange,
     };
@@ -1935,6 +1951,28 @@ export function ZoneMoveEditorOverlay(props: {
           setSelectedZoneIds([]);
           setSelectedPathIds([]);
           setSelectedTargetKey(null);
+        }
+      }
+
+      // Notify on a completed handle resize, with the start/end sizes. Read the
+      // final size from the live layout model (the gesture wrote it there).
+      if (resize) {
+        const finalLayout =
+          latestRef.current.layoutModel.zoneLayoutsById[resize.origin.zoneId];
+        const toWidth = finalLayout?.width ?? resize.origin.originWidth;
+        const toHeight = finalLayout?.height ?? resize.origin.originHeight;
+        if (
+          toWidth !== resize.origin.originWidth ||
+          toHeight !== resize.origin.originHeight
+        ) {
+          latestRef.current.onZoneResize?.({
+            zoneId: resize.origin.zoneId,
+            from: {
+              width: resize.origin.originWidth,
+              height: resize.origin.originHeight,
+            },
+            to: { width: toWidth, height: toHeight },
+          });
         }
       }
 

@@ -26,6 +26,7 @@ import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
   customZoneComponents,
   customZoneLayoutEngine,
+  ZoneResizeContext,
 } from "../renderers/customSlots";
 import {
   makeWeatherBackground,
@@ -249,6 +250,7 @@ export function CanvasHost({
 
   return (
     <main ref={ref} style={canvasHostStyle}>
+      <ZoneResizeContext.Provider value={editor.resizeZone}>
       <UniverseEditorCanvas
         ref={editorCanvasRef}
         editor={editor}
@@ -284,6 +286,9 @@ export function CanvasHost({
           onPathSelectionChange: (pathIds) => {
             console.log("[zoneflow selection] paths", pathIds);
           },
+          onZoneResize: ({ zoneId, from, to }) => {
+            console.log("[zoneflow resize] handle", { zoneId, from, to });
+          },
           deleteInteraction: {
             animation: true,
             confirm: true,
@@ -317,6 +322,7 @@ export function CanvasHost({
           layers: debug.layers,
         }}
       />
+      </ZoneResizeContext.Provider>
       {cleanupPreview !== undefined ? (
         <CleanupPreviewPanel
           preview={cleanupPreview}

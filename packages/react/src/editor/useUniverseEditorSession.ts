@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
+import {
+  updateZoneLayout,
+  type UniverseLayoutModel,
+  type UniverseModel,
+  type ZoneId,
+} from "@zoneflow/core";
 import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay";
+
+/** Target size for {@link useUniverseEditorSession}'s `resizeZone`. */
+export type ZoneSizeInput = {
+  width?: number;
+  height?: number;
+};
 
 type UniverseSnapshot = {
   model: UniverseModel;
@@ -258,6 +269,63 @@ export function useUniverseEditorSession(params: {
     [replaceDraftSnapshot]
   );
 
+  /**
+   * Programmatically resize a zone — the counterpart to dragging the resize
+   * handle. Built for app-driven sizing such as a "brief / essential / detail"
+   * view-mode toggle: pair it with the size-based density engine and the zone
+   * reveals more or less automatically.
+   *
+   * - In edit mode it lands as a single `resize-zone` transaction (one undo
+   *   step), so it composes with the editor's history just like a handle drag.
+   * - Outside edit mode it commits straight to the app's layout model.
+   *
+   * No-ops when the zone has no layout or the size is unchanged.
+   */
+  const resizeZone = useCallback(
+    (zoneId: ZoneId, size: ZoneSizeInput) => {
+      const current = presentRef.current;
+      const layout = current.layoutModel.zoneLayoutsById[zoneId];
+      if (!layout) return;
+
+      const nextWidth = size.width ?? layout.width;
+      const nextHeight = size.height ?? layout.height;
+      if (nextWidth === layout.width && nextHeight === layout.height) return;
+
+      const nextLayoutModel = updateZoneLayout(current.layoutModel, zoneId, {
+        width: nextWidth,
+        height: nextHeight,
+      });
+
+      if (draftSnapshot) {
+        // Group as one undo step alongside the rest of the edit session.
+        const meta: EditorTransactionMeta = {
+          kind: "resize-zone",
+          zoneIds: [zoneId],
+        };
+        beginTransaction(meta);
+        updateDraftSnapshot({ layoutModel: nextLayoutModel });
+        commitTransaction(meta);
+      } else {
+        // Not editing — apply directly to the committed layout model. Functional
+        // form so several resizeZone calls in one tick (e.g. a batch view-mode
+        // toggle) accumulate instead of clobbering each other.
+        setLayoutModel((prev) =>
+          updateZoneLayout(prev, zoneId, {
+            width: nextWidth,
+            height: nextHeight,
+          })
+        );
+      }
+    },
+    [
+      beginTransaction,
+      commitTransaction,
+      draftSnapshot,
+      setLayoutModel,
+      updateDraftSnapshot,
+    ]
+  );
+
   const canUndo = draftSnapshot !== null && history.past.length > 0;
   const canRedo = draftSnapshot !== null && history.future.length > 0;
 
@@ -349,6 +417,7 @@ export function useUniverseEditorSession(params: {
     beginTransaction,
     commitTransaction,
     cancelTransaction,
+    resizeZone,
     undo,
     redo,
   };
