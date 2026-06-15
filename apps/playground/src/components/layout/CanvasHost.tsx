@@ -13,6 +13,8 @@ import {
   createDiffDecorations,
   DIFF_DECORATION_COLORS,
   type ResolvePathColor,
+  type ResolvePathLineColor,
+  type ResolvePathStyle,
   type ResolveZoneColor,
   type ResolveZoneShape,
   type ZoneShape,
@@ -49,9 +51,26 @@ const resolveZoneShape: ResolveZoneShape = (zone) =>
 const resolveZoneColor: ResolveZoneColor = (zone) =>
   zone.meta?.color as string | undefined;
 
-/** Per-path label color, likewise decided by the consumer from `meta.color`. */
+/**
+ * "설정 안 된" 패스 = 아직 rule(조건)이 정해지지 않은 패스. 이 데모에서는
+ * 소비자(앱)가 그런 패스를 빨간 점선으로 표기하도록 결정한다 — 색/모양 모두
+ * 외부에서 제어 가능함을 보여주는 예시.
+ */
+const isUnconfiguredPath = (path: { rule: unknown }) => path.rule === null;
+const UNCONFIGURED_PATH_COLOR = "#f87171";
+
+/** Per-path label color: meta.color 우선, 없으면 설정 안 된 패스는 빨갛게. */
 const resolvePathColor: ResolvePathColor = (path) =>
-  path.meta?.color as string | undefined;
+  (path.meta?.color as string | undefined) ??
+  (isUnconfiguredPath(path) ? UNCONFIGURED_PATH_COLOR : undefined);
+
+/** 설정 안 된 패스의 연결선 색(빨강). 그 외엔 테마 기본. */
+const resolvePathLineColor: ResolvePathLineColor = (path) =>
+  isUnconfiguredPath(path) ? UNCONFIGURED_PATH_COLOR : undefined;
+
+/** 설정 안 된 패스의 연결선 모양(점선). 그 외엔 기본 실선+flow. */
+const resolvePathStyle: ResolvePathStyle = (path) =>
+  isUnconfiguredPath(path) ? { lineStyle: "dashed" } : undefined;
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -102,12 +121,18 @@ export function CanvasHost({
     [weatherBackgroundId]
   );
 
-  // 미리보기 중에는 diff 기반 데코레이션이 meta.color 리졸버를 감싼다.
+  // 미리보기 중에는 diff 기반 데코레이션이 앱의 기본 리졸버를 감싼다 —
+  // 정리 대상이 아닌 패스는 여전히 "설정 안 됨(점선+빨강)" 표기가 유지된다.
   const cleanupResolvers = useMemo(
     () =>
       cleanupPreview
         ? createDiffDecorations(cleanupPreview.diff, {
-            base: { resolvePathColor, resolveZoneColor },
+            base: {
+              resolvePathColor,
+              resolveZoneColor,
+              resolvePathLineColor,
+              resolvePathStyle,
+            },
           })
         : null,
     [cleanupPreview]
@@ -235,8 +260,10 @@ export function CanvasHost({
         resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
-        resolvePathLineColor={cleanupResolvers?.resolvePathLineColor}
-        resolvePathStyle={cleanupResolvers?.resolvePathStyle}
+        resolvePathLineColor={
+          cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor
+        }
+        resolvePathStyle={cleanupResolvers?.resolvePathStyle ?? resolvePathStyle}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{

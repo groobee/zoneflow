@@ -229,6 +229,8 @@ export type ResolvePathLineColor = (path: Path) => string | null | undefined;
  * Per-path presentation overrides beyond color — the path-side counterpart
  * of {@link ZoneStyleOverride}.
  */
+export type PathLineStyle = "solid" | "dashed" | "dotted";
+
 export type PathStyleOverride = {
   /**
    * Blink the path's node (label slots included) and its connector lines.
@@ -237,6 +239,16 @@ export type PathStyleOverride = {
    * `prefers-reduced-motion`.
    */
   pulse?: boolean;
+  /**
+   * Dash pattern for the path's connector lines. `"dashed"`/`"dotted"` draw a
+   * single static stroke (the moving flow animation is suppressed so the
+   * pattern stays legible), which reads as "inert / not yet wired up" — e.g.
+   * an unconfigured path with no rule or target. Defaults to `"solid"` (the
+   * normal animated flow). Pair with {@link ResolvePathLineColor} to also tint
+   * it, and with the node `border-style` is left untouched — only the
+   * connector line is affected.
+   */
+  lineStyle?: PathLineStyle;
 };
 
 /**

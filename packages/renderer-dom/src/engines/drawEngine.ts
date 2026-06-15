@@ -5,6 +5,7 @@ import type {
   PathComponentMount,
   PathComponentRendererContext,
   PathComponentSlotName,
+  PathLineStyle,
   PathVisualNode,
   Rect,
   RenderMountRegistry,
@@ -259,6 +260,20 @@ function getEdgeColor(params: {
   return params.kind === "zone-to-path"
     ? params.theme.pathEdge
     : params.theme.pathInboundEdge;
+}
+
+// SVG stroke-dasharray for a consumer-chosen line style. Dotted relies on the
+// round linecap (already set on every edge stroke) to render the ~0-length
+// dashes as dots. Returns null for solid/undefined (no dash pattern).
+function getEdgeDashPattern(lineStyle: PathLineStyle | undefined): string | null {
+  switch (lineStyle) {
+    case "dashed":
+      return "7 6";
+    case "dotted":
+      return "0.1 6";
+    default:
+      return null;
+  }
 }
 
 function getBezierCurvePathD(params: {
@@ -711,6 +726,12 @@ function drawEdges(params: {
       edgeOwner = pulseGroup;
     }
 
+    // dashed/dotted draws a single static patterned stroke and suppresses the
+    // moving flow layers — a flowing dash on top of a static dash reads as
+    // noise, and an inert path is exactly what "not wired up yet" should look
+    // like. Solid keeps the normal base + animated flow stack.
+    const patterned = getEdgeDashPattern(pathStyle?.lineStyle);
+
     for (const { edge, collapsed } of drawableEdges) {
       const stroke =
         lineColor ??
@@ -725,14 +746,28 @@ function drawEdges(params: {
         target: edge.target,
       });
       const opacity = getOpacity(visibility.emphasis);
+      const baseWidth = edge.kind === "path-to-zone" ? 2.25 : 1.85;
+
+      if (patterned) {
+        const dashed = createSvgElement("path");
+        dashed.setAttribute("d", pathD);
+        dashed.setAttribute("fill", "none");
+        dashed.setAttribute("stroke", stroke);
+        dashed.setAttribute("stroke-width", String(baseWidth));
+        dashed.setAttribute("stroke-linecap", "round");
+        dashed.setAttribute("stroke-linejoin", "round");
+        dashed.setAttribute("stroke-dasharray", patterned);
+        // Sole layer, so render it at full emphasis (no faint base stack).
+        dashed.setAttribute("opacity", String(opacity * 0.9));
+        edgeOwner.appendChild(dashed);
+        continue;
+      }
+
       const path = createSvgElement("path");
       path.setAttribute("d", pathD);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", stroke);
-      path.setAttribute(
-        "stroke-width",
-        edge.kind === "path-to-zone" ? "2.25" : "1.85"
-      );
+      path.setAttribute("stroke-width", String(baseWidth));
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
       path.setAttribute("opacity", String(opacity * 0.42));

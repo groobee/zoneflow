@@ -97,6 +97,23 @@ describe("createDiffDecorations", () => {
     });
   });
 
+  it("merges base path style under the removal pulse (dashed stays dashed)", () => {
+    const diff = emptyDiff();
+    diff.paths.removed = [{ pathId: "p-removed", sourceZoneId: "z1" }];
+
+    const deco = createDiffDecorations(diff, {
+      base: {
+        resolvePathStyle: (p) =>
+          p.id === "p-removed" ? { lineStyle: "dashed" } : undefined,
+      },
+    });
+
+    expect(deco.resolvePathStyle(path("p-removed"))).toEqual({
+      lineStyle: "dashed",
+      pulse: true,
+    });
+  });
+
   it("falls back to base resolvers for undecorated elements", () => {
     const diff = emptyDiff();
     diff.paths.removed = [{ pathId: "p-removed", sourceZoneId: "z1" }];

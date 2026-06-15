@@ -130,10 +130,13 @@ export function createDiffDecorations(
       return status ? colors[status] : base.resolveZoneColor?.(zone);
     },
     resolveZoneStyle: (zone) => {
+      const baseStyle = base.resolveZoneStyle?.(zone) ?? undefined;
       if (zoneStatusById.get(zone.id) === "removed" && removedZoneStyle) {
-        return removedZoneStyle;
+        // Merge so an app's own zone styling (e.g. a custom border) survives
+        // under the diff ghost/pulse instead of being dropped.
+        return { ...baseStyle, ...removedZoneStyle };
       }
-      return base.resolveZoneStyle?.(zone);
+      return baseStyle;
     },
     resolvePathColor: (path) => {
       const status = pathStatusById.get(path.id);
@@ -144,10 +147,13 @@ export function createDiffDecorations(
       return status ? colors[status] : base.resolvePathLineColor?.(path);
     },
     resolvePathStyle: (path) => {
+      const baseStyle = base.resolvePathStyle?.(path) ?? undefined;
       if (pathStatusById.get(path.id) === "removed" && removedPathStyle) {
-        return removedPathStyle;
+        // A removed path that the app also marks (e.g. dashed "unconfigured")
+        // stays dashed AND gains the removal pulse.
+        return { ...baseStyle, ...removedPathStyle };
       }
-      return base.resolvePathStyle?.(path);
+      return baseStyle;
     },
   };
 }
