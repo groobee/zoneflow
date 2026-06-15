@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import { resolveEditorTheme } from "./theme";
+
+describe("resolveEditorTheme — dialog follows the theme", () => {
+  it("derives the dialog tone from the theme's HUD when no dialog is given", () => {
+    // An "ocean-like" theme: styles its HUD/control panel but never spells
+    // out overlay.dialog (the exact gap most presets had).
+    const resolved = resolveEditorTheme({
+      hud: {
+        panelBackground: "rgba(8, 47, 73, 0.92)",
+        panelBorder: "1px solid rgba(103, 232, 249, 0.28)",
+        panelShadow: "0 16px 32px rgba(8, 47, 73, 0.3)",
+        buttonBackground: "rgba(14, 116, 144, 0.78)",
+        buttonBorder: "1px solid rgba(103, 232, 249, 0.24)",
+        buttonText: "#ecfeff",
+        buttonDangerBackground: "rgba(127, 29, 29, 0.8)",
+        buttonDangerBorder: "1px solid rgba(248, 113, 113, 0.5)",
+        buttonDangerText: "#fee2e2",
+      },
+    });
+
+    const { dialog } = resolved.overlay;
+    // Panel surface comes straight from the HUD — no more static white box.
+    expect(dialog.background).toBe("rgba(8, 47, 73, 0.92)");
+    expect(dialog.border).toBe("1px solid rgba(103, 232, 249, 0.28)");
+    expect(dialog.shadow).toBe("0 16px 32px rgba(8, 47, 73, 0.3)");
+    expect(dialog.titleText).toBe("#ecfeff");
+    expect(dialog.secondaryButton).toEqual({
+      background: "rgba(14, 116, 144, 0.78)",
+      border: "1px solid rgba(103, 232, 249, 0.24)",
+      color: "#ecfeff",
+    });
+    expect(dialog.dangerButton).toEqual({
+      background: "rgba(127, 29, 29, 0.8)",
+      border: "1px solid rgba(248, 113, 113, 0.5)",
+      color: "#fee2e2",
+    });
+  });
+
+  it("does not return the static light default for a themed HUD", () => {
+    const resolved = resolveEditorTheme({
+      hud: { panelBackground: "#001018" },
+    });
+    // The pre-fix bug: dialog stayed rgba(255,255,255,0.98) regardless of theme.
+    expect(resolved.overlay.dialog.background).not.toBe(
+      "rgba(255, 255, 255, 0.98)"
+    );
+    expect(resolved.overlay.dialog.background).toBe("#001018");
+  });
+
+  it("still lets an explicit overlay.dialog win field-by-field", () => {
+    const resolved = resolveEditorTheme({
+      hud: { panelBackground: "#001018", buttonText: "#ecfeff" },
+      overlay: {
+        dialog: {
+          background: "#123456",
+          dangerButton: { background: "#ff0000" },
+        },
+      },
+    });
+
+    const { dialog } = resolved.overlay;
+    // explicit background wins…
+    expect(dialog.background).toBe("#123456");
+    // …explicit danger background wins…
+    expect(dialog.dangerButton.background).toBe("#ff0000");
+    // …unspecified fields still fall back to the HUD-derived tone.
+    expect(dialog.titleText).toBe("#ecfeff");
+  });
+});

@@ -15,23 +15,27 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "peerDependencies": {
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
   "dependencies": {
     "@zoneflow/core": "workspace:*",
-    "@zoneflow/renderer-dom": "workspace:*",
-    "@zoneflow/editor-dom": "workspace:*"
+    "@zoneflow/editor-dom": "workspace:*",
+    "@zoneflow/renderer-dom": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "vitest": "^4.1.8"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "type-check": "tsc -p tsconfig.json --noEmit"
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   }
 }

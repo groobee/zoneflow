@@ -409,10 +409,44 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
   },
 };
 
+/**
+ * Derive a dialog tone from the resolved HUD tone so a theme that styles its
+ * HUD/control panel but doesn't spell out `overlay.dialog` still gets a dialog
+ * that matches — instead of falling back to the static (light) default and
+ * looking off-theme. The HUD is the editor's canonical "panel" surface and
+ * already carries every color a dialog needs, danger button included.
+ */
+function deriveDialogFromHud(hud: HudTone): DialogTone {
+  return {
+    background: hud.panelBackground,
+    border: hud.panelBorder,
+    shadow: hud.panelShadow,
+    titleText: hud.buttonText,
+    secondaryButton: {
+      background: hud.buttonBackground,
+      border: hud.buttonBorder,
+      color: hud.buttonText,
+    },
+    dangerButton: {
+      background: hud.buttonDangerBackground,
+      border: hud.buttonDangerBorder,
+      color: hud.buttonDangerText,
+    },
+  };
+}
+
 export function resolveEditorTheme(
   theme?: ZoneflowEditorThemeInput
 ): ZoneflowEditorTheme {
   if (!theme) return defaultEditorTheme;
+
+  // Resolve the HUD first so the dialog can fall back to a theme-matched tone
+  // derived from it when the theme doesn't define `overlay.dialog` explicitly.
+  const resolvedHud: HudTone = {
+    ...defaultEditorTheme.hud,
+    ...theme.hud,
+  };
+  const dialogBase = deriveDialogFromHud(resolvedHud);
 
   return {
     preview: resolveRendererTheme({
@@ -459,10 +493,7 @@ export function resolveEditorTheme(
         ...theme.targetBadge?.dragging,
       },
     },
-    hud: {
-      ...defaultEditorTheme.hud,
-      ...theme.hud,
-    },
+    hud: resolvedHud,
     overlay: {
       helpPanel: {
         ...defaultEditorTheme.overlay.helpPanel,
@@ -472,15 +503,17 @@ export function resolveEditorTheme(
         ...defaultEditorTheme.overlay.floatingToolbar,
         ...theme.overlay?.floatingToolbar,
       },
+      // Base on the HUD-derived tone (theme-matched) rather than the static
+      // default, then let an explicit `overlay.dialog` win field-by-field.
       dialog: {
-        ...defaultEditorTheme.overlay.dialog,
+        ...dialogBase,
         ...theme.overlay?.dialog,
         secondaryButton: {
-          ...defaultEditorTheme.overlay.dialog.secondaryButton,
+          ...dialogBase.secondaryButton,
           ...theme.overlay?.dialog?.secondaryButton,
         },
         dangerButton: {
-          ...defaultEditorTheme.overlay.dialog.dangerButton,
+          ...dialogBase.dangerButton,
           ...theme.overlay?.dialog?.dangerButton,
         },
       },
