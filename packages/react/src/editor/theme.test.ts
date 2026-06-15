@@ -67,4 +67,56 @@ describe("resolveEditorTheme — dialog follows the theme", () => {
     // …unspecified fields still fall back to the HUD-derived tone.
     expect(dialog.titleText).toBe("#ecfeff");
   });
+
+  it("derives the floating toolbar from the HUD when not given", () => {
+    const resolved = resolveEditorTheme({
+      hud: {
+        panelBackground: "rgba(8, 47, 73, 0.92)",
+        panelBorder: "1px solid rgba(103, 232, 249, 0.28)",
+        buttonText: "#ecfeff",
+        buttonDangerBackground: "rgba(127, 29, 29, 0.8)",
+      },
+    });
+
+    const { floatingToolbar } = resolved.overlay;
+    expect(floatingToolbar.background).toBe("rgba(8, 47, 73, 0.92)");
+    expect(floatingToolbar.zoneLabelText).toBe("#ecfeff");
+    expect(floatingToolbar.dangerButtonBackground).toBe("rgba(127, 29, 29, 0.8)");
+    // not the static default any more
+    expect(floatingToolbar.background).not.toBe("rgba(15, 23, 42, 0.94)");
+  });
+
+  it("derives the toast (action button = HUD active tone) when not given", () => {
+    const resolved = resolveEditorTheme({
+      hud: {
+        panelBackground: "rgba(8, 47, 73, 0.92)",
+        buttonText: "#ecfeff",
+        buttonActiveBackground: "#0891b2",
+        buttonActiveBorder: "1px solid rgba(165, 243, 252, 0.4)",
+        buttonActiveText: "#ecfeff",
+      },
+    });
+
+    const { toast } = resolved.overlay;
+    expect(toast.background).toBe("rgba(8, 47, 73, 0.92)");
+    expect(toast.text).toBe("#ecfeff");
+    expect(toast.actionButton).toEqual({
+      background: "#0891b2",
+      border: "1px solid rgba(165, 243, 252, 0.4)",
+      color: "#ecfeff",
+    });
+  });
+
+  it("lets explicit toolbar/toast still win", () => {
+    const resolved = resolveEditorTheme({
+      hud: { panelBackground: "#001018" },
+      overlay: {
+        floatingToolbar: { background: "#abcdef" },
+        toast: { background: "#fedcba", actionButton: { background: "#111" } },
+      },
+    });
+    expect(resolved.overlay.floatingToolbar.background).toBe("#abcdef");
+    expect(resolved.overlay.toast.background).toBe("#fedcba");
+    expect(resolved.overlay.toast.actionButton.background).toBe("#111");
+  });
 });

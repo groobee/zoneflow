@@ -435,6 +435,48 @@ function deriveDialogFromHud(hud: HudTone): DialogTone {
   };
 }
 
+/**
+ * Same idea as {@link deriveDialogFromHud} for the floating (alignment) toolbar
+ * — a theme that styles its HUD but omits `overlay.floatingToolbar` still gets
+ * a matching toolbar instead of the static default. Zone/path labels reuse the
+ * panel text color, danger buttons map to the HUD's danger tone.
+ */
+function deriveFloatingToolbarFromHud(hud: HudTone): FloatingToolbarTone {
+  return {
+    background: hud.panelBackground,
+    border: hud.panelBorder,
+    shadow: hud.panelShadow,
+    zoneLabelText: hud.buttonText,
+    pathLabelText: hud.buttonText,
+    buttonBackground: hud.buttonBackground,
+    buttonBorder: hud.buttonBorder,
+    buttonText: hud.buttonText,
+    buttonDisabledText: hud.buttonText,
+    dangerButtonBackground: hud.buttonDangerBackground,
+    dangerButtonBorder: hud.buttonDangerBorder,
+    dangerButtonText: hud.buttonDangerText,
+  };
+}
+
+/**
+ * Same idea for the toast. The action button is the toast's primary action, so
+ * it maps to the HUD's *active* button tone (the theme's accent) rather than
+ * the neutral button tone.
+ */
+function deriveToastFromHud(hud: HudTone): ToastTone {
+  return {
+    background: hud.panelBackground,
+    border: hud.panelBorder,
+    shadow: hud.panelShadow,
+    text: hud.buttonText,
+    actionButton: {
+      background: hud.buttonActiveBackground,
+      border: hud.buttonActiveBorder,
+      color: hud.buttonActiveText,
+    },
+  };
+}
+
 export function resolveEditorTheme(
   theme?: ZoneflowEditorThemeInput
 ): ZoneflowEditorTheme {
@@ -447,6 +489,8 @@ export function resolveEditorTheme(
     ...theme.hud,
   };
   const dialogBase = deriveDialogFromHud(resolvedHud);
+  const floatingToolbarBase = deriveFloatingToolbarFromHud(resolvedHud);
+  const toastBase = deriveToastFromHud(resolvedHud);
 
   return {
     preview: resolveRendererTheme({
@@ -500,7 +544,7 @@ export function resolveEditorTheme(
         ...theme.overlay?.helpPanel,
       },
       floatingToolbar: {
-        ...defaultEditorTheme.overlay.floatingToolbar,
+        ...floatingToolbarBase,
         ...theme.overlay?.floatingToolbar,
       },
       // Base on the HUD-derived tone (theme-matched) rather than the static
@@ -518,10 +562,10 @@ export function resolveEditorTheme(
         },
       },
       toast: {
-        ...defaultEditorTheme.overlay.toast,
+        ...toastBase,
         ...theme.overlay?.toast,
         actionButton: {
-          ...defaultEditorTheme.overlay.toast.actionButton,
+          ...toastBase.actionButton,
           ...theme.overlay?.toast?.actionButton,
         },
       },
