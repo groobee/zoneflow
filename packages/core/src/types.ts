@@ -76,6 +76,15 @@ export type Zone = {
    * Useful for chip-like or one-line zones.
    */
   fixedHeight?: boolean;
+  /**
+   * Smallest width the zone may shrink to, in world units. Enforced by both
+   * the resize handle and the programmatic `editor.resizeZone` — a floor so a
+   * zone never becomes too small to show its minimal info. When set it
+   * overrides the editor's built-in default floor for this zone.
+   */
+  minWidth?: number;
+  /** Smallest height the zone may shrink to, in world units. See {@link minWidth}. */
+  minHeight?: number;
   childZoneIds: ZoneId[];
   action?: ZoneAction;
   pathIds: PathId[];

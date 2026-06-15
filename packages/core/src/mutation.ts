@@ -18,6 +18,8 @@ export type CreateZoneInput = {
   outputDisabled?: boolean;
   fixedWidth?: boolean;
   fixedHeight?: boolean;
+  minWidth?: number;
+  minHeight?: number;
   action?: ZoneAction;
   meta?: Record<string, unknown>;
 };
@@ -44,6 +46,8 @@ export function createZone(
     outputDisabled,
     fixedWidth,
     fixedHeight,
+    minWidth,
+    minHeight,
     action,
     meta,
   } = input;
@@ -59,6 +63,8 @@ export function createZone(
     outputDisabled,
     fixedWidth,
     fixedHeight,
+    minWidth,
+    minHeight,
     childZoneIds: [],
     pathIds: [],
     pathsById: {},

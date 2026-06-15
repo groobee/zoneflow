@@ -287,8 +287,17 @@ export function useUniverseEditorSession(params: {
       const layout = current.layoutModel.zoneLayoutsById[zoneId];
       if (!layout) return;
 
-      const nextWidth = size.width ?? layout.width;
-      const nextHeight = size.height ?? layout.height;
+      // Honor the zone's declared minimum (same floor the resize handle uses),
+      // so programmatic sizing — e.g. a "brief" view mode — can't shrink a zone
+      // below where its minimal info fits.
+      const zone = current.model.zonesById[zoneId];
+      const clampW = (w: number | undefined) =>
+        w != null && zone?.minWidth != null ? Math.max(zone.minWidth, w) : w;
+      const clampH = (h: number | undefined) =>
+        h != null && zone?.minHeight != null ? Math.max(zone.minHeight, h) : h;
+
+      const nextWidth = clampW(size.width ?? layout.width);
+      const nextHeight = clampH(size.height ?? layout.height);
       if (nextWidth === layout.width && nextHeight === layout.height) return;
 
       const nextLayoutModel = updateZoneLayout(current.layoutModel, zoneId, {

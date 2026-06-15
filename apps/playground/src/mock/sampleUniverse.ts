@@ -223,6 +223,9 @@ export const sampleUniverse: UniverseModel = {
       name: "Purchase Terminal",
       zoneType: "action",
       outputDisabled: true,
+      // 최소 크기 데모: 이 존은 220×130 아래로 줄지 않는다(핸들/뷰모드 모두).
+      minWidth: 220,
+      minHeight: 130,
       childZoneIds: [],
       action: {
         type: "markCompleted",

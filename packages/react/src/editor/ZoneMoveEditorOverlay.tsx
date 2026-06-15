@@ -2033,6 +2033,9 @@ export function ZoneMoveEditorOverlay(props: {
           deltaY: event.clientY - resize.startClientY,
           lockWidth: !!resizingZone?.fixedWidth,
           lockHeight: !!resizingZone?.fixedHeight,
+          // Per-zone floor (undefined → editor's built-in default).
+          minWidth: resizingZone?.minWidth,
+          minHeight: resizingZone?.minHeight,
           gridSnap: latestRef.current.gridSnap,
         });
 
