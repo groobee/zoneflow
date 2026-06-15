@@ -236,6 +236,7 @@ export function CanvasHost({
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={cleanupResolvers?.resolvePathLineColor}
+        resolvePathStyle={cleanupResolvers?.resolvePathStyle}
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         editorConfig={{

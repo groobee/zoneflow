@@ -81,6 +81,14 @@ export type ZoneStyleOverride = {
    * Dims the whole zone including its slots and anchors.
    */
   opacity?: number;
+  /**
+   * Blink the whole zone (slots and anchors included) — for states color
+   * alone can't carry, e.g. "will be removed" in a diff preview where apps
+   * may already use colors for their own meaning. Pulses from the zone's
+   * computed opacity, so it composes with `opacity`. Disabled automatically
+   * under `prefers-reduced-motion`.
+   */
+  pulse?: boolean;
 };
 
 /**

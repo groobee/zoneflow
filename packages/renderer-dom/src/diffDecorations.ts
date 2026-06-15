@@ -1,5 +1,10 @@
 import type { UniverseModelDiff } from "@zoneflow/core";
-import type { ResolvePathColor, ResolvePathLineColor } from "./types";
+import type {
+  PathStyleOverride,
+  ResolvePathColor,
+  ResolvePathLineColor,
+  ResolvePathStyle,
+} from "./types";
 import type {
   ResolveZoneColor,
   ResolveZoneStyle,
@@ -30,6 +35,14 @@ export type DiffDecorationOptions = {
    */
   removedZoneStyle?: ZoneStyleOverride | null;
   /**
+   * Blink elements marked removed (zones, path nodes/labels, connector
+   * lines). On by default — colors alone are ambiguous when the app already
+   * colors zones/paths for its own meaning. Set `false` for static colors
+   * only. (Pulse is suppressed by the renderer under
+   * `prefers-reduced-motion` regardless.)
+   */
+  pulseRemoved?: boolean;
+  /**
    * Resolvers to fall back to for elements the diff does not mark — so the
    * decorations can wrap an app's existing presentation (e.g. `meta.color`
    * based resolvers) instead of replacing it.
@@ -39,6 +52,7 @@ export type DiffDecorationOptions = {
     resolveZoneStyle?: ResolveZoneStyle;
     resolvePathColor?: ResolvePathColor;
     resolvePathLineColor?: ResolvePathLineColor;
+    resolvePathStyle?: ResolvePathStyle;
   };
 };
 
@@ -47,13 +61,16 @@ export type DiffDecorations = {
   resolveZoneStyle: ResolveZoneStyle;
   resolvePathColor: ResolvePathColor;
   resolvePathLineColor: ResolvePathLineColor;
+  resolvePathStyle: ResolvePathStyle;
 };
 
 /**
- * Turn a {@link UniverseModelDiff} into the four presentation resolvers that
+ * Turn a {@link UniverseModelDiff} into the presentation resolvers that
  * paint diff status onto the canvas:
  *
- * - removed → red accent, red connector lines, dashed ghost zones
+ * - removed → red accent, red connector lines, dashed ghost zones, and a
+ *   blink (pulse) so removal stands out even in apps that already use color
+ *   for their own meaning
  * - added → green accent / lines
  * - changed → amber accent / lines
  *
@@ -75,10 +92,22 @@ export function createDiffDecorations(
   options: DiffDecorationOptions = {}
 ): DiffDecorations {
   const colors = { ...DIFF_DECORATION_COLORS, ...options.colors };
-  const removedZoneStyle =
+  const pulseRemoved = options.pulseRemoved ?? true;
+  const baseRemovedZoneStyle =
     options.removedZoneStyle === undefined
       ? DEFAULT_REMOVED_ZONE_STYLE
       : options.removedZoneStyle;
+  const removedZoneStyle: ZoneStyleOverride | null =
+    baseRemovedZoneStyle === null
+      ? pulseRemoved
+        ? { pulse: true }
+        : null
+      : pulseRemoved
+        ? { ...baseRemovedZoneStyle, pulse: true }
+        : baseRemovedZoneStyle;
+  const removedPathStyle: PathStyleOverride | null = pulseRemoved
+    ? { pulse: true }
+    : null;
   const base = options.base ?? {};
 
   const zoneStatusById = new Map<string, DiffDecorationStatus>();
@@ -113,6 +142,12 @@ export function createDiffDecorations(
     resolvePathLineColor: (path) => {
       const status = pathStatusById.get(path.id);
       return status ? colors[status] : base.resolvePathLineColor?.(path);
+    },
+    resolvePathStyle: (path) => {
+      if (pathStatusById.get(path.id) === "removed" && removedPathStyle) {
+        return removedPathStyle;
+      }
+      return base.resolvePathStyle?.(path);
     },
   };
 }

@@ -25,6 +25,7 @@ import {
 } from "@zoneflow/core";
 import {
   appendEdgeFlowStyle,
+  appendPulseStyle,
   resolveCollapsedEdgeStroke,
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
@@ -41,6 +42,8 @@ const RENDER_Z_INDEX = {
   pathLayer: 30,
 } as const;
 const EDGE_FLOW_CLASS = "zoneflow-edge-flow";
+const PULSE_CLASS = "zoneflow-pulse";
+const PULSE_ANIMATION_NAME = "zoneflow-pulse";
 
 function applyStyles(
   el: HTMLElement | SVGElement,
@@ -670,6 +673,13 @@ function drawEdges(params: {
     className: EDGE_FLOW_CLASS,
     motion: edgeFlowMotion,
   });
+  // CSS rules are document-global even from an SVG <style>, so this also
+  // powers the pulse class on the DOM zone/path layers.
+  appendPulseStyle({
+    svg,
+    animationName: PULSE_ANIMATION_NAME,
+    className: PULSE_CLASS,
+  });
 
   for (const [pathId, edges] of Object.entries(input.pipeline.graphLayout.edgesByPathId)) {
     const visibility = input.pipeline.visibility.pathVisibilityById[pathId];
@@ -687,6 +697,19 @@ function drawEdges(params: {
     const lineColor = pathVisual
       ? input.resolvePathLineColor?.(pathVisual.path) ?? undefined
       : undefined;
+    const pathStyle = pathVisual
+      ? input.resolvePathStyle?.(pathVisual.path) ?? undefined
+      : undefined;
+
+    // Pulsing segments are wrapped in a group so the blink animates the
+    // group's opacity without fighting the per-stroke flow animation class.
+    let edgeOwner: SVGElement = svg;
+    if (pathStyle?.pulse) {
+      const pulseGroup = createSvgElement("g");
+      pulseGroup.setAttribute("class", PULSE_CLASS);
+      svg.appendChild(pulseGroup);
+      edgeOwner = pulseGroup;
+    }
 
     for (const { edge, collapsed } of drawableEdges) {
       const stroke =
@@ -713,7 +736,7 @@ function drawEdges(params: {
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
       path.setAttribute("opacity", String(opacity * 0.42));
-      svg.appendChild(path);
+      edgeOwner.appendChild(path);
 
       const flowGlow = createSvgElement("path");
       flowGlow.setAttribute("d", pathD);
@@ -729,7 +752,7 @@ function drawEdges(params: {
       flowGlow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flowGlow.setAttribute("opacity", String(opacity * 0.18));
       flowGlow.setAttribute("class", EDGE_FLOW_CLASS);
-      svg.appendChild(flowGlow);
+      edgeOwner.appendChild(flowGlow);
 
       const flow = createSvgElement("path");
       flow.setAttribute("d", pathD);
@@ -745,7 +768,7 @@ function drawEdges(params: {
       flow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flow.setAttribute("opacity", String(opacity * 0.94));
       flow.setAttribute("class", EDGE_FLOW_CLASS);
-      svg.appendChild(flow);
+      edgeOwner.appendChild(flow);
     }
   }
 }
@@ -1139,6 +1162,10 @@ export const domDrawEngine: DrawEngine = {
         // 명시하지 않으면 카드에서 슬롯 사각형 밖 영역의 클릭이 배경으로 빠진다.
         pointerEvents: "auto",
       });
+      if (zoneStyle?.pulse) {
+        // Pulses from the inline opacity above, so it composes with ghosting.
+        zoneEl.classList.add(PULSE_CLASS);
+      }
 
       const shape = normalizeZoneShape(
         input.resolveZoneShape?.(zoneVisual.zone)
@@ -1282,6 +1309,10 @@ export const domDrawEngine: DrawEngine = {
         // pathLayer 의 pointer-events: none 상속 차단 — zoneEl 과 동일한 이유.
         pointerEvents: "auto",
       });
+
+      if (input.resolvePathStyle?.(pathVisual.path)?.pulse) {
+        pathEl.classList.add(PULSE_CLASS);
+      }
 
       pathEl.addEventListener("click", (event) => {
         event.stopPropagation();

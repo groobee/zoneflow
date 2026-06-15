@@ -66,7 +66,7 @@ describe("createDiffDecorations", () => {
     );
   });
 
-  it("ghosts removed zones only, with the default dashed style", () => {
+  it("ghosts and pulses removed zones only", () => {
     const diff = emptyDiff();
     diff.zones.removed = ["z-removed"];
     diff.zones.added = ["z-added"];
@@ -75,8 +75,26 @@ describe("createDiffDecorations", () => {
     expect(deco.resolveZoneStyle(zone("z-removed"))).toEqual({
       borderStyle: "dashed",
       opacity: 0.45,
+      pulse: true,
     });
     expect(deco.resolveZoneStyle(zone("z-added"))).toBeUndefined();
+  });
+
+  it("pulses removed paths and respects pulseRemoved: false", () => {
+    const diff = emptyDiff();
+    diff.paths.removed = [{ pathId: "p-removed", sourceZoneId: "z1" }];
+    diff.zones.removed = ["z-removed"];
+
+    const deco = createDiffDecorations(diff);
+    expect(deco.resolvePathStyle(path("p-removed"))).toEqual({ pulse: true });
+    expect(deco.resolvePathStyle(path("p-kept"))).toBeUndefined();
+
+    const still = createDiffDecorations(diff, { pulseRemoved: false });
+    expect(still.resolvePathStyle(path("p-removed"))).toBeUndefined();
+    expect(still.resolveZoneStyle(zone("z-removed"))).toEqual({
+      borderStyle: "dashed",
+      opacity: 0.45,
+    });
   });
 
   it("falls back to base resolvers for undecorated elements", () => {
@@ -108,6 +126,13 @@ describe("createDiffDecorations", () => {
     });
 
     expect(deco.resolveZoneColor(zone("z-removed"))).toBe("#000000");
-    expect(deco.resolveZoneStyle(zone("z-removed"))).toBeUndefined();
+    // ghost disabled but pulse stays on by default
+    expect(deco.resolveZoneStyle(zone("z-removed"))).toEqual({ pulse: true });
+
+    const fullyStatic = createDiffDecorations(diff, {
+      removedZoneStyle: null,
+      pulseRemoved: false,
+    });
+    expect(fullyStatic.resolveZoneStyle(zone("z-removed"))).toBeUndefined();
   });
 });

@@ -225,6 +225,29 @@ export type ResolvePathColor = (path: Path) => string | null | undefined;
  */
 export type ResolvePathLineColor = (path: Path) => string | null | undefined;
 
+/**
+ * Per-path presentation overrides beyond color — the path-side counterpart
+ * of {@link ZoneStyleOverride}.
+ */
+export type PathStyleOverride = {
+  /**
+   * Blink the path's node (label slots included) and its connector lines.
+   * Built for diff previews where color alone is ambiguous because apps may
+   * color paths for their own reasons. Disabled automatically under
+   * `prefers-reduced-motion`.
+   */
+  pulse?: boolean;
+};
+
+/**
+ * Resolver invoked once per path to decide its style overrides. Return
+ * `undefined`/`null` for the default presentation. Purely presentational —
+ * geometry and hit-testing are unaffected.
+ */
+export type ResolvePathStyle = (
+  path: Path
+) => PathStyleOverride | null | undefined;
+
 export type ZoneComponentMount = {
   key: string;
   zoneId: ZoneId;
@@ -319,6 +342,7 @@ export type RendererDrawInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
+  resolvePathStyle?: ResolvePathStyle;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
@@ -405,6 +429,7 @@ export type RendererInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
+  resolvePathStyle?: ResolvePathStyle;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;

@@ -29,6 +29,36 @@ export function resolveEdgeFlowMotion(theme: ZoneflowTheme): EdgeFlowMotion {
   };
 }
 
+/**
+ * Inject the shared blink animation used by pulse-decorated elements (diff
+ * previews etc.). The keyframes only define the 50% stop, so each element
+ * pulses from its own current opacity — ghosted zones dip from 0.45, full
+ * elements from 1. The <style> lives inside the edge SVG but CSS rules are
+ * document-global, so the same class works on the DOM zone/path layers too.
+ */
+export function appendPulseStyle(params: {
+  svg: SVGSVGElement;
+  animationName: string;
+  className: string;
+}) {
+  const { svg, animationName, className } = params;
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `
+@keyframes ${animationName} {
+  50% { opacity: 0.12; }
+}
+.${className} {
+  animation: ${animationName} 1100ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .${className} {
+    animation: none;
+  }
+}
+  `;
+  svg.appendChild(style);
+}
+
 export function appendEdgeFlowStyle(params: {
   svg: SVGSVGElement;
   animationName: string;
