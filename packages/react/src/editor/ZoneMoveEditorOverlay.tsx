@@ -442,13 +442,19 @@ const DELETE_SHAKE_ANIMATION = "zoneflow-delete-shake 180ms ease-in-out infinite
 const DELETE_ICON_POP_ANIMATION = "zoneflow-delete-pop 160ms ease-out";
 const DELETE_TOAST_IN_ANIMATION = "zoneflow-delete-toast-in 180ms ease-out";
 const OVERLAY_Z_INDEX = {
+  // Overlay container's stacking position relative to the page (canvas, slot
+  // portals). Everything below is a child *inside* this container and only
+  // competes with the other children, ordered here bottom → top.
+  root: 30,
   pathStatusBadge: 2,
-  itemDialog: 4,
   toast: 12,
-  selectionDialog: 13,
   floatingToolbar: 24,
   hud: 28,
-  root: 30,
+  // Confirmation dialogs sit above the floating (alignment) toolbar and HUD —
+  // the delete-confirm popped from the alignment toolbar must never hide
+  // behind the toolbar that triggered it.
+  itemDialog: 32,
+  selectionDialog: 33,
 } as const;
 const HELP_PANEL_STORAGE_KEY = "zoneflow:editor-help-panel";
 
