@@ -58,25 +58,36 @@ export default function App() {
   } =
     useSampleSwitcher("small");
 
-  // 로컬 스케일(줌과 별개): 보기 모드에서만 적용하는 비파괴적 뷰 변환.
-  // 요소(존·앵커·패스 오프셋) 크기만 factor 로 스케일 — 위치는 그대로.
-  // 크기가 커지면 density 레벨도 farest→nearest 로 자동 이동.
+  // 로컬 스케일(줌과 별개): 요소(존·앵커·패스 오프셋) 크기만 factor 로 스케일.
   const [localScaleEnabled, setLocalScaleEnabled] = useState(false);
   const [localScaleFactor, setLocalScaleFactor] = useState(1.4);
-  const displayLayoutModel = useMemo(
-    () =>
-      localScaleEnabled
-        ? applyLocalScale(model, layoutModel, localScaleFactor)
-        : layoutModel,
-    [localScaleEnabled, localScaleFactor, model, layoutModel]
-  );
 
+  // 에디터는 항상 base 레이아웃을 소유한다 — 스케일된 뷰를 에디터에 넣으면
+  // 편집 진입 시 draft 가 스케일된 채 복제→적용되어 base 에 박힌다(반복 시
+  // 폭주). 로컬 스케일은 순수 뷰라, 렌더용으로만 layoutModel 을 덮어쓴
+  // viewEditor 를 캔버스에 넘기고, 편집 중에는 바이패스한다.
   const editor = useUniverseEditor({
     model,
-    layoutModel: displayLayoutModel,
+    layoutModel,
     setModel,
     setLayoutModel,
   });
+
+  const localScaleActive = localScaleEnabled && !editor.isEditMode;
+  const viewEditor = useMemo(
+    () =>
+      localScaleActive
+        ? {
+            ...editor,
+            layoutModel: applyLocalScale(
+              model,
+              editor.layoutModel,
+              localScaleFactor
+            ),
+          }
+        : editor,
+    [editor, localScaleActive, model, localScaleFactor]
+  );
 
   const [hostSize, setHostSize] = useState({
     width: 0,
@@ -265,7 +276,7 @@ export default function App() {
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
       <CanvasHost
-        editor={editor}
+        editor={viewEditor}
         editPermissionMode={editPermissionMode}
         debug={debug}
         onResize={setHostSize}
