@@ -15,6 +15,7 @@ import type {
   ResolveZoneIcon,
   ResolveZoneShape,
   ResolveZoneStyle,
+  ZoneResolveContext,
 } from "./zoneShape";
 
 export type CameraState = {
@@ -270,6 +271,58 @@ export type ZoneComponentMount = {
   context: ZoneComponentRendererContext;
 };
 
+/**
+ * Context for a full-zone renderer ({@link ZoneRenderer}). Unlike the slot
+ * context there is no `componentLayout` — the renderer owns the whole body
+ * (border, background, content), so it gets the zone's `rect` and resolved
+ * accent (`zoneColor`) to draw against.
+ */
+export type ZoneRendererContext = {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zone: Zone;
+  zoneVisual: ZoneVisualNode;
+  density: DensityLevel;
+  visibility: ZoneVisibility;
+  rect: Rect;
+  camera: CameraState;
+  theme: ZoneflowTheme;
+  zoneColor?: string;
+  textScale: TextScaleLevel;
+};
+
+/**
+ * Imperative renderer that draws an ENTIRE zone body (border + background +
+ * content) into `host`, replacing the built-in card chrome and slots. The
+ * library still owns geometry, anchors, hit-testing, opacity/pulse — only the
+ * inner visual is yours. See {@link ResolveZoneRenderer}.
+ */
+export type ZoneRenderer = (
+  host: HTMLElement,
+  context: ZoneRendererContext
+) => void;
+
+/**
+ * Resolver invoked once per zone to pick a full-body renderer for the current
+ * density level (or any per-zone condition). Return `undefined`/`null` to fall
+ * back to the built-in default card. This is the "level renderer" escape hatch
+ * for when parameterizing the default card (shape/color/style/icon) isn't
+ * enough and you need to draw the whole thing — e.g. a borderless icon chip at
+ * `farest`, a custom mini-card at `far`.
+ */
+export type ResolveZoneRenderer = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => ZoneRenderer | null | undefined;
+
+export type ZoneRendererMount = {
+  key: string;
+  zoneId: ZoneId;
+  host: HTMLElement;
+  rect: Rect;
+  context: ZoneRendererContext;
+};
+
 export type PathComponentMount = {
   key: string;
   pathId: PathId;
@@ -308,6 +361,8 @@ export type BackgroundMount = {
 export type RenderMountRegistry = {
   zones: ZoneComponentMount[];
   paths: PathComponentMount[];
+  /** Full-body zone renderers (see {@link ResolveZoneRenderer}). */
+  zoneRenderers: ZoneRendererMount[];
   background: BackgroundMount | null;
 };
 
@@ -354,6 +409,7 @@ export type RendererDrawInput = {
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
+  resolveZoneRenderer?: ResolveZoneRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -442,6 +498,7 @@ export type RendererInput = {
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
+  resolveZoneRenderer?: ResolveZoneRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;

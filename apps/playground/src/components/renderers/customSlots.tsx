@@ -4,7 +4,12 @@ import {
   createExtensibleComponentLayoutEngine,
   type ExtensibleZoneSlot,
 } from "@zoneflow/renderer-dom";
-import { Zoned, type ZoneSlotComponentMap, type ZoneSlotComponentProps } from "@zoneflow/react";
+import {
+  Zoned,
+  type ZoneRenderComponentProps,
+  type ZoneSlotComponentMap,
+  type ZoneSlotComponentProps,
+} from "@zoneflow/react";
 
 const sans = "'IBM Plex Sans', 'Pretendard', sans-serif";
 
@@ -200,6 +205,54 @@ export function ViewModeSlot({ mount }: ZoneSlotComponentProps) {
           {label}
         </button>
       ))}
+    </Zoned>
+  );
+}
+
+/**
+ * 레벨별 존 렌더러 데모: far 레벨에선 기본 카드 대신 이 컴포넌트가 존 몸체
+ * 전체(테두리·배경·내용)를 직접 그린다 — 좌측 accent 바 + 굵은 이름의 컴팩트
+ * 카드. 기본 카드와 명확히 다른 모습으로 "통째 교체"를 보여준다.
+ */
+export function FarZoneCard({ mount }: ZoneRenderComponentProps) {
+  const { zone, zoneColor, theme } = mount.context;
+  const accent = zoneColor ?? theme.zoneActionBorder;
+
+  return (
+    <Zoned
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "0 10px",
+        borderRadius: 10,
+        border: `2px solid ${accent}`,
+        background: "rgba(255, 255, 255, 0.92)",
+        boxShadow: "0 6px 16px rgba(2, 6, 23, 0.12)",
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: "56%",
+          borderRadius: 3,
+          background: accent,
+          flex: "0 0 auto",
+        }}
+      />
+      <span
+        style={{
+          fontFamily: sans,
+          fontSize: 13,
+          fontWeight: 700,
+          color: theme.zoneTitle,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {zone.name}
+      </span>
     </Zoned>
   );
 }

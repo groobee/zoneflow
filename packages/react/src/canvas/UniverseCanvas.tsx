@@ -30,6 +30,7 @@ import {
   type ResolvePathStyle,
   type ResolveZoneColor,
   type ResolveZoneIcon,
+  type ResolveZoneRenderer,
   type ResolveZoneShape,
   type ResolveZoneStyle,
   type TextScaleLevel,
@@ -52,6 +53,7 @@ import {resolvePermissions} from "../editor/editorPermissions";
 import {
   type BackgroundComponent,
   type PathSlotComponentMap,
+  type ResolveZoneRenderComponent,
   SlotPortals,
   type ZoneSlotComponentMap,
 } from "../slots/slotComponents";
@@ -76,6 +78,7 @@ export type UniverseCanvasProps = {
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
+  renderZone?: ResolveZoneRenderComponent;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -165,6 +168,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneColor,
     resolveZoneStyle,
     resolveZoneIcon,
+    renderZone,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -191,6 +195,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
   const [mounts, setMounts] = useState<RenderMountRegistry>({
     zones: [],
     paths: [],
+    zoneRenderers: [],
     background: null,
   });
   const camera = cameraState ?? internalCamera;
@@ -262,6 +267,17 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     if (background) return backgroundRenderer ?? noopRenderer;
     return backgroundRenderer;
   }, [background, backgroundRenderer]);
+
+  // Bridge the React `renderZone` resolver to the renderer's imperative hook:
+  // when a component applies, hand the draw engine a no-op so it builds a bare
+  // body host + registers a mount; SlotPortals then portals the component in.
+  const effectiveResolveZoneRenderer = useMemo<
+    ResolveZoneRenderer | undefined
+  >(() => {
+    if (!renderZone) return undefined;
+    return (zone, context) =>
+      renderZone(zone, context) ? noopRenderer : undefined;
+  }, [renderZone]);
 
   useCameraControls({
     hostRef: viewportRef,
@@ -385,6 +401,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolveZoneColor,
       resolveZoneStyle,
       resolveZoneIcon,
+      resolveZoneRenderer: effectiveResolveZoneRenderer,
       resolvePathColor,
       resolvePathLineColor,
       resolvePathStyle,
@@ -400,6 +417,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     setMounts(frame?.mounts ?? {
       zones: [],
       paths: [],
+      zoneRenderers: [],
       background: null,
     });
     onFrameChange?.(frame ?? null);
@@ -422,6 +440,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneColor,
     resolveZoneStyle,
     resolveZoneIcon,
+    effectiveResolveZoneRenderer,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -495,6 +514,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
         zoneComponents={zoneComponents}
         pathComponents={pathComponents}
         background={background}
+        renderZone={renderZone}
       />
       <ZoneMoveEditorOverlay
         model={model}

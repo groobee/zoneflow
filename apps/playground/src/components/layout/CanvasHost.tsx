@@ -28,8 +28,10 @@ import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
   customZoneComponents,
   customZoneLayoutEngine,
+  FarZoneCard,
   ZoneResizeContext,
 } from "../renderers/customSlots";
+import type { ResolveZoneRenderComponent } from "@zoneflow/react";
 import {
   makeWeatherBackground,
   type WeatherBackgroundId,
@@ -84,12 +86,17 @@ const resolveZoneIcon: ResolveZoneIcon = (zone) =>
   (zone.zoneType === "container" ? "📦" : "●");
 
 /**
- * density-aware 리졸버 데모: far 레벨(작게/줌아웃)에선 테두리를 점선으로 바꿔
- * "디테일이 줄었음"을 시각적으로 신호한다. 같은 zone 도 레벨에 따라 다른
- * 테두리를 갖게 됨(2번째 인자 density 활용). 그 외 레벨은 기본(실선).
+ * 레벨별 렌더링 데모 (줌아웃하며 단계적으로 바뀜):
+ * - mid: 기본 카드 + 점선 테두리 (density-aware 리졸버 = 파라미터화)
+ * - far: 커스텀 풀바디 렌더러(FarZoneCard)가 카드 전체를 교체 (renderZone)
+ * - farest: 아이콘만 (resolveZoneIcon)
  */
 const resolveZoneStyle: ResolveZoneStyle = (_zone, { density }) =>
-  density === "far" ? { borderStyle: "dashed" } : undefined;
+  density === "mid" ? { borderStyle: "dashed" } : undefined;
+
+/** far 레벨에서 기본 카드 대신 커스텀 컴포넌트로 통째 렌더. 그 외엔 기본. */
+const renderZone: ResolveZoneRenderComponent = (_zone, { density }) =>
+  density === "far" ? FarZoneCard : undefined;
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -281,6 +288,7 @@ export function CanvasHost({
         resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle ?? resolveZoneStyle}
         resolveZoneIcon={resolveZoneIcon}
+        renderZone={renderZone}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={
           cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor

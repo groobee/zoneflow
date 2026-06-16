@@ -1,6 +1,7 @@
 import type { CSSProperties, ComponentType, ReactNode } from "react";
 import { Fragment } from "react";
 import { createPortal } from "react-dom";
+import type { Zone } from "@zoneflow/core";
 import type {
   BackgroundMount,
   PathComponentMount,
@@ -8,11 +9,29 @@ import type {
   RenderMountRegistry,
   ZoneComponentMount,
   ZoneComponentSlotName,
+  ZoneRendererMount,
+  ZoneResolveContext,
 } from "@zoneflow/renderer-dom";
 
 export type ZoneSlotComponentProps = {
   mount: ZoneComponentMount;
 };
+
+export type ZoneRenderComponentProps = {
+  mount: ZoneRendererMount;
+};
+
+export type ZoneRenderComponent = ComponentType<ZoneRenderComponentProps>;
+
+/**
+ * Resolver picking a full-zone React component for the current density level
+ * (or any per-zone condition). Return `undefined`/`null` for the default card.
+ * Mirrors the renderer-dom `ResolveZoneRenderer` but in React-component form.
+ */
+export type ResolveZoneRenderComponent = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => ZoneRenderComponent | null | undefined;
 
 export type PathSlotComponentProps = {
   mount: PathComponentMount;
@@ -67,12 +86,14 @@ export function SlotPortals(props: {
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   background?: BackgroundComponent;
+  renderZone?: ResolveZoneRenderComponent;
 }) {
   const {
     mounts,
     zoneComponents,
     pathComponents,
     background: BackgroundComponent,
+    renderZone,
   } = props;
 
   return (
@@ -85,6 +106,19 @@ export function SlotPortals(props: {
           )}
         </Fragment>
       ) : null}
+
+      {mounts.zoneRenderers.map((mount: ZoneRendererMount) => {
+        const Component = renderZone?.(mount.context.zone, {
+          density: mount.context.density,
+        });
+        if (!Component) return null;
+
+        return (
+          <Fragment key={mount.key}>
+            {createPortal(<Component mount={mount} />, mount.host)}
+          </Fragment>
+        );
+      })}
 
       {mounts.zones.map((mount: ZoneComponentMount) => {
         const Component = zoneComponents?.[mount.slot];

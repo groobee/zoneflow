@@ -125,6 +125,7 @@ export function createRenderer(): ZoneflowRenderer {
         resolveZoneColor,
         resolveZoneStyle,
         resolveZoneIcon,
+        resolveZoneRenderer,
         resolvePathColor,
         resolvePathLineColor,
         resolvePathStyle,
@@ -175,6 +176,7 @@ export function createRenderer(): ZoneflowRenderer {
           mounts: {
             zones: [],
             paths: [],
+            zoneRenderers: [],
             background: null,
           },
         } satisfies RendererFrame;
@@ -195,6 +197,7 @@ export function createRenderer(): ZoneflowRenderer {
         resolveZoneColor,
         resolveZoneStyle,
         resolveZoneIcon,
+        resolveZoneRenderer,
         resolvePathColor,
         resolvePathLineColor,
         resolvePathStyle,

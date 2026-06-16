@@ -15,6 +15,7 @@ import type {
   ZoneComponentMount,
   ZoneComponentRendererContext,
   ZoneComponentSlotName,
+  ZoneRendererContext,
   ZoneVisualNode,
 } from "../types";
 import { resolveZoneAnchorRect } from "../anchors";
@@ -60,6 +61,7 @@ function createEmptyMountRegistry(): RenderMountRegistry {
   return {
     zones: [],
     paths: [],
+    zoneRenderers: [],
     background: null,
   };
 }
@@ -1234,7 +1236,46 @@ export const domDrawEngine: DrawEngine = {
           ? theme.surface.zone.actionAccent
           : theme.surface.zone.containerAccent;
 
-      if (shape.clipPath) {
+      // Full-body renderer escape hatch: when the consumer provides one for
+      // this zone/level, it owns the entire body (border, background, content)
+      // — skip the built-in chrome, slots and farest icon. Geometry, anchors,
+      // click and opacity/pulse stay library-controlled.
+      const customZoneRenderer =
+        input.resolveZoneRenderer?.(zoneVisual.zone, zoneResolveContext) ??
+        undefined;
+
+      if (customZoneRenderer) {
+        applyStyles(zoneBodyEl, {
+          position: "absolute",
+          left: "0",
+          top: "0",
+          width: "100%",
+          height: "100%",
+          boxSizing: "border-box",
+          overflow: "hidden",
+        });
+        const rendererContext: ZoneRendererContext = {
+          model: input.model,
+          layoutModel: input.layoutModel,
+          zone: zoneVisual.zone,
+          zoneVisual,
+          density: zoneDensity,
+          visibility,
+          rect: zoneVisual.rect,
+          camera: input.camera,
+          theme,
+          zoneColor,
+          textScale: input.textScale,
+        };
+        customZoneRenderer(zoneBodyEl, rendererContext);
+        mounts.zoneRenderers.push({
+          key: `${zoneVisual.zoneId}:__zone__`,
+          zoneId: zoneVisual.zoneId,
+          host: zoneBodyEl,
+          rect: zoneVisual.rect,
+          context: rendererContext,
+        });
+      } else if (shape.clipPath) {
         // Clipped polygon (diamond/hexagon/custom). A CSS border would be
         // cut by clip-path, so the outline is synthesized: a border-colored
         // base layer with a 1px-inset fill layer on top. Depth comes from a
@@ -1303,46 +1344,50 @@ export const domDrawEngine: DrawEngine = {
 
       zoneEl.appendChild(zoneBodyEl);
 
-      for (const slot of Object.keys(componentLayout?.slots ?? {}) as ZoneComponentSlotName[]) {
-        createZoneSlotHost({
-          zoneVisual,
-          componentLayout,
-          slot,
-          input,
-          mounts,
-          owner: zoneBodyEl,
-        });
-      }
-
-      // "farest" — the zone is too small for any slot, so show an icon-only
-      // marker (consumer-resolved glyph, else the name's first character) so
-      // it never reads as a blank card.
-      if (zoneDensity === "farest") {
-        const iconText =
-          input.resolveZoneIcon?.(zoneVisual.zone, zoneResolveContext) ??
-          Array.from(zoneVisual.zone.name.trim())[0] ??
-          "";
-        if (iconText) {
-          const iconEl = document.createElement("div");
-          const fontSize = Math.max(
-            8,
-            Math.min(zoneVisual.rect.width, zoneVisual.rect.height) * 0.5
-          );
-          applyStyles(iconEl, {
-            position: "absolute",
-            inset: "0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: zoneColor ?? theme.zoneTitle,
-            fontSize: `${fontSize}px`,
-            fontWeight: "600",
-            lineHeight: "1",
-            overflow: "hidden",
-            pointerEvents: "none",
+      // Built-in content (slots + farest icon) only when no full-body renderer
+      // took over — the custom renderer owns everything inside the body.
+      if (!customZoneRenderer) {
+        for (const slot of Object.keys(componentLayout?.slots ?? {}) as ZoneComponentSlotName[]) {
+          createZoneSlotHost({
+            zoneVisual,
+            componentLayout,
+            slot,
+            input,
+            mounts,
+            owner: zoneBodyEl,
           });
-          iconEl.textContent = iconText;
-          zoneBodyEl.appendChild(iconEl);
+        }
+
+        // "farest" — the zone is too small for any slot, so show an icon-only
+        // marker (consumer-resolved glyph, else the name's first character) so
+        // it never reads as a blank card.
+        if (zoneDensity === "farest") {
+          const iconText =
+            input.resolveZoneIcon?.(zoneVisual.zone, zoneResolveContext) ??
+            Array.from(zoneVisual.zone.name.trim())[0] ??
+            "";
+          if (iconText) {
+            const iconEl = document.createElement("div");
+            const fontSize = Math.max(
+              8,
+              Math.min(zoneVisual.rect.width, zoneVisual.rect.height) * 0.5
+            );
+            applyStyles(iconEl, {
+              position: "absolute",
+              inset: "0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: zoneColor ?? theme.zoneTitle,
+              fontSize: `${fontSize}px`,
+              fontWeight: "600",
+              lineHeight: "1",
+              overflow: "hidden",
+              pointerEvents: "none",
+            });
+            iconEl.textContent = iconText;
+            zoneBodyEl.appendChild(iconEl);
+          }
         }
       }
 
