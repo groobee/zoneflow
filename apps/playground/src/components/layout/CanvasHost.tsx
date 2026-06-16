@@ -330,10 +330,11 @@ export function CanvasHost({
             {
               id: "minimize",
               label: "최소화",
-              title: "선택 존을 아이콘 크기로",
+              title: "선택 존을 farest(아이콘) 크기로",
+              // far 임계값(기본 56) 아래로 줄여 farest → 아이콘만 노출.
               onClick: ({ zoneIds }) =>
                 zoneIds.forEach((id) =>
-                  editor.resizeZone(id, { width: 84, height: 52 })
+                  editor.resizeZone(id, { width: 46, height: 44 })
                 ),
             },
             {

@@ -166,6 +166,82 @@ export function updateZoneLayout(
   });
 }
 
+function roundCoord(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Edge-centered anchor for a zone of the given size: inlet at the left-middle,
+ * outlet at the right-middle, with any custom `rect` repositioned to match.
+ * Keeps anchors glued to the zone's edges when its size changes.
+ */
+function resolveResizedZoneAnchor(
+  kind: "inlet" | "outlet",
+  width: number,
+  height: number,
+  current: ZoneLayout["anchors"]["inlet"]
+): ZoneLayout["anchors"]["inlet"] {
+  const centerY = roundCoord(height / 2);
+  const rect = current.rect;
+  return {
+    point: { x: kind === "inlet" ? 0 : roundCoord(width), y: centerY },
+    rect: rect
+      ? {
+          ...rect,
+          x: kind === "inlet" ? 0 : roundCoord(width - (rect.width ?? 0)),
+          y:
+            rect.height !== undefined
+              ? roundCoord(centerY - rect.height / 2)
+              : rect.y,
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Resize a zone's layout AND keep its connection anchors on the new edges.
+ * `updateZoneLayout` alone leaves the anchors at their old coordinates, so a
+ * programmatic resize (e.g. a view-mode toggle) would detach the inlet/outlet
+ * from the rendered zone — use this instead. No-ops when the size is unchanged
+ * or the zone has no layout.
+ */
+export function resizeZoneLayout(
+  layoutModel: UniverseLayoutModel,
+  zoneId: ZoneId,
+  size: { width?: number; height?: number }
+): UniverseLayoutModel {
+  const current = layoutModel.zoneLayoutsById[zoneId];
+  if (!current) return layoutModel;
+
+  const nextWidth = size.width ?? current.width;
+  const nextHeight = size.height ?? current.height;
+  if (nextWidth === current.width && nextHeight === current.height) {
+    return layoutModel;
+  }
+
+  return updateZoneLayout(layoutModel, zoneId, {
+    width: nextWidth,
+    height: nextHeight,
+    anchors:
+      nextWidth !== undefined && nextHeight !== undefined
+        ? {
+            inlet: resolveResizedZoneAnchor(
+              "inlet",
+              nextWidth,
+              nextHeight,
+              current.anchors.inlet
+            ),
+            outlet: resolveResizedZoneAnchor(
+              "outlet",
+              nextWidth,
+              nextHeight,
+              current.anchors.outlet
+            ),
+          }
+        : undefined,
+  });
+}
+
 export function getPathLayout(
   layoutModel: UniverseLayoutModel,
   pathId: PathId

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
-  updateZoneLayout,
+  resizeZoneLayout,
   type UniverseLayoutModel,
   type UniverseModel,
   type ZoneId,
@@ -300,7 +300,9 @@ export function useUniverseEditorSession(params: {
       const nextHeight = clampH(size.height ?? layout.height);
       if (nextWidth === layout.width && nextHeight === layout.height) return;
 
-      const nextLayoutModel = updateZoneLayout(current.layoutModel, zoneId, {
+      // resizeZoneLayout (not updateZoneLayout) so the inlet/outlet anchors
+      // follow the new edges — otherwise they'd detach from the resized zone.
+      const nextLayoutModel = resizeZoneLayout(current.layoutModel, zoneId, {
         width: nextWidth,
         height: nextHeight,
       });
@@ -319,7 +321,7 @@ export function useUniverseEditorSession(params: {
         // form so several resizeZone calls in one tick (e.g. a batch view-mode
         // toggle) accumulate instead of clobbering each other.
         setLayoutModel((prev) =>
-          updateZoneLayout(prev, zoneId, {
+          resizeZoneLayout(prev, zoneId, {
             width: nextWidth,
             height: nextHeight,
           })
