@@ -18,6 +18,7 @@ import {
   type ResolveZoneColor,
   type ResolveZoneIcon,
   type ResolveZoneShape,
+  type ResolveZoneStyle,
   type ZoneShape,
 } from "@zoneflow/renderer-dom";
 import type { DebugState } from "../../hooks/useDebugState";
@@ -82,6 +83,14 @@ const resolveZoneIcon: ResolveZoneIcon = (zone) =>
   (zone.meta?.icon as string | undefined) ??
   (zone.zoneType === "container" ? "📦" : "●");
 
+/**
+ * density-aware 리졸버 데모: far 레벨(작게/줌아웃)에선 테두리를 점선으로 바꿔
+ * "디테일이 줄었음"을 시각적으로 신호한다. 같은 zone 도 레벨에 따라 다른
+ * 테두리를 갖게 됨(2번째 인자 density 활용). 그 외 레벨은 기본(실선).
+ */
+const resolveZoneStyle: ResolveZoneStyle = (_zone, { density }) =>
+  density === "far" ? { borderStyle: "dashed" } : undefined;
+
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
 
@@ -140,6 +149,7 @@ export function CanvasHost({
             base: {
               resolvePathColor,
               resolveZoneColor,
+              resolveZoneStyle,
               resolvePathLineColor,
               resolvePathStyle,
             },
@@ -269,7 +279,7 @@ export function CanvasHost({
         background={Background}
         resolveZoneShape={resolveZoneShape}
         resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
-        resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
+        resolveZoneStyle={cleanupResolvers?.resolveZoneStyle ?? resolveZoneStyle}
         resolveZoneIcon={resolveZoneIcon}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={

@@ -176,7 +176,10 @@ export function resolveZoneAnchorScreenRect(params: {
   if (kind === "inlet" && !isZoneInputEnabled(zoneVisual.zone)) return undefined;
   if (kind === "outlet" && !isZoneOutputEnabled(zoneVisual.zone)) return undefined;
 
-  const mode = normalizeZoneShape(resolveZoneShape?.(zoneVisual.zone)).anchors;
+  const density = frame.pipeline.density.zoneDensityById[zoneId] ?? "far";
+  const mode = normalizeZoneShape(
+    resolveZoneShape?.(zoneVisual.zone, { density })
+  ).anchors;
   const anchorRect = resolveZoneAnchorRect({
     zoneRect: zoneVisual.rect,
     anchor: zoneVisual.anchors[kind],

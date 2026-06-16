@@ -125,12 +125,12 @@ export function createDiffDecorations(
   }
 
   return {
-    resolveZoneColor: (zone) => {
+    resolveZoneColor: (zone, context) => {
       const status = zoneStatusById.get(zone.id);
-      return status ? colors[status] : base.resolveZoneColor?.(zone);
+      return status ? colors[status] : base.resolveZoneColor?.(zone, context);
     },
-    resolveZoneStyle: (zone) => {
-      const baseStyle = base.resolveZoneStyle?.(zone) ?? undefined;
+    resolveZoneStyle: (zone, context) => {
+      const baseStyle = base.resolveZoneStyle?.(zone, context) ?? undefined;
       if (zoneStatusById.get(zone.id) === "removed" && removedZoneStyle) {
         // Merge so an app's own zone styling (e.g. a custom border) survives
         // under the diff ghost/pulse instead of being dropped.

@@ -586,7 +586,8 @@ function createZoneSlotHost(params: {
     componentLayout,
     camera: input.camera,
     theme: input.theme,
-    zoneColor: input.resolveZoneColor?.(zoneVisual.zone) ?? undefined,
+    zoneColor:
+      input.resolveZoneColor?.(zoneVisual.zone, { density }) ?? undefined,
     textScale: input.textScale,
   };
 
@@ -889,7 +890,10 @@ function drawZoneAnchors(params: {
   mode?: ZoneAnchorRenderMode;
 }) {
   const { owner, zone, input, mode = "edge" } = params;
-  const zoneColor = input.resolveZoneColor?.(zone.zone) ?? undefined;
+  const density =
+    input.pipeline.density.zoneDensityById[zone.zoneId] ?? "far";
+  const zoneColor =
+    input.resolveZoneColor?.(zone.zone, { density }) ?? undefined;
   const zoneBorderColor =
     zoneColor ??
     (zone.zone.zoneType === "action"
@@ -1178,10 +1182,19 @@ export const domDrawEngine: DrawEngine = {
       zoneEl.dataset.zoneflowZoneId = zoneVisual.zoneId;
       zoneBodyEl.dataset.zoneflowZoneBody = zoneVisual.zoneId;
 
+      // Per-zone resolvers are density-aware so a consumer can vary the card
+      // (shape/color/border style/icon) by level — e.g. a dashed dim border at
+      // far. Resolve the level once and pass it to all of them.
+      const zoneDensity =
+        input.pipeline.density.zoneDensityById[zoneVisual.zoneId] ?? "far";
+      const zoneResolveContext = { density: zoneDensity };
+
       // Consumer-resolved style overrides (diff-preview ghosts etc.). Opacity
       // composes onto the visibility-driven value and dims the whole subtree —
       // body, slots, and anchors alike.
-      const zoneStyle = input.resolveZoneStyle?.(zoneVisual.zone) ?? undefined;
+      const zoneStyle =
+        input.resolveZoneStyle?.(zoneVisual.zone, zoneResolveContext) ??
+        undefined;
       const zoneStyleOpacity = Math.min(Math.max(zoneStyle?.opacity ?? 1, 0), 1);
 
       applyStyles(zoneEl, {
@@ -1203,11 +1216,13 @@ export const domDrawEngine: DrawEngine = {
       }
 
       const shape = normalizeZoneShape(
-        input.resolveZoneShape?.(zoneVisual.zone)
+        input.resolveZoneShape?.(zoneVisual.zone, zoneResolveContext)
       );
       // Consumer-resolved per-zone color overrides the theme's border + accent
       // (body background and text stay theme-driven to preserve contrast).
-      const zoneColor = input.resolveZoneColor?.(zoneVisual.zone) ?? undefined;
+      const zoneColor =
+        input.resolveZoneColor?.(zoneVisual.zone, zoneResolveContext) ??
+        undefined;
       const zoneBorderColor =
         zoneColor ??
         (zoneVisual.zone.zoneType === "action"
@@ -1302,11 +1317,9 @@ export const domDrawEngine: DrawEngine = {
       // "farest" — the zone is too small for any slot, so show an icon-only
       // marker (consumer-resolved glyph, else the name's first character) so
       // it never reads as a blank card.
-      if (
-        input.pipeline.density.zoneDensityById[zoneVisual.zoneId] === "farest"
-      ) {
+      if (zoneDensity === "farest") {
         const iconText =
-          input.resolveZoneIcon?.(zoneVisual.zone) ??
+          input.resolveZoneIcon?.(zoneVisual.zone, zoneResolveContext) ??
           Array.from(zoneVisual.zone.name.trim())[0] ??
           "";
         if (iconText) {

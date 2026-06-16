@@ -1,4 +1,15 @@
 import type { Zone } from "@zoneflow/core";
+import type { DensityLevel } from "./types";
+
+/**
+ * Context passed to every per-zone resolver so they can vary the result by
+ * density level — e.g. a dashed/dim border at `far`, a different shape or
+ * accent at `farest`. `density` is the zone's resolved level for this frame.
+ * (Type-only cross-import with `./types`; erased at compile, no runtime cycle.)
+ */
+export type ZoneResolveContext = {
+  density: DensityLevel;
+};
 
 /**
  * Where a zone's connection anchors are drawn.
@@ -53,7 +64,10 @@ export type ZoneShape = ZoneShapeName | ZoneShapeSpec;
  * presentation concern — the zone's geometry, hit-testing, and anchor
  * points are unaffected, so paths still connect exactly as before.
  */
-export type ResolveZoneShape = (zone: Zone) => ZoneShape | null | undefined;
+export type ResolveZoneShape = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => ZoneShape | null | undefined;
 
 /**
  * Resolver invoked once per zone to decide its accent color. Return a CSS
@@ -63,7 +77,10 @@ export type ResolveZoneShape = (zone: Zone) => ZoneShape | null | undefined;
  * by the consumer (e.g. from `zone.meta.color`, `zone.action`, …). The body
  * background and text stay theme-driven so contrast is preserved.
  */
-export type ResolveZoneColor = (zone: Zone) => string | null | undefined;
+export type ResolveZoneColor = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => string | null | undefined;
 
 /**
  * Per-zone presentation overrides beyond color — built for transient states
@@ -98,7 +115,8 @@ export type ZoneStyleOverride = {
  * and anchors are unaffected.
  */
 export type ResolveZoneStyle = (
-  zone: Zone
+  zone: Zone,
+  context: ZoneResolveContext
 ) => ZoneStyleOverride | null | undefined;
 
 /**
@@ -110,7 +128,10 @@ export type ResolveZoneStyle = (
  * always visible. For richer icons (SVG/image) render a slot component
  * gated on `density === "farest"` instead.
  */
-export type ResolveZoneIcon = (zone: Zone) => string | null | undefined;
+export type ResolveZoneIcon = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => string | null | undefined;
 
 /** Normalized geometry consumed by the draw engine. */
 export type ResolvedZoneShape = {
