@@ -39,6 +39,10 @@ type Props = {
   onExportFile: () => void;
   onImportFile: () => void;
   onOpenCleanupPreview: () => void;
+  densityEnabled: boolean;
+  onToggleDensity: () => void;
+  densityFactor: number;
+  onDensityStep: (delta: number) => void;
 };
 
 export function Topbar({
@@ -61,6 +65,10 @@ export function Topbar({
   onExportFile,
   onImportFile,
   onOpenCleanupPreview,
+  densityEnabled,
+  onToggleDensity,
+  densityFactor,
+  onDensityStep,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -209,6 +217,55 @@ export function Topbar({
                 : "On"
               : "Off"}
           </button>
+          <button
+            type="button"
+            style={{
+              ...themedControlStyle,
+              ...(densityEnabled
+                ? { background: "#0f766e", color: "#ecfeff", fontWeight: 700 }
+                : null),
+            }}
+            onClick={onToggleDensity}
+            disabled={editor.isEditMode}
+            title={
+              editor.isEditMode
+                ? "밀도는 보기 모드에서만 (편집 중 비활성)"
+                : "밀도 조절 (줌과 별개로 크기·간격 스케일)"
+            }
+          >
+            밀도 {densityEnabled ? "On" : "Off"}
+          </button>
+          {densityEnabled && !editor.isEditMode ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <button
+                type="button"
+                style={themedControlStyle}
+                onClick={() => onDensityStep(-1)}
+                title="밀도 낮춤 (작게 + 떨어지게)"
+              >
+                −
+              </button>
+              <span
+                style={{
+                  minWidth: 34,
+                  textAlign: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: themePreset.topbar.controlText,
+                }}
+              >
+                {densityFactor.toFixed(1)}×
+              </span>
+              <button
+                type="button"
+                style={themedControlStyle}
+                onClick={() => onDensityStep(1)}
+                title="밀도 높임 (크게 + 가깝게)"
+              >
+                +
+              </button>
+            </span>
+          ) : null}
           <button
             type="button"
             style={themedControlStyle}

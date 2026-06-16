@@ -416,6 +416,124 @@ export function computeAutoLayoutForZoneTree(
   };
 }
 
+export type LayoutDensityScale = {
+  /** Multiplier for every zone's width/height (and its anchor offsets). */
+  sizeScale?: number;
+  /**
+   * Multiplier for the spacing between root zones (their positions are scaled
+   * about the roots' centroid) and for path `routeOffset`. Move it opposite to
+   * `sizeScale` for the classic "denser = bigger + closer / sparser = smaller +
+   * spread" feel.
+   */
+  spacingScale?: number;
+};
+
+function scaleZoneAnchor(
+  anchor: ZoneLayout["anchors"]["inlet"],
+  sizeScale: number
+): ZoneLayout["anchors"]["inlet"] {
+  return {
+    point: { x: anchor.point.x * sizeScale, y: anchor.point.y * sizeScale },
+    rect: anchor.rect
+      ? {
+          x: anchor.rect.x * sizeScale,
+          y: anchor.rect.y * sizeScale,
+          width:
+            anchor.rect.width != null ? anchor.rect.width * sizeScale : undefined,
+          height:
+            anchor.rect.height != null
+              ? anchor.rect.height * sizeScale
+              : undefined,
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Density transform: a non-destructive view-scale on the layout, distinct from
+ * camera zoom (which scales everything uniformly). `sizeScale` grows/shrinks
+ * zones; `spacingScale` independently widens/tightens the gaps between root
+ * zones — so a consumer can offer a "density" control where raising it makes
+ * zones bigger AND closer, lowering it makes them smaller AND spread out.
+ *
+ * Because bigger zones cross the size-based density thresholds, this also walks
+ * the rendered level from `farest` toward `nearest` automatically. Pure: pass
+ * the result as the rendered `layoutModel`; keep your base layout for editing
+ * (apply this only as a view, not while resizing/dragging).
+ *
+ * Containment is preserved: child offsets/sizes scale by `sizeScale` (each
+ * subtree scales uniformly), only root positions take `spacingScale`. Returns
+ * the input unchanged when both factors are 1.
+ */
+export function scaleLayoutDensity(
+  model: UniverseModel,
+  layoutModel: UniverseLayoutModel,
+  options: LayoutDensityScale
+): UniverseLayoutModel {
+  const sizeScale = options.sizeScale ?? 1;
+  const spacingScale = options.spacingScale ?? 1;
+  if (sizeScale === 1 && spacingScale === 1) return layoutModel;
+
+  // Centroid of root zone positions — the fixed point the root spacing scales
+  // about, so the graph doesn't drift when spacing changes.
+  let sumX = 0;
+  let sumY = 0;
+  let rootCount = 0;
+  for (const rootId of model.rootZoneIds) {
+    const layout = layoutModel.zoneLayoutsById[rootId];
+    if (!layout) continue;
+    sumX += layout.x;
+    sumY += layout.y;
+    rootCount += 1;
+  }
+  const centroidX = rootCount > 0 ? sumX / rootCount : 0;
+  const centroidY = rootCount > 0 ? sumY / rootCount : 0;
+
+  const nextZoneLayoutsById: Record<ZoneId, ZoneLayout> = {};
+  for (const [zoneId, layout] of Object.entries(layoutModel.zoneLayoutsById)) {
+    const isRoot = !model.zonesById[zoneId]?.parentZoneId;
+    // Roots: reposition by spacing about the centroid. Children: their offset
+    // is relative to the parent, so scale by sizeScale to keep the subtree
+    // uniform (and thus contained).
+    const positionScale = isRoot ? spacingScale : sizeScale;
+    const baseX = isRoot ? centroidX : 0;
+    const baseY = isRoot ? centroidY : 0;
+
+    nextZoneLayoutsById[zoneId as ZoneId] = {
+      ...layout,
+      x: baseX + (layout.x - baseX) * positionScale,
+      y: baseY + (layout.y - baseY) * positionScale,
+      width: layout.width != null ? layout.width * sizeScale : layout.width,
+      height: layout.height != null ? layout.height * sizeScale : layout.height,
+      anchors: {
+        inlet: scaleZoneAnchor(layout.anchors.inlet, sizeScale),
+        outlet: scaleZoneAnchor(layout.anchors.outlet, sizeScale),
+      },
+    };
+  }
+
+  const nextPathLayoutsById: Record<PathId, PathLayout> = {};
+  for (const [pathId, pathLayout] of Object.entries(
+    layoutModel.pathLayoutsById
+  )) {
+    nextPathLayoutsById[pathId as PathId] = {
+      ...pathLayout,
+      routeOffset: pathLayout.routeOffset
+        ? {
+            x: pathLayout.routeOffset.x * spacingScale,
+            y: pathLayout.routeOffset.y * spacingScale,
+          }
+        : pathLayout.routeOffset,
+    };
+  }
+
+  return {
+    ...layoutModel,
+    zoneLayoutsById: nextZoneLayoutsById,
+    pathLayoutsById: nextPathLayoutsById,
+  };
+}
+
 export function computeWrapperLayoutFromChildren(
   model: UniverseModel,
   layoutModel: UniverseLayoutModel,
