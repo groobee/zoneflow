@@ -7,6 +7,8 @@ import {
   serializeZoneflowDocument,
 } from "@zoneflow/core";
 import { buildCleanupPreview } from "./cleanupPreview";
+
+type DensityPresetId = "default" | "dense" | "sparse";
 import { useFloatingLayout, useUniverseEditor } from "@zoneflow/react";
 import { useDebugState } from "./hooks/useDebugState";
 import {
@@ -61,6 +63,17 @@ export default function App() {
   // 로컬 스케일(줌과 별개): 요소(존·앵커·패스 오프셋) 크기만 factor 로 스케일.
   const [localScaleEnabled, setLocalScaleEnabled] = useState(false);
   const [localScaleFactor, setLocalScaleFactor] = useState(1.4);
+
+  // LOD 기준(density 임계값) 커스터마이징 데모: theme.density.zone 을 partial 로
+  // 덮어쓴다. 낮은 임계 = 작아도 디테일까지(촘촘), 높은 임계 = 커야 디테일(듬성).
+  const [densityPreset, setDensityPreset] =
+    useState<DensityPresetId>("default");
+  const densityOverride =
+    densityPreset === "dense"
+      ? { zone: { detail: 150, near: 104, mid: 70, far: 44 } }
+      : densityPreset === "sparse"
+        ? { zone: { detail: 280, near: 200, mid: 136, far: 92 } }
+        : undefined;
 
   // 에디터는 항상 base 레이아웃을 소유한다 — 스케일된 뷰를 에디터에 넣으면
   // 편집 진입 시 draft 가 스케일된 채 복제→적용되어 base 에 박힌다(반복 시
@@ -272,6 +285,8 @@ export default function App() {
             Math.round(Math.min(2.2, Math.max(0.3, f + delta * 0.2)) * 10) / 10
           )
         }
+        densityPreset={densityPreset}
+        setDensityPreset={setDensityPreset}
       />
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
@@ -284,6 +299,7 @@ export default function App() {
         themePreset={themePreset}
         weatherBackgroundId={weatherBackgroundId}
         canConnectPath={canConnectPath}
+        densityOverride={densityOverride}
         cleanupPreview={cleanupPreview}
         onApplyCleanup={handleApplyCleanup}
         onCloseCleanupPreview={() => setCleanupPreviewOpen(false)}

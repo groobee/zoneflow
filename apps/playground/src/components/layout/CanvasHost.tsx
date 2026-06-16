@@ -19,6 +19,7 @@ import {
   type ResolveZoneIcon,
   type ResolveZoneShape,
   type ResolveZoneStyle,
+  type ZoneflowThemeInput,
   type ZoneShape,
 } from "@zoneflow/renderer-dom";
 import type { DebugState } from "../../hooks/useDebugState";
@@ -109,6 +110,8 @@ type Props = {
   weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
   editPermissionMode: EditPermissionMode;
+  /** density 임계값(LOD 기준) 오버라이드 — theme.density 에 partial 로 병합. */
+  densityOverride?: ZoneflowThemeInput["density"];
   /**
    * 정리 미리보기 상태.
    * - `undefined`: 미리보기 꺼짐
@@ -129,10 +132,15 @@ export function CanvasHost({
   weatherBackgroundId,
   canConnectPath,
   editPermissionMode,
+  densityOverride,
   cleanupPreview,
   onApplyCleanup,
   onCloseCleanupPreview,
 }: Props) {
+  // density 기준을 바꾸려면 renderer theme 의 density 만 partial 로 덮어쓰면 됨.
+  const rendererTheme: ZoneflowThemeInput = densityOverride
+    ? { ...themePreset.rendererTheme, density: densityOverride }
+    : themePreset.rendererTheme;
   const ref = useRef<HTMLDivElement | null>(null);
   const { zoneComponents, pathComponents } = useMemo(() => {
     const preset = getThemePresetComponents(themePreset.id);
@@ -278,7 +286,7 @@ export function CanvasHost({
       <UniverseEditorCanvas
         ref={editorCanvasRef}
         editor={editor}
-        theme={themePreset.rendererTheme}
+        theme={rendererTheme}
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
         background={Background}

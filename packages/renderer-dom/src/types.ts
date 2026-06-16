@@ -9,7 +9,7 @@ import type {
   Zone,
   ZoneId,
 } from "@zoneflow/core";
-import type { TextScaleLevel, ZoneflowTheme } from "./theme";
+import type { TextScaleLevel, ZoneflowTheme, ZoneflowThemeInput } from "./theme";
 import type {
   ResolveZoneColor,
   ResolveZoneIcon,
@@ -481,7 +481,7 @@ export type RendererDebugOptions = {
 export type RendererInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
-  theme?: Partial<ZoneflowTheme>;
+  theme?: ZoneflowThemeInput;
   textScale?: TextScaleLevel;
   camera?: CameraState;
   viewport?: ViewportConfig;

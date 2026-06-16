@@ -39,6 +39,7 @@ import {
   type ZoneComponentRendererMap,
   type ZoneComponentSlotName,
   type ZoneflowTheme,
+  type ZoneflowThemeInput,
 } from "@zoneflow/renderer-dom";
 import {
   CAMERA_MAX_ZOOM,
@@ -61,7 +62,7 @@ import {
 export type UniverseCanvasProps = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
-  theme?: Partial<ZoneflowTheme>;
+  theme?: ZoneflowThemeInput;
   textScale?: TextScaleLevel;
   viewport?: ViewportConfig;
   grid?: GridOptions;

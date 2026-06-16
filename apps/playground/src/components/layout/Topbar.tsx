@@ -43,6 +43,8 @@ type Props = {
   onToggleLocalScale: () => void;
   localScaleFactor: number;
   onLocalScaleStep: (delta: number) => void;
+  densityPreset: "default" | "dense" | "sparse";
+  setDensityPreset: (value: "default" | "dense" | "sparse") => void;
 };
 
 export function Topbar({
@@ -69,6 +71,8 @@ export function Topbar({
   onToggleLocalScale,
   localScaleFactor,
   onLocalScaleStep,
+  densityPreset,
+  setDensityPreset,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -266,6 +270,20 @@ export function Topbar({
               </button>
             </span>
           ) : null}
+          <select
+            style={themedSelectStyle}
+            value={densityPreset}
+            onChange={(e) =>
+              setDensityPreset(
+                e.target.value as "default" | "dense" | "sparse"
+              )
+            }
+            title="LOD 기준(farest~detail 임계값) — theme.density.zone 커스터마이징"
+          >
+            <option value="default">기준: 기본</option>
+            <option value="dense">기준: 촘촘(디테일 빨리)</option>
+            <option value="sparse">기준: 듬성(디테일 늦게)</option>
+          </select>
           <button
             type="button"
             style={themedControlStyle}

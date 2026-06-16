@@ -78,4 +78,22 @@ export type ZoneflowTheme = {
   };
 };
 
+/** Per-level effective-size thresholds (farest < far < mid < near < detail). */
+export type ZoneDensityThresholds = ZoneflowTheme["density"]["zone"];
+export type PathDensityThresholds = ZoneflowTheme["density"]["path"];
+
+/**
+ * Input shape for the renderer `theme` prop. Same as a partial `ZoneflowTheme`,
+ * except `density` accepts partial threshold sets — so a consumer can retune
+ * just `{ density: { zone: { detail: 320 } } }` without restating every level
+ * (the rest fall back to the defaults). The density engine reads these to
+ * decide each zone's level (farest…detail).
+ */
+export type ZoneflowThemeInput = Partial<Omit<ZoneflowTheme, "density">> & {
+  density?: {
+    zone?: Partial<ZoneDensityThresholds>;
+    path?: Partial<PathDensityThresholds>;
+  };
+};
+
 export type TextScaleLevel = "sm" | "md" | "lg";

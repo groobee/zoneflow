@@ -1,4 +1,4 @@
-import type { ZoneflowTheme } from "../theme";
+import type { ZoneflowTheme, ZoneflowThemeInput } from "../theme";
 
 /**
  * 기본 테마 (모든 필수 값 포함)
@@ -94,7 +94,7 @@ export const defaultTheme: ZoneflowTheme = {
  * Partial theme을 받아서 완전한 theme으로 보정
  */
 export function resolveTheme(
-  theme?: Partial<ZoneflowTheme>
+  theme?: ZoneflowThemeInput
 ): ZoneflowTheme {
   if (!theme) return defaultTheme;
 
