@@ -100,11 +100,16 @@ export default function App() {
 
   // Floating mode: gently drift action zones into flow-aligned positions.
   // Paused during edit mode, where positions are driven by draft transactions.
+  //
+  // Drift the BASE layout, not `editor.layoutModel` — the latter is the local-
+  // scale *view* (displayLayoutModel). Reading the scaled view and writing it
+  // back to the base would re-scale it every tick (a compounding loop that
+  // shrinks/grows zones). Local scale stays a pure view on top of the drift.
   useFloatingLayout({
     enabled: floatingEnabled,
     paused: editor.isEditMode,
-    model: editor.model,
-    layoutModel: editor.layoutModel,
+    model,
+    layoutModel,
     onLayoutModelChange: setLayoutModel,
   });
 
