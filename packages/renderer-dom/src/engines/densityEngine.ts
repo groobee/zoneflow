@@ -6,12 +6,13 @@ import type {
 
 function getZoneDensity(
   size: number,
-  thresholds: { detail: number; near: number; mid: number }
+  thresholds: { detail: number; near: number; mid: number; far: number }
 ): DensityLevel {
   if (size >= thresholds.detail) return "detail";
   if (size >= thresholds.near) return "near";
   if (size >= thresholds.mid) return "mid";
-  return "far";
+  if (size >= thresholds.far) return "far";
+  return "farest";
 }
 
 function getPathDensity(

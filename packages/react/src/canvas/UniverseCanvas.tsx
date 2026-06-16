@@ -29,6 +29,7 @@ import {
   type ResolvePathLineColor,
   type ResolvePathStyle,
   type ResolveZoneColor,
+  type ResolveZoneIcon,
   type ResolveZoneShape,
   type ResolveZoneStyle,
   type TextScaleLevel,
@@ -74,6 +75,7 @@ export type UniverseCanvasProps = {
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
+  resolveZoneIcon?: ResolveZoneIcon;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -162,6 +164,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneShape,
     resolveZoneColor,
     resolveZoneStyle,
+    resolveZoneIcon,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -381,6 +384,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolveZoneShape,
       resolveZoneColor,
       resolveZoneStyle,
+      resolveZoneIcon,
       resolvePathColor,
       resolvePathLineColor,
       resolvePathStyle,
@@ -417,6 +421,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneShape,
     resolveZoneColor,
     resolveZoneStyle,
+    resolveZoneIcon,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,

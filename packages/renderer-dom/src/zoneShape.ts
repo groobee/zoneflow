@@ -101,6 +101,17 @@ export type ResolveZoneStyle = (
   zone: Zone
 ) => ZoneStyleOverride | null | undefined;
 
+/**
+ * Resolver invoked to decide the glyph shown when a zone collapses to the
+ * smallest `"farest"` density — the icon-only state for zoomed-out / tiny
+ * zones, so they never render as a blank card. Return a short string
+ * (emoji, symbol, single letter…). When it returns nullish the renderer
+ * falls back to the first character of the zone's name, so something is
+ * always visible. For richer icons (SVG/image) render a slot component
+ * gated on `density === "farest"` instead.
+ */
+export type ResolveZoneIcon = (zone: Zone) => string | null | undefined;
+
 /** Normalized geometry consumed by the draw engine. */
 export type ResolvedZoneShape = {
   borderRadius: string;

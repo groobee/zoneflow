@@ -12,6 +12,7 @@ import type {
 import type { TextScaleLevel, ZoneflowTheme } from "./theme";
 import type {
   ResolveZoneColor,
+  ResolveZoneIcon,
   ResolveZoneShape,
   ResolveZoneStyle,
 } from "./zoneShape";
@@ -41,7 +42,7 @@ export type RenderViewportInfo = {
   world: WorldViewportRect;
 };
 
-export type DensityLevel = "far" | "mid" | "near" | "detail";
+export type DensityLevel = "farest" | "far" | "mid" | "near" | "detail";
 
 export type PathVisualMode = "hidden" | "edge-only" | "chip" | "full";
 
@@ -352,6 +353,7 @@ export type RendererDrawInput = {
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
+  resolveZoneIcon?: ResolveZoneIcon;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -439,6 +441,7 @@ export type RendererInput = {
   resolveZoneShape?: ResolveZoneShape;
   resolveZoneColor?: ResolveZoneColor;
   resolveZoneStyle?: ResolveZoneStyle;
+  resolveZoneIcon?: ResolveZoneIcon;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;

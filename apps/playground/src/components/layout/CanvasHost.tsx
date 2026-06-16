@@ -16,6 +16,7 @@ import {
   type ResolvePathLineColor,
   type ResolvePathStyle,
   type ResolveZoneColor,
+  type ResolveZoneIcon,
   type ResolveZoneShape,
   type ZoneShape,
 } from "@zoneflow/renderer-dom";
@@ -72,6 +73,14 @@ const resolvePathLineColor: ResolvePathLineColor = (path) =>
 /** 설정 안 된 패스의 연결선 모양(점선). 그 외엔 기본 실선+flow. */
 const resolvePathStyle: ResolvePathStyle = (path) =>
   isUnconfiguredPath(path) ? { lineStyle: "dashed" } : undefined;
+
+/**
+ * farest(가장 작게/줌아웃) 일 때 표시할 아이콘. meta.icon 우선, 없으면
+ * zoneType 별 기본 글리프 — 둘 다 없으면 렌더러가 이름 첫 글자로 폴백한다.
+ */
+const resolveZoneIcon: ResolveZoneIcon = (zone) =>
+  (zone.meta?.icon as string | undefined) ??
+  (zone.zoneType === "container" ? "📦" : "●");
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -261,6 +270,7 @@ export function CanvasHost({
         resolveZoneShape={resolveZoneShape}
         resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle}
+        resolveZoneIcon={resolveZoneIcon}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={
           cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor

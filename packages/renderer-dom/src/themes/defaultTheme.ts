@@ -81,6 +81,7 @@ export const defaultTheme: ZoneflowTheme = {
       detail: 200,
       near: 140,
       mid: 90,
+      far: 56,
     },
     path: {
       full: 120,

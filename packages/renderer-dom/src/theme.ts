@@ -65,6 +65,11 @@ export type ZoneflowTheme = {
       detail: number;
       near: number;
       mid: number;
+      /**
+       * Boundary between `far` and `farest`: at/above this effective size the
+       * zone is `far` (card only), below it `farest` (icon only).
+       */
+      far: number;
     };
     path: {
       full: number;

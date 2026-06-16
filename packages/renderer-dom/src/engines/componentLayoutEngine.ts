@@ -141,10 +141,10 @@ function computeZoneSlots(params: {
   const slots: ZoneComponentLayout["slots"] = {};
 
   // When the zone is short enough that the standard slot stack would not
-  // fit, fall back to a compact single-slot chip layout. Density "far" still
-  // renders no slots, matching the standard layout's behavior.
+  // fit, fall back to a compact single-slot chip layout. Density "far"/"farest"
+  // still render no slots (farest is icon-only, drawn by the draw engine).
   if (rect.height < ZONE_CHIP_HEIGHT_THRESHOLD) {
-    if (density === "far") return slots;
+    if (density === "far" || density === "farest") return slots;
     const content = insetRect(rect, ZONE_CHIP_PADDING_X, ZONE_CHIP_PADDING_Y);
     if (content.width > 0 && content.height > 0) {
       slots.title = content;

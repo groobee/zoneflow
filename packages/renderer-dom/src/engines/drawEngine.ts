@@ -1299,6 +1299,40 @@ export const domDrawEngine: DrawEngine = {
         });
       }
 
+      // "farest" — the zone is too small for any slot, so show an icon-only
+      // marker (consumer-resolved glyph, else the name's first character) so
+      // it never reads as a blank card.
+      if (
+        input.pipeline.density.zoneDensityById[zoneVisual.zoneId] === "farest"
+      ) {
+        const iconText =
+          input.resolveZoneIcon?.(zoneVisual.zone) ??
+          Array.from(zoneVisual.zone.name.trim())[0] ??
+          "";
+        if (iconText) {
+          const iconEl = document.createElement("div");
+          const fontSize = Math.max(
+            8,
+            Math.min(zoneVisual.rect.width, zoneVisual.rect.height) * 0.5
+          );
+          applyStyles(iconEl, {
+            position: "absolute",
+            inset: "0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: zoneColor ?? theme.zoneTitle,
+            fontSize: `${fontSize}px`,
+            fontWeight: "600",
+            lineHeight: "1",
+            overflow: "hidden",
+            pointerEvents: "none",
+          });
+          iconEl.textContent = iconText;
+          zoneBodyEl.appendChild(iconEl);
+        }
+      }
+
       drawZoneAnchors({
         owner: zoneEl,
         zone: zoneVisual,
