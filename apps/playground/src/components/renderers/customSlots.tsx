@@ -1,5 +1,3 @@
-import { createContext, useContext } from "react";
-import type { ZoneId } from "@zoneflow/core";
 import {
   createExtensibleComponentLayoutEngine,
   type ExtensibleZoneSlot,
@@ -13,37 +11,7 @@ import {
 
 const sans = "'IBM Plex Sans', 'Pretendard', sans-serif";
 
-/**
- * 뷰모드(간략/필수/자세히) → 존 크기 매핑. density 기본 임계값
- * (detail≥200, near≥140, mid≥90; 화면 크기 = max(w,h)×zoom) 을 넘도록
- * 잡아, 모드만 바꿔도 슬롯이 자동으로 더/덜 보이게 한다.
- */
-export type ZoneViewMode = "brief" | "essential" | "detail";
-export const VIEW_MODE_SIZES: Record<
-  ZoneViewMode,
-  { width: number; height: number }
-> = {
-  brief: { width: 130, height: 64 },
-  essential: { width: 200, height: 132 },
-  detail: { width: 320, height: 208 },
-};
-
-/**
- * 슬롯 컴포넌트는 mount 만 받으므로, 존 내 버튼이 호출할 프로그래매틱
- * resize(=editor.resizeZone)를 context 로 주입한다. React context 는
- * createPortal 경계를 넘어 전달되므로 슬롯 포털에서도 읽을 수 있다.
- */
-export const ZoneResizeContext = createContext<
-  ((zoneId: ZoneId, size: { width: number; height: number }) => void) | null
->(null);
-
 export const customZoneSlots: ExtensibleZoneSlot[] = [
-  {
-    name: "viewMode",
-    placement: { kind: "top", height: 24 },
-    // 항상 노출(leaf 한정) — 작은 모드에서도 다시 키울 수 있어야 하니까.
-    shouldRender: ({ zone }) => zone.childZoneIds.length === 0,
-  },
   {
     name: "comment",
     placement: { kind: "top", height: 22 },
@@ -162,54 +130,6 @@ export function ConvStatsSlot({ mount }: ZoneSlotComponentProps) {
 }
 
 /**
- * 존 안에 들어가는 뷰모드 토글. 클릭하면 context 의 resize(=editor.resizeZone)
- * 로 그 존만 해당 모드 크기로 바꾼다 — 크기가 바뀌면 density 엔진이 알아서
- * comment/convStats 슬롯을 더/덜 보여준다. 색·라벨은 앱(consumer)이 결정.
- */
-export function ViewModeSlot({ mount }: ZoneSlotComponentProps) {
-  const resize = useContext(ZoneResizeContext);
-  const zoneId = mount.context.zone.id;
-  const theme = mount.context.theme;
-  const modes: { mode: ZoneViewMode; label: string }[] = [
-    { mode: "brief", label: "간략" },
-    { mode: "essential", label: "필수" },
-    { mode: "detail", label: "자세히" },
-  ];
-
-  return (
-    <Zoned style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      {modes.map(({ mode, label }) => (
-        <button
-          key={mode}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            resize?.(zoneId, VIEW_MODE_SIZES[mode]);
-          }}
-          style={{
-            flex: 1,
-            height: "100%",
-            padding: "0 4px",
-            borderRadius: 6,
-            border: `1px solid ${theme.zoneActionBorder}`,
-            background: "rgba(255, 255, 255, 0.7)",
-            color: theme.zoneTitle,
-            fontFamily: sans,
-            fontSize: 10,
-            fontWeight: 700,
-            cursor: "pointer",
-            boxSizing: "border-box",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {label}
-        </button>
-      ))}
-    </Zoned>
-  );
-}
-
-/**
  * 레벨별 존 렌더러 데모: far 레벨에선 기본 카드 대신 이 컴포넌트가 존 몸체
  * 전체(테두리·배경·내용)를 직접 그린다 — 좌측 accent 바 + 굵은 이름의 컴팩트
  * 카드. 기본 카드와 명확히 다른 모습으로 "통째 교체"를 보여준다.
@@ -258,7 +178,6 @@ export function FarZoneCard({ mount }: ZoneRenderComponentProps) {
 }
 
 export const customZoneComponents: ZoneSlotComponentMap = {
-  viewMode: ViewModeSlot,
   comment: CommentSlot,
   convStats: ConvStatsSlot,
 };

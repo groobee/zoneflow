@@ -29,7 +29,6 @@ import {
   customZoneComponents,
   customZoneLayoutEngine,
   FarZoneCard,
-  ZoneResizeContext,
 } from "../renderers/customSlots";
 import type { ResolveZoneRenderComponent } from "@zoneflow/react";
 import {
@@ -276,7 +275,6 @@ export function CanvasHost({
 
   return (
     <main ref={ref} style={canvasHostStyle}>
-      <ZoneResizeContext.Provider value={editor.resizeZone}>
       <UniverseEditorCanvas
         ref={editorCanvasRef}
         editor={editor}
@@ -317,36 +315,52 @@ export function CanvasHost({
           onZoneResize: ({ zoneId, from, to }) => {
             console.log("[zoneflow resize] handle", { zoneId, from, to });
           },
-          // 선택 툴바 커스텀 버튼 데모: 적용 가능 여부는 앱이 판정하고,
-          // 선택된 항목 전부에 공통인 버튼만 라이브러리가 노출한다.
+          // 선택 툴바 커스텀 버튼: 뷰모드(최소화/간략히/자세히)를 존 안이 아니라
+          // 정렬 툴바에 두고, 선택된 존들을 한 번에 해당 크기로 리사이즈한다
+          // (editor.resizeZone). 크기가 바뀌면 density 레벨도 따라 움직임.
           zoneSelectionActions: [
             {
-              id: "tag",
-              label: "태그",
-              title: "선택한 존에 태그 부여 (모든 존 공통)",
+              id: "minimize",
+              label: "최소화",
+              title: "선택 존을 아이콘 크기로",
               onClick: ({ zoneIds }) =>
-                console.log("[zoneflow action] tag zones", zoneIds),
+                zoneIds.forEach((id) =>
+                  editor.resizeZone(id, { width: 84, height: 52 })
+                ),
             },
             {
-              id: "run-action",
-              label: "액션 실행",
-              title: "action 타입 존에서만 가능",
-              // action 타입 존에만 적용 → action 이 아닌 존이 섞이면 숨겨짐
-              isAvailable: (zone) => zone.zoneType === "action",
+              id: "brief",
+              label: "간략히",
               onClick: ({ zoneIds }) =>
-                console.log("[zoneflow action] run-action", zoneIds),
+                zoneIds.forEach((id) =>
+                  editor.resizeZone(id, { width: 150, height: 76 })
+                ),
+            },
+            {
+              id: "detail",
+              label: "자세히",
+              onClick: ({ zoneIds }) =>
+                zoneIds.forEach((id) =>
+                  editor.resizeZone(id, { width: 320, height: 208 })
+                ),
             },
           ],
+          // 패스 쪽 '공통만' 데모: rule 이 있는 패스에서만 뜨고, 클릭하면 실제로
+          // 규칙을 지운다(→ 라벨이 바뀌고 isAvailable 이 false 가 되어 사라짐).
           pathSelectionActions: [
             {
               id: "clear-rule",
               label: "규칙 지우기",
               variant: "danger",
               title: "rule 이 있는 패스에서만",
-              // rule 이 설정된 패스에만 → 규칙 없는 패스가 섞이면 숨겨짐
               isAvailable: (path) => path.rule !== null,
-              onClick: ({ pathIds }) =>
-                console.log("[zoneflow action] clear-rule", pathIds),
+              onClick: ({ paths }) => {
+                let next = editor.model;
+                for (const { path, sourceZoneId } of paths) {
+                  next = updatePath(next, sourceZoneId, path.id, { rule: null });
+                }
+                editor.updateDraftModel(next);
+              },
             },
           ],
           deleteInteraction: {
@@ -382,7 +396,6 @@ export function CanvasHost({
           layers: debug.layers,
         }}
       />
-      </ZoneResizeContext.Provider>
       {cleanupPreview !== undefined ? (
         <CleanupPreviewPanel
           preview={cleanupPreview}
