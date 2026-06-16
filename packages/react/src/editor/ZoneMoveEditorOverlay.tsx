@@ -182,6 +182,37 @@ export type EditorTransactionMeta =
       sourceZoneId: ZoneId;
     };
 
+/**
+ * Consumer-injected button for the selection toolbar. The toolbar shows an
+ * action only when EVERY selected item passes its `isAvailable` predicate
+ * (the common-denominator across the selection); `isAvailable` omitted means
+ * "always applicable". `onClick` receives the full selection.
+ */
+export type ZoneSelectionAction = {
+  id: string;
+  /** Button content — text or any node (e.g. an icon). */
+  label: ReactNode;
+  title?: string;
+  /** `"danger"` uses the toolbar's danger styling (like delete). */
+  variant?: "default" | "danger";
+  /** Whether this action applies to a given selected zone. Omit = always. */
+  isAvailable?: (zone: Zone) => boolean;
+  onClick: (selection: { zoneIds: ZoneId[]; zones: Zone[] }) => void;
+};
+
+export type PathSelectionAction = {
+  id: string;
+  label: ReactNode;
+  title?: string;
+  variant?: "default" | "danger";
+  /** Whether this action applies to a given selected path. Omit = always. */
+  isAvailable?: (path: Path, sourceZoneId: ZoneId) => boolean;
+  onClick: (selection: {
+    pathIds: PathId[];
+    paths: { path: Path; sourceZoneId: ZoneId }[];
+  }) => void;
+};
+
 export type ZoneMoveEditorConfig = {
   enabled?: boolean;
   includeRoot?: boolean;
@@ -230,6 +261,16 @@ export type ZoneMoveEditorConfig = {
     from: { width: number; height: number };
     to: { width: number; height: number };
   }) => void;
+  /**
+   * 존 선택 시 정렬/삭제 툴바에 함께 노출할 커스텀 버튼들. 선택된 모든 존이
+   * `isAvailable` 를 통과한 액션만(= 공통으로 쓸 수 있는 것만) 표시됩니다.
+   */
+  zoneSelectionActions?: ZoneSelectionAction[];
+  /**
+   * 패스 선택 시 툴바에 노출할 커스텀 버튼들. 규칙은 zone 과 동일 —
+   * 선택된 모든 패스가 `isAvailable` 를 통과한 액션만 표시됩니다.
+   */
+  pathSelectionActions?: PathSelectionAction[];
   /**
    * 외부에서 zone 간 path 연결 가능 여부를 검증하는 콜백.
    *
@@ -2306,6 +2347,54 @@ export function ZoneMoveEditorOverlay(props: {
     [selectedPathIds, targets]
   );
 
+  // Resolved selected objects + the custom actions common to the whole
+  // selection (an action shows only when every selected item passes its
+  // isAvailable predicate). Recomputed only when the selection or the
+  // injected action lists change.
+  const selectedZones = useMemo(
+    () =>
+      selectedZoneIds
+        .map((zoneId) => model.zonesById[zoneId])
+        .filter((zone): zone is Zone => Boolean(zone)),
+    [selectedZoneIds, model]
+  );
+
+  const commonZoneSelectionActions = useMemo(() => {
+    const actions = editor?.zoneSelectionActions;
+    if (!actions?.length || selectedZones.length === 0) return [];
+    return actions.filter(
+      (action) =>
+        !action.isAvailable || selectedZones.every((zone) => action.isAvailable!(zone))
+    );
+  }, [editor?.zoneSelectionActions, selectedZones]);
+
+  const selectedPathRefs = useMemo(
+    () =>
+      selectedPathIds
+        .map((pathId) => {
+          const visual = frame?.pipeline.graphLayout.pathsById[pathId];
+          return visual
+            ? { path: visual.path, sourceZoneId: visual.sourceZoneId }
+            : null;
+        })
+        .filter((ref): ref is { path: Path; sourceZoneId: ZoneId } =>
+          Boolean(ref)
+        ),
+    [selectedPathIds, frame]
+  );
+
+  const commonPathSelectionActions = useMemo(() => {
+    const actions = editor?.pathSelectionActions;
+    if (!actions?.length || selectedPathRefs.length === 0) return [];
+    return actions.filter(
+      (action) =>
+        !action.isAvailable ||
+        selectedPathRefs.every((ref) =>
+          action.isAvailable!(ref.path, ref.sourceZoneId)
+        )
+    );
+  }, [editor?.pathSelectionActions, selectedPathRefs]);
+
   const selectionBounds = useMemo(() => {
     if (selectedZoneTargets.length === 0) return null;
 
@@ -3455,6 +3544,28 @@ export function ZoneMoveEditorOverlay(props: {
                 })}
               </button>
             ))}
+            {commonZoneSelectionActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                title={action.title}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  action.onClick({
+                    zoneIds: [...selectedZoneIds],
+                    zones: selectedZones,
+                  });
+                }}
+                style={
+                  action.variant === "danger"
+                    ? floatingToolbarDangerButtonStyle
+                    : floatingToolbarButtonStyle
+                }
+              >
+                {action.label}
+              </button>
+            ))}
             {permissions.deleteZone ? (
               <button
                 type="button"
@@ -3593,6 +3704,28 @@ export function ZoneMoveEditorOverlay(props: {
                   locale: editorLocale,
                   command: command as SelectionCommandKey,
                 })}
+              </button>
+            ))}
+            {commonPathSelectionActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                title={action.title}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  action.onClick({
+                    pathIds: [...selectedPathIds],
+                    paths: selectedPathRefs,
+                  });
+                }}
+                style={
+                  action.variant === "danger"
+                    ? floatingToolbarDangerButtonStyle
+                    : floatingToolbarButtonStyle
+                }
+              >
+                {action.label}
               </button>
             ))}
             {permissions.deletePath ? (

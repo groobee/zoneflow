@@ -317,6 +317,38 @@ export function CanvasHost({
           onZoneResize: ({ zoneId, from, to }) => {
             console.log("[zoneflow resize] handle", { zoneId, from, to });
           },
+          // 선택 툴바 커스텀 버튼 데모: 적용 가능 여부는 앱이 판정하고,
+          // 선택된 항목 전부에 공통인 버튼만 라이브러리가 노출한다.
+          zoneSelectionActions: [
+            {
+              id: "tag",
+              label: "태그",
+              title: "선택한 존에 태그 부여 (모든 존 공통)",
+              onClick: ({ zoneIds }) =>
+                console.log("[zoneflow action] tag zones", zoneIds),
+            },
+            {
+              id: "run-action",
+              label: "액션 실행",
+              title: "action 타입 존에서만 가능",
+              // action 타입 존에만 적용 → action 이 아닌 존이 섞이면 숨겨짐
+              isAvailable: (zone) => zone.zoneType === "action",
+              onClick: ({ zoneIds }) =>
+                console.log("[zoneflow action] run-action", zoneIds),
+            },
+          ],
+          pathSelectionActions: [
+            {
+              id: "clear-rule",
+              label: "규칙 지우기",
+              variant: "danger",
+              title: "rule 이 있는 패스에서만",
+              // rule 이 설정된 패스에만 → 규칙 없는 패스가 섞이면 숨겨짐
+              isAvailable: (path) => path.rule !== null,
+              onClick: ({ pathIds }) =>
+                console.log("[zoneflow action] clear-rule", pathIds),
+            },
+          ],
           deleteInteraction: {
             animation: true,
             confirm: true,
