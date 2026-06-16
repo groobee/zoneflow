@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scaleLayoutDensity } from "./layout";
+import { applyLocalScale } from "./layout";
 import type { UniverseLayoutModel, UniverseModel, Zone } from "./types";
 
 function zone(id: string, parentZoneId: string | null = null): Zone {
@@ -57,40 +57,30 @@ const layoutModel: UniverseLayoutModel = {
   },
 };
 
-describe("scaleLayoutDensity", () => {
-  it("returns the input unchanged for the neutral 1/1 transform", () => {
-    expect(
-      scaleLayoutDensity(model, layoutModel, { sizeScale: 1, spacingScale: 1 })
-    ).toBe(layoutModel);
+describe("applyLocalScale", () => {
+  it("returns the input unchanged for scale 1", () => {
+    expect(applyLocalScale(model, layoutModel, 1)).toBe(layoutModel);
   });
 
-  it("scales every zone's size by sizeScale", () => {
-    const out = scaleLayoutDensity(model, layoutModel, { sizeScale: 2 });
+  it("scales every zone's size (and anchor offsets) by the factor", () => {
+    const out = applyLocalScale(model, layoutModel, 2);
     expect(out.zoneLayoutsById.a.width).toBe(400);
     expect(out.zoneLayoutsById.a.height).toBe(200);
     expect(out.zoneLayoutsById.c.width).toBe(160);
-    expect(out.zoneLayoutsById.c.height).toBe(80);
-    // anchor offsets track the new size
     expect(out.zoneLayoutsById.a.anchors.outlet.point.x).toBe(400);
   });
 
-  it("scales root spacing about the centroid (denser = closer)", () => {
-    // roots a(100) and b(500): centroid x = 300. spacingScale 0.5 halves the gap.
-    const out = scaleLayoutDensity(model, layoutModel, { spacingScale: 0.5 });
-    expect(out.zoneLayoutsById.a.x).toBe(200); // 300 + (100-300)*0.5
-    expect(out.zoneLayoutsById.b.x).toBe(400); // 300 + (500-300)*0.5
-    // gap 400 → 200
-    expect(out.zoneLayoutsById.b.x - out.zoneLayoutsById.a.x).toBe(200);
+  it("leaves root positions untouched (no spacing change)", () => {
+    const out = applyLocalScale(model, layoutModel, 2);
+    expect(out.zoneLayoutsById.a.x).toBe(100);
+    expect(out.zoneLayoutsById.a.y).toBe(100);
+    expect(out.zoneLayoutsById.b.x).toBe(500);
   });
 
-  it("keeps a child's subtree uniform so containment is preserved", () => {
-    // child offset is relative to parent; it scales by sizeScale (not spacing),
-    // so the child stays at the same proportional spot inside the grown parent.
-    const out = scaleLayoutDensity(model, layoutModel, {
-      sizeScale: 2,
-      spacingScale: 0.5,
-    });
-    expect(out.zoneLayoutsById.c.x).toBe(40); // 20 * 2  (sizeScale, not spacing)
+  it("keeps each subtree uniform so children stay contained", () => {
+    const out = applyLocalScale(model, layoutModel, 2);
+    // child offset is relative to parent → scales with it
+    expect(out.zoneLayoutsById.c.x).toBe(40); // 20 * 2
     expect(out.zoneLayoutsById.c.y).toBe(40);
     // child right edge 40 + 160 = 200 ≤ parent width 400 → contained
     expect(
@@ -98,8 +88,8 @@ describe("scaleLayoutDensity", () => {
     ).toBeLessThanOrEqual(out.zoneLayoutsById.a.width ?? 0);
   });
 
-  it("scales path routeOffset by spacingScale", () => {
-    const out = scaleLayoutDensity(model, layoutModel, { spacingScale: 0.5 });
+  it("scales path routeOffset so path nodes track the scaled elements", () => {
+    const out = applyLocalScale(model, layoutModel, 0.5);
     expect(out.pathLayoutsById.p1.routeOffset).toEqual({ x: 20, y: 5 });
   });
 });

@@ -39,10 +39,10 @@ type Props = {
   onExportFile: () => void;
   onImportFile: () => void;
   onOpenCleanupPreview: () => void;
-  densityEnabled: boolean;
-  onToggleDensity: () => void;
-  densityFactor: number;
-  onDensityStep: (delta: number) => void;
+  localScaleEnabled: boolean;
+  onToggleLocalScale: () => void;
+  localScaleFactor: number;
+  onLocalScaleStep: (delta: number) => void;
 };
 
 export function Topbar({
@@ -65,10 +65,10 @@ export function Topbar({
   onExportFile,
   onImportFile,
   onOpenCleanupPreview,
-  densityEnabled,
-  onToggleDensity,
-  densityFactor,
-  onDensityStep,
+  localScaleEnabled,
+  onToggleLocalScale,
+  localScaleFactor,
+  onLocalScaleStep,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -221,27 +221,27 @@ export function Topbar({
             type="button"
             style={{
               ...themedControlStyle,
-              ...(densityEnabled
+              ...(localScaleEnabled
                 ? { background: "#0f766e", color: "#ecfeff", fontWeight: 700 }
                 : null),
             }}
-            onClick={onToggleDensity}
+            onClick={onToggleLocalScale}
             disabled={editor.isEditMode}
             title={
               editor.isEditMode
-                ? "밀도는 보기 모드에서만 (편집 중 비활성)"
-                : "밀도 조절 (줌과 별개로 크기·간격 스케일)"
+                ? "로컬 스케일은 보기 모드에서만 (편집 중 비활성)"
+                : "로컬 스케일 (줌과 별개로 요소 크기만 스케일)"
             }
           >
-            밀도 {densityEnabled ? "On" : "Off"}
+            로컬 스케일 {localScaleEnabled ? "On" : "Off"}
           </button>
-          {densityEnabled && !editor.isEditMode ? (
+          {localScaleEnabled && !editor.isEditMode ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <button
                 type="button"
                 style={themedControlStyle}
-                onClick={() => onDensityStep(-1)}
-                title="밀도 낮춤 (작게 + 떨어지게)"
+                onClick={() => onLocalScaleStep(-1)}
+                title="작게"
               >
                 −
               </button>
@@ -254,13 +254,13 @@ export function Topbar({
                   color: themePreset.topbar.controlText,
                 }}
               >
-                {densityFactor.toFixed(1)}×
+                {localScaleFactor.toFixed(1)}×
               </span>
               <button
                 type="button"
                 style={themedControlStyle}
-                onClick={() => onDensityStep(1)}
-                title="밀도 높임 (크게 + 가깝게)"
+                onClick={() => onLocalScaleStep(1)}
+                title="크게"
               >
                 +
               </button>

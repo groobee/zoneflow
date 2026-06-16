@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import {
+  applyLocalScale,
   createUniverseId,
   createUniverseLayoutModel,
   parseZoneflowDocument,
-  scaleLayoutDensity,
   serializeZoneflowDocument,
 } from "@zoneflow/core";
 import { buildCleanupPreview } from "./cleanupPreview";
@@ -58,20 +58,17 @@ export default function App() {
   } =
     useSampleSwitcher("small");
 
-  // 밀도 조절(줌과 별개): 보기 모드에서만 적용하는 비파괴적 뷰 변환.
-  // sizeScale=factor(크게), spacingScale=1/factor(가깝게) — 반대로 움직여 줌과
-  // 구분된다. 크기가 커지면 density 레벨도 farest→nearest 로 자동 이동.
-  const [densityEnabled, setDensityEnabled] = useState(false);
-  const [densityFactor, setDensityFactor] = useState(1.4);
+  // 로컬 스케일(줌과 별개): 보기 모드에서만 적용하는 비파괴적 뷰 변환.
+  // 요소(존·앵커·패스 오프셋) 크기만 factor 로 스케일 — 위치는 그대로.
+  // 크기가 커지면 density 레벨도 farest→nearest 로 자동 이동.
+  const [localScaleEnabled, setLocalScaleEnabled] = useState(false);
+  const [localScaleFactor, setLocalScaleFactor] = useState(1.4);
   const displayLayoutModel = useMemo(
     () =>
-      densityEnabled
-        ? scaleLayoutDensity(model, layoutModel, {
-            sizeScale: densityFactor,
-            spacingScale: 1 / densityFactor,
-          })
+      localScaleEnabled
+        ? applyLocalScale(model, layoutModel, localScaleFactor)
         : layoutModel,
-    [densityEnabled, densityFactor, model, layoutModel]
+    [localScaleEnabled, localScaleFactor, model, layoutModel]
   );
 
   const editor = useUniverseEditor({
@@ -251,11 +248,11 @@ export default function App() {
         onExportFile={handleExportFile}
         onImportFile={handleImportClick}
         onOpenCleanupPreview={() => setCleanupPreviewOpen(true)}
-        densityEnabled={densityEnabled}
-        onToggleDensity={() => setDensityEnabled((v) => !v)}
-        densityFactor={densityFactor}
-        onDensityStep={(delta) =>
-          setDensityFactor((f) =>
+        localScaleEnabled={localScaleEnabled}
+        onToggleLocalScale={() => setLocalScaleEnabled((v) => !v)}
+        localScaleFactor={localScaleFactor}
+        onLocalScaleStep={(delta) =>
+          setLocalScaleFactor((f) =>
             Math.round(Math.min(2.2, Math.max(0.3, f + delta * 0.2)) * 10) / 10
           )
         }
