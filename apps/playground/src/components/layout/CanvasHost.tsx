@@ -312,6 +312,24 @@ export function CanvasHost({
         editorConfig={{
           theme: themePreset.editorTheme,
           permissions: editorPermissionPresets[editPermissionMode],
+          // 종류 배지(좌상단)를 존 유형에 맞춰 커스터마이즈하고, 항상 노출한다.
+          // badgeVisibility: "always" | "selected"(기본) | "hidden" 로 표시 시점을 제어.
+          targetMeta: {
+            badgeVisibility: "always",
+            resolveBadgeLabel: ({ kind, zone, defaultLabel }) => {
+              if (kind !== "zone" || !zone) return defaultLabel;
+              if (zone.zoneType === "container") return "GROUP";
+              const name = zone.name.toLowerCase();
+              if (name.includes("send") || name.includes("push")) return "SEND";
+              if (name.includes("wait") || name.includes("timer")) return "WAIT";
+              if (name.includes("branch") || name.includes("condition"))
+                return "BRANCH";
+              if (name.includes("offer") || name.includes("nudge")) return "OFFER";
+              if (name.includes("terminal")) return "END";
+              if (name.includes("review") || name.includes("queue")) return "QUEUE";
+              return defaultLabel;
+            },
+          },
           overlayControls: {
             enabled: overlayHudVisible,
           },

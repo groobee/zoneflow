@@ -82,6 +82,7 @@ import {
   getZoneflowEditorStrings,
   resolveEditorLocale,
   type SelectionCommandKey,
+  type ZoneflowEditorLocale,
 } from "./strings";
 import {
   resolveEditorTheme,
@@ -403,16 +404,31 @@ export type ZoneMoveEditorConfig = {
    */
   permissions?: Partial<EditorPermissions>;
   /**
-   * hover/선택/드래그 중인 타깃 위에 뜨는 메타 표기를 제어합니다.
+   * 타깃 위에 뜨는 메타 표기를 제어합니다.
    *
+   * - `badgeVisibility`: 좌상단 종류 배지의 표시 시점.
+   *   - `"always"` : 편집 모드에서 항상 노출
+   *   - `"selected"` : 선택/드래그 중일 때만 노출 (기본값)
+   *   - `"hidden"` : 항상 숨김
+   * - `resolveBadgeLabel`: 배지 라벨을 타깃별로 커스터마이즈. 예) 발송존 → "SEND",
+   *   분기존 → "BRANCH". 문자열을 반환하면 그 라벨을, `null` 을 반환하면 그 타깃의
+   *   배지만 숨기고, `undefined` 를 반환하면 기본 라벨(ZONE / PATH)을 씁니다.
    * - `showStateChip`: 우하단의 상태 표기(DRAG / MOVING / RESIZE). 기본 `false`(숨김).
-   *   요소를 옮길 때 불필요한 라벨이 떠 보이는 것을 막습니다. 필요하면 `true` 로 켭니다.
-   * - `showBadge`: 좌상단의 종류 배지(ZONE / PATH). 기본 `true`.
    *
-   * 미지정 시 상태 표기는 숨기고 종류 배지는 노출합니다(기존 대비 상태 표기만 사라짐).
+   * 미지정 시 종류 배지는 선택 시 기본 라벨로 노출되고 상태 표기는 숨겨집니다.
    */
   targetMeta?: {
-    showBadge?: boolean;
+    badgeVisibility?: "always" | "selected" | "hidden";
+    resolveBadgeLabel?: (params: {
+      kind: "zone" | "path";
+      zone?: Zone;
+      path?: Path;
+      zoneId?: ZoneId;
+      pathId?: PathId;
+      model: UniverseModel;
+      locale: ZoneflowEditorLocale;
+      defaultLabel: string;
+    }) => string | null | undefined;
     showStateChip?: boolean;
   };
   deleteInteraction?: {
@@ -1573,8 +1589,9 @@ export function ZoneMoveEditorOverlay(props: {
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
   const overlayControlsEnabled = editor?.overlayControls?.enabled ?? false;
   const overlayControls = editor?.overlayControls;
-  // 종류 배지(ZONE/PATH)는 기본 노출, 상태 표기(DRAG/MOVING/RESIZE)는 기본 숨김.
-  const showTargetBadge = editor?.targetMeta?.showBadge !== false;
+  // 종류 배지는 기본 "선택 시" 노출, 상태 표기(DRAG/MOVING/RESIZE)는 기본 숨김.
+  const targetBadgeVisibility = editor?.targetMeta?.badgeVisibility ?? "selected";
+  const resolveTargetBadgeLabel = editor?.targetMeta?.resolveBadgeLabel;
   const showTargetStateChip = editor?.targetMeta?.showStateChip === true;
 
   const startTransaction = (transaction: EditorTransactionMeta) => {
@@ -4122,6 +4139,43 @@ export function ZoneMoveEditorOverlay(props: {
             draggingTargetKey: draggingTarget?.key ?? null,
           });
           const zone = target.kind === "zone" ? model.zonesById[target.zoneId] : undefined;
+          // 종류 배지(좌상단)의 라벨/표시 여부를 타깃별로 결정.
+          let badgePath: Path | undefined;
+          if (resolveTargetBadgeLabel && target.kind === "path") {
+            const badgeSourceZoneId = findPathSourceZoneId(model, target.pathId);
+            badgePath = badgeSourceZoneId
+              ? model.zonesById[badgeSourceZoneId]?.pathsById[target.pathId]
+              : undefined;
+          }
+          const defaultBadgeLabel = getTargetBadgeLabelText({
+            locale: editorLocale,
+            kind: target.kind,
+          });
+          const resolvedBadgeLabel = resolveTargetBadgeLabel
+            ? resolveTargetBadgeLabel({
+                kind: target.kind,
+                zone,
+                path: badgePath,
+                zoneId: target.kind === "zone" ? target.zoneId : undefined,
+                pathId: target.kind === "path" ? target.pathId : undefined,
+                model,
+                locale: editorLocale,
+                defaultLabel: defaultBadgeLabel,
+              })
+            : undefined;
+          const badgeLabel =
+            resolvedBadgeLabel === null
+              ? null
+              : typeof resolvedBadgeLabel === "string" && resolvedBadgeLabel.length > 0
+                ? resolvedBadgeLabel
+                : defaultBadgeLabel;
+          const shouldShowBadge =
+            badgeLabel !== null &&
+            (targetBadgeVisibility === "always"
+              ? true
+              : targetBadgeVisibility === "hidden"
+                ? false
+                : shouldShowTargetMeta(visualState));
           const isEditingZone =
             target.kind === "zone" && editingZoneId === target.zoneId;
           const sourceAnchorScreenRect =
@@ -4903,10 +4957,10 @@ export function ZoneMoveEditorOverlay(props: {
                   {editorStrings.target.editPath}
                 </button>
               ) : null}
-              {shouldShowTargetMeta(visualState) &&
-              (showTargetBadge || showTargetStateChip) ? (
+              {shouldShowBadge ||
+              (shouldShowTargetMeta(visualState) && showTargetStateChip) ? (
                 <>
-                  {showTargetBadge ? (
+                  {shouldShowBadge ? (
                   <div
                     style={{
                       position: "absolute",
@@ -4921,13 +4975,10 @@ export function ZoneMoveEditorOverlay(props: {
                       ...getTargetBadgeStyle(visualState, resolvedEditorTheme),
                     }}
                   >
-                    {getTargetBadgeLabelText({
-                      locale: editorLocale,
-                      kind: target.kind,
-                    })}
+                    {badgeLabel}
                   </div>
                   ) : null}
-                  {showTargetStateChip ? (
+                  {shouldShowTargetMeta(visualState) && showTargetStateChip ? (
                   <div
                     style={{
                       position: "absolute",
