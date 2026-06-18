@@ -112,6 +112,8 @@ type Props = {
   debug: DebugState;
   onResize: (size: { width: number; height: number }) => void;
   overlayHudVisible: boolean;
+  /** 종류 배지(SEND/BRANCH 등) 표시 시점 — editor.targetMeta.badgeVisibility 데모용. */
+  badgeVisibility: "always" | "selected" | "hidden";
   themePreset: PlaygroundThemePreset;
   weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
@@ -134,6 +136,7 @@ export function CanvasHost({
   debug,
   onResize,
   overlayHudVisible,
+  badgeVisibility,
   themePreset,
   weatherBackgroundId,
   canConnectPath,
@@ -312,10 +315,10 @@ export function CanvasHost({
         editorConfig={{
           theme: themePreset.editorTheme,
           permissions: editorPermissionPresets[editPermissionMode],
-          // 종류 배지(좌상단)를 존 유형에 맞춰 커스터마이즈하고, 항상 노출한다.
-          // badgeVisibility: "always" | "selected"(기본) | "hidden" 로 표시 시점을 제어.
+          // 종류 배지(좌상단)를 존 유형에 맞춰 커스터마이즈. 표시 시점은 상단
+          // 토글(badgeVisibility)로 런타임 전환 — "always"|"selected"|"hidden".
           targetMeta: {
-            badgeVisibility: "always",
+            badgeVisibility,
             resolveBadgeLabel: ({ kind, zone, defaultLabel }) => {
               if (kind !== "zone" || !zone) return defaultLabel;
               if (zone.zoneType === "container") return "GROUP";

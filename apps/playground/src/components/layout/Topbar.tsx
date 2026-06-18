@@ -45,6 +45,8 @@ type Props = {
   onLocalScaleStep: (delta: number) => void;
   densityPreset: "default" | "dense" | "sparse";
   setDensityPreset: (value: "default" | "dense" | "sparse") => void;
+  badgeVisibility: "always" | "selected" | "hidden";
+  setBadgeVisibility: (value: "always" | "selected" | "hidden") => void;
 };
 
 export function Topbar({
@@ -73,6 +75,8 @@ export function Topbar({
   onLocalScaleStep,
   densityPreset,
   setDensityPreset,
+  badgeVisibility,
+  setBadgeVisibility,
 }: Props) {
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
@@ -283,6 +287,20 @@ export function Topbar({
             <option value="default">기준: 기본</option>
             <option value="dense">기준: 촘촘(디테일 빨리)</option>
             <option value="sparse">기준: 듬성(디테일 늦게)</option>
+          </select>
+          <select
+            style={themedSelectStyle}
+            value={badgeVisibility}
+            onChange={(e) =>
+              setBadgeVisibility(
+                e.target.value as "always" | "selected" | "hidden"
+              )
+            }
+            title="종류 배지(SEND/BRANCH 등) 표시 시점 — editor.targetMeta.badgeVisibility (런타임 변경 가능)"
+          >
+            <option value="always">배지: 항상</option>
+            <option value="selected">배지: 선택 시</option>
+            <option value="hidden">배지: 숨김</option>
           </select>
           <button
             type="button"
