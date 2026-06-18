@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "kittyflow", "dev"],
       "port": 5175
+    },
+    {
+      "name": "custom-zone",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "custom-zone", "dev"],
+      "port": 5176
     }
   ]
 }
