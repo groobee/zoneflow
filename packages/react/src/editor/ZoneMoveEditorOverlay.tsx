@@ -207,6 +207,34 @@ export type ZoneEditorButtonRenderProps = {
   closeEditor: () => void;
 };
 
+/**
+ * `renderZoneOverlays` 에 넘어가는 컨텍스트. 라이브러리는 편집 버튼 같은 걸
+ * 강제로 그리지 않는다 — 대신 존마다 본문 위를 덮는 오버레이 레이어(존 rect
+ * 전체)를 주고, 소비자가 원하는 버튼/배지/컨트롤을 직접 그린다.
+ *
+ * - 오버레이 컨테이너는 `pointer-events: none` 이라 빈 영역 클릭은 존(드래그)으로
+ *   통과한다. 소비자는 자기 버튼에 `pointerEvents: "auto"` 를 주면 되고, 그
+ *   클릭이 드래그를 시작하지 않도록 라이브러리가 컨테이너에서 막아준다.
+ * - `openEditor()` 는 `renderZoneEditor` 패널(또는 `onZoneEditClick`)을 여는
+ *   헬퍼. 편집과 무관한 오버레이라면 무시하면 된다.
+ * - hover/선택/편집/드래그 상태를 받아 언제 무엇을 그릴지 소비자가 결정한다
+ *   (안 그릴 땐 `null` 반환).
+ */
+export type ZoneOverlayRenderProps = {
+  zoneId: ZoneId;
+  zone: Zone;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  rect: Rect;
+  isSelected: boolean;
+  isHovered: boolean;
+  isEditing: boolean;
+  isDragging: boolean;
+  theme: ZoneflowEditorTheme;
+  openEditor: () => void;
+  closeEditor: () => void;
+};
+
 export type ZoneEditorRenderProps = {
   zoneId: ZoneId;
   zone: Zone;
@@ -331,7 +359,12 @@ export type ZoneMoveEditorConfig = {
   };
   onModelChange?: (nextModel: UniverseModel) => void;
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
-  renderZoneEditButton?: (props: ZoneEditorButtonRenderProps) => ReactNode;
+  /**
+   * 존 본문 위에 덮어 그릴 오버레이(버튼·배지·퀵액션 등)를 소비자가 직접 그린다.
+   * 라이브러리가 "편집 버튼"을 강제로 그리던 `renderZoneEditButton` 을 대체 —
+   * 무엇을 어떻게 그릴지는 전적으로 소비자 몫이다. {@link ZoneOverlayRenderProps}.
+   */
+  renderZoneOverlays?: (props: ZoneOverlayRenderProps) => ReactNode;
   renderZoneEditor?: (props: ZoneEditorRenderProps) => ReactNode;
   renderPathEditor?: (props: PathEditorRenderProps) => ReactNode;
   onZoneEditClick?: (zoneId: ZoneId) => void;
@@ -876,43 +909,6 @@ function intersectsRect(a: Rect, b: Rect): boolean {
     a.x + a.width > b.x &&
     a.y < b.y + b.height &&
     a.y + a.height > b.y
-  );
-}
-
-function renderDefaultZoneEditButton(
-  props: ZoneEditorButtonRenderProps & {
-    editorStrings: ReturnType<typeof getZoneflowEditorStrings>;
-  }
-) {
-  const tone = props.isEditing
-    ? props.theme?.overlay.editButton.active
-    : props.theme?.overlay.editButton.idle;
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        props.openEditor();
-      }}
-      style={{
-        position: "absolute",
-        right: 8,
-        top: -12,
-        padding: "5px 10px",
-        borderRadius: 999,
-        border: tone?.border,
-        background: tone?.background,
-        color: tone?.color,
-        fontSize: 11,
-        fontWeight: 700,
-        boxShadow: tone?.shadow,
-        cursor: "pointer",
-        pointerEvents: "auto",
-      }}
-    >
-      {props.isEditing ? props.editorStrings.target.open : props.editorStrings.target.edit}
-    </button>
   );
 }
 
@@ -4329,13 +4325,6 @@ export function ZoneMoveEditorOverlay(props: {
             (visualState === "hover" ||
               visualState === "selected" ||
               isResizingTarget);
-          const shouldShowZoneEditButton =
-            target.kind === "zone" &&
-            !!zone &&
-            (!!editor.renderZoneEditor || !!editor.onZoneEditClick) &&
-            !isDeleteArmed &&
-            !isDragging &&
-            (visualState !== "idle" || isEditingZone);
           const zoneLockWidth = target.kind === "zone" && !!zone?.fixedWidth;
           const zoneLockHeight = target.kind === "zone" && !!zone?.fixedHeight;
           const zoneFullyLocked = zoneLockWidth && zoneLockHeight;
@@ -4363,16 +4352,19 @@ export function ZoneMoveEditorOverlay(props: {
             !isDeleteArmed &&
             !!pathLabelLocalRect &&
             !isDragging;
-          const zoneEditButton =
-            shouldShowZoneEditButton && zone
-              ? editor.renderZoneEditButton?.({
+          const zoneOverlays =
+            target.kind === "zone" && zone && editor.renderZoneOverlays
+              ? editor.renderZoneOverlays({
                   zoneId: target.zoneId,
                   zone,
                   model,
                   layoutModel,
                   rect: target.rect,
                   isSelected: visualState === "selected",
+                  isHovered: visualState === "hover",
                   isEditing: isEditingZone,
+                  isDragging,
+                  theme: resolvedEditorTheme,
                   openEditor: () => {
                     openZoneEditor(target.zoneId, target.key);
                   },
@@ -4382,7 +4374,7 @@ export function ZoneMoveEditorOverlay(props: {
                     );
                   },
                 })
-              : undefined;
+              : null;
 
           return (
             <div
@@ -4944,45 +4936,25 @@ export function ZoneMoveEditorOverlay(props: {
                 </div>
               ) : null}
 
-              {shouldShowZoneEditButton && zone ? (
+              {zoneOverlays !== null ? (
+                // 소비자가 그린 오버레이 레이어. 컨테이너는 pointer-events:none 라
+                // 빈 영역 클릭은 존(드래그)으로 통과하고, 소비자가 pointerEvents:
+                // "auto" 를 준 버튼만 상호작용한다. 그 클릭이 드래그/마퀴를 시작하지
+                // 않도록 여기서 전파만 막는다(기본 동작은 막지 않음).
                 <div
                   style={{
                     position: "absolute",
-                    right: 0,
-                    top: 0,
-                    pointerEvents: "auto",
+                    inset: 0,
+                    pointerEvents: "none",
                   }}
                   onPointerDown={(event) => {
-                    event.preventDefault();
                     event.stopPropagation();
                   }}
                   onClick={(event) => {
-                    event.preventDefault();
                     event.stopPropagation();
                   }}
                 >
-                  {zoneEditButton !== undefined
-                    ? zoneEditButton
-                    :
-                    renderDefaultZoneEditButton({
-                      zoneId: target.zoneId,
-                      zone,
-                      model,
-                      layoutModel,
-                      rect: target.rect,
-                      isSelected: visualState === "selected",
-                      isEditing: isEditingZone,
-                      editorStrings,
-                      theme: resolvedEditorTheme,
-                      openEditor: () => {
-                        openZoneEditor(target.zoneId, target.key);
-                      },
-                      closeEditor: () => {
-                        setEditingZoneId((current) =>
-                          current === target.zoneId ? null : current
-                        );
-                      },
-                    })}
+                  {zoneOverlays}
                 </div>
               ) : null}
               {shouldShowPathEditTrigger && pathLabelLocalRect ? (

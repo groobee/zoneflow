@@ -405,9 +405,21 @@ export function CanvasHost({
             confirm: true,
           },
           canConnectPath,
-          renderZoneEditButton: (props) => (
-            <PlaygroundZoneEditButton {...props} />
-          ),
+          // 라이브러리가 편집 버튼을 그려주던 대신, 오버레이로 직접 그린다.
+          // hover/선택/편집 중일 때만 우상단에 "설정" 버튼을 덮어 그림.
+          renderZoneOverlays: (props) =>
+            props.isHovered || props.isSelected || props.isEditing ? (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: 8,
+                  pointerEvents: "auto",
+                }}
+              >
+                <PlaygroundZoneEditButton {...props} />
+              </div>
+            ) : null,
           renderZoneEditor: (props) =>
             props.onModelChange ? (
               <PlaygroundZoneEditor
