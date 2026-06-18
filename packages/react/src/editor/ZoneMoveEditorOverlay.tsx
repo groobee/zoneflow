@@ -83,6 +83,7 @@ import {
   resolveEditorLocale,
   type SelectionCommandKey,
 } from "./strings";
+import { SelectionCommandIcon } from "./selectionCommandIcons";
 import {
   resolveEditorTheme,
   type ZoneflowEditorTheme,
@@ -1270,6 +1271,18 @@ export function ZoneMoveEditorOverlay(props: {
       fontWeight: 800,
     }),
     [floatingToolbarButtonStyle, resolvedEditorTheme]
+  );
+  // Icon-only variant for align/distribute/z-order commands — square-ish and
+  // centered so the 14×14 glyph sits nicely; color is inherited by currentColor.
+  const floatingToolbarIconButtonStyle = useMemo<CSSProperties>(
+    () => ({
+      ...floatingToolbarButtonStyle,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "6px 7px",
+    }),
+    [floatingToolbarButtonStyle]
   );
   const dialogSecondaryButtonStyle = useMemo<CSSProperties>(
     () => ({
@@ -3493,25 +3506,29 @@ export function ZoneMoveEditorOverlay(props: {
                       );
                     }}
                     style={{
-                      ...floatingToolbarButtonStyle,
+                      ...floatingToolbarIconButtonStyle,
                       background: canRunZoneSelectionCommands
-                        ? floatingToolbarButtonStyle.background
+                        ? floatingToolbarIconButtonStyle.background
                         : resolvedEditorTheme.overlay.floatingToolbar.background,
                       color: canRunZoneSelectionCommands
-                        ? floatingToolbarButtonStyle.color
+                        ? floatingToolbarIconButtonStyle.color
                         : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                       cursor: canRunZoneSelectionCommands ? "pointer" : "not-allowed",
                     }}
-                    title={
-                      canRunZoneSelectionCommands
-                        ? undefined
-                        : editorStrings.selectionToolbar.sameParentOnlyHint
-                    }
-                  >
-                    {getSelectionCommandLabel({
+                    aria-label={getSelectionCommandLabel({
                       locale: editorLocale,
                       command: command as SelectionCommandKey,
                     })}
+                    title={
+                      canRunZoneSelectionCommands
+                        ? getSelectionCommandLabel({
+                            locale: editorLocale,
+                            command: command as SelectionCommandKey,
+                          })
+                        : editorStrings.selectionToolbar.sameParentOnlyHint
+                    }
+                  >
+                    <SelectionCommandIcon command={command as SelectionCommandKey} />
                   </button>
                 ))
               : null}
@@ -3531,17 +3548,22 @@ export function ZoneMoveEditorOverlay(props: {
                   runZoneZOrderCommand(command as ZOrderMode);
                 }}
                 style={{
-                  ...floatingToolbarButtonStyle,
+                  ...floatingToolbarIconButtonStyle,
                   color: canRunZoneZOrderCommands
-                    ? floatingToolbarButtonStyle.color
+                    ? floatingToolbarIconButtonStyle.color
                     : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                   cursor: canRunZoneZOrderCommands ? "pointer" : "not-allowed",
                 }}
-              >
-                {getSelectionCommandLabel({
+                aria-label={getSelectionCommandLabel({
                   locale: editorLocale,
                   command: command as SelectionCommandKey,
                 })}
+                title={getSelectionCommandLabel({
+                  locale: editorLocale,
+                  command: command as SelectionCommandKey,
+                })}
+              >
+                <SelectionCommandIcon command={command as SelectionCommandKey} />
               </button>
             ))}
             {commonZoneSelectionActions.map((action) => (
@@ -3660,20 +3682,29 @@ export function ZoneMoveEditorOverlay(props: {
                       );
                     }}
                     style={{
-                      ...floatingToolbarButtonStyle,
+                      ...floatingToolbarIconButtonStyle,
                       background: canRunPathSelectionCommands
-                        ? floatingToolbarButtonStyle.background
+                        ? floatingToolbarIconButtonStyle.background
                         : resolvedEditorTheme.overlay.floatingToolbar.background,
                       color: canRunPathSelectionCommands
-                        ? floatingToolbarButtonStyle.color
+                        ? floatingToolbarIconButtonStyle.color
                         : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                       cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
                     }}
-                  >
-                    {getSelectionCommandLabel({
+                    aria-label={getSelectionCommandLabel({
                       locale: editorLocale,
                       command: command as SelectionCommandKey,
                     })}
+                    title={
+                      canRunPathSelectionCommands
+                        ? getSelectionCommandLabel({
+                            locale: editorLocale,
+                            command: command as SelectionCommandKey,
+                          })
+                        : editorStrings.selectionToolbar.sameParentOnlyHint
+                    }
+                  >
+                    <SelectionCommandIcon command={command as SelectionCommandKey} />
                   </button>
                 ))
               : null}
@@ -3693,17 +3724,22 @@ export function ZoneMoveEditorOverlay(props: {
                   runPathZOrderCommand(command as ZOrderMode);
                 }}
                 style={{
-                  ...floatingToolbarButtonStyle,
+                  ...floatingToolbarIconButtonStyle,
                   color: canRunPathZOrderCommands
-                    ? floatingToolbarButtonStyle.color
+                    ? floatingToolbarIconButtonStyle.color
                     : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
                   cursor: canRunPathZOrderCommands ? "pointer" : "not-allowed",
                 }}
-              >
-                {getSelectionCommandLabel({
+                aria-label={getSelectionCommandLabel({
                   locale: editorLocale,
                   command: command as SelectionCommandKey,
                 })}
+                title={getSelectionCommandLabel({
+                  locale: editorLocale,
+                  command: command as SelectionCommandKey,
+                })}
+              >
+                <SelectionCommandIcon command={command as SelectionCommandKey} />
               </button>
             ))}
             {commonPathSelectionActions.map((action) => (
