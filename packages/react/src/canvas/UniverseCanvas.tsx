@@ -39,7 +39,6 @@ import {
   type VisibilityEngine,
   type ZoneComponentRendererMap,
   type ZoneComponentSlotName,
-  type ZoneflowTheme,
   type ZoneflowThemeInput,
 } from "@zoneflow/renderer-dom";
 import {

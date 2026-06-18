@@ -3,7 +3,6 @@ import type {
   Zone,
   ZoneId,
   Path,
-  ZoneRef,
 } from "./types";
 import { createPathId, createZoneId } from "./ids";
 import { flattenSubtree } from "./traversal";

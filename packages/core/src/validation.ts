@@ -1,5 +1,4 @@
 import type { UniverseModel } from "./types";
-import { getPaths } from "./lookup";
 
 export function validateUniverseModel(model: UniverseModel): string[] {
   const errors: string[] = [];

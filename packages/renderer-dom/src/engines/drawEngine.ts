@@ -2,7 +2,6 @@ import type {
   BackgroundRendererContext,
   DrawEngine,
   PathComponentLayout,
-  PathComponentMount,
   PathComponentRendererContext,
   PathComponentSlotName,
   PathLineStyle,
@@ -12,10 +11,6 @@ import type {
   RenderMountRegistry,
   RendererDrawInput,
   VisibilityEmphasis,
-  ZoneComponentLayout,
-  ZoneComponentMount,
-  ZoneComponentRendererContext,
-  ZoneComponentSlotName,
   ZoneRendererContext,
   ZoneVisualNode,
 } from "../types";
@@ -34,7 +29,6 @@ import {
   resolveEdgeFlowMotion,
 } from "./edgeFlow";
 import {
-  ZONE_CLIP_SHADOW,
   applyStyles,
   createSurfaceChrome,
   toLocalRect,
@@ -76,9 +70,8 @@ function positiveModulo(value: number, divisor: number): number {
 function createGridLayer(params: {
   options: NonNullable<RendererDrawInput["gridOptions"]>;
   camera: RendererDrawInput["camera"];
-  theme: RendererDrawInput["theme"];
 }): HTMLElement | null {
-  const { options, camera, theme } = params;
+  const { options, camera } = params;
   const worldSize = Math.max(options.size ?? 16, 2);
   const majorEvery = Math.max(options.majorEvery ?? 4, 2);
   const minorSize = worldSize * camera.zoom;
@@ -921,7 +914,6 @@ export const domDrawEngine: DrawEngine = {
       const gridLayer = createGridLayer({
         options: input.gridOptions,
         camera,
-        theme,
       });
       if (gridLayer) viewportRoot.appendChild(gridLayer);
     }

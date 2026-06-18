@@ -89,6 +89,11 @@ import {
   type ZoneflowEditorTheme,
   type ZoneflowEditorThemeInput,
 } from "./theme";
+import type {
+  PathEditorRenderProps,
+  ZoneEditorRenderProps,
+  ZoneOverlayRenderProps,
+} from "./editorRenderProps";
 
 /**
  * 선택 툴바에서 종류(정렬 / 분배 / 순서 / 커스텀 / 삭제)별 그룹을 가르는 얇은 세로
@@ -193,69 +198,6 @@ const ZORDER_COMMANDS = [
   "bring-forward",
   "bring-to-front",
 ] as const;
-
-export type ZoneEditorButtonRenderProps = {
-  zoneId: ZoneId;
-  zone: Zone;
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  rect: Rect;
-  isSelected: boolean;
-  isEditing: boolean;
-  theme?: ZoneflowEditorTheme;
-  openEditor: () => void;
-  closeEditor: () => void;
-};
-
-/**
- * `renderZoneOverlays` 에 넘어가는 컨텍스트. 라이브러리는 편집 버튼 같은 걸
- * 강제로 그리지 않는다 — 대신 존마다 본문 위를 덮는 오버레이 레이어(존 rect
- * 전체)를 주고, 소비자가 원하는 버튼/배지/컨트롤을 직접 그린다.
- *
- * - 오버레이 컨테이너는 `pointer-events: none` 이라 빈 영역 클릭은 존(드래그)으로
- *   통과한다. 소비자는 자기 버튼에 `pointerEvents: "auto"` 를 주면 되고, 그
- *   클릭이 드래그를 시작하지 않도록 라이브러리가 컨테이너에서 막아준다.
- * - `openEditor()` 는 `renderZoneEditor` 패널(또는 `onZoneEditClick`)을 여는
- *   헬퍼. 편집과 무관한 오버레이라면 무시하면 된다.
- * - hover/선택/편집/드래그 상태를 받아 언제 무엇을 그릴지 소비자가 결정한다
- *   (안 그릴 땐 `null` 반환).
- */
-export type ZoneOverlayRenderProps = {
-  zoneId: ZoneId;
-  zone: Zone;
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  rect: Rect;
-  isSelected: boolean;
-  isHovered: boolean;
-  isEditing: boolean;
-  isDragging: boolean;
-  theme: ZoneflowEditorTheme;
-  openEditor: () => void;
-  closeEditor: () => void;
-};
-
-export type ZoneEditorRenderProps = {
-  zoneId: ZoneId;
-  zone: Zone;
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  onModelChange?: (nextModel: UniverseModel) => void;
-  onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
-  closeEditor: () => void;
-};
-
-export type PathEditorRenderProps = {
-  pathId: PathId;
-  path: Path;
-  sourceZoneId: ZoneId;
-  sourceZone: Zone;
-  model: UniverseModel;
-  layoutModel: UniverseLayoutModel;
-  onModelChange?: (nextModel: UniverseModel) => void;
-  onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
-  closeEditor: () => void;
-};
 
 export type PathLabelEventPayload = {
   pathId: PathId;
@@ -1140,7 +1082,6 @@ function renderZonePreview(props: PreviewHostProps) {
     layoutModel,
     target,
     editorTheme,
-    editorStrings,
     zoneComponents,
   } = props;
 
