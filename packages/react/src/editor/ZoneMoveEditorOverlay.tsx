@@ -381,6 +381,19 @@ export type ZoneMoveEditorConfig = {
    * 자주 쓰는 조합은 `editorPermissionPresets` 를 넣으세요.
    */
   permissions?: Partial<EditorPermissions>;
+  /**
+   * hover/선택/드래그 중인 타깃 위에 뜨는 메타 표기를 제어합니다.
+   *
+   * - `showStateChip`: 우하단의 상태 표기(DRAG / MOVING / RESIZE). 기본 `false`(숨김).
+   *   요소를 옮길 때 불필요한 라벨이 떠 보이는 것을 막습니다. 필요하면 `true` 로 켭니다.
+   * - `showBadge`: 좌상단의 종류 배지(ZONE / PATH). 기본 `true`.
+   *
+   * 미지정 시 상태 표기는 숨기고 종류 배지는 노출합니다(기존 대비 상태 표기만 사라짐).
+   */
+  targetMeta?: {
+    showBadge?: boolean;
+    showStateChip?: boolean;
+  };
   deleteInteraction?: {
     animation?: boolean;
     confirm?: boolean;
@@ -1551,6 +1564,9 @@ export function ZoneMoveEditorOverlay(props: {
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
   const overlayControlsEnabled = editor?.overlayControls?.enabled ?? false;
   const overlayControls = editor?.overlayControls;
+  // 종류 배지(ZONE/PATH)는 기본 노출, 상태 표기(DRAG/MOVING/RESIZE)는 기본 숨김.
+  const showTargetBadge = editor?.targetMeta?.showBadge !== false;
+  const showTargetStateChip = editor?.targetMeta?.showStateChip === true;
 
   const startTransaction = (transaction: EditorTransactionMeta) => {
     if (activeTransactionRef.current) return;
@@ -4861,8 +4877,10 @@ export function ZoneMoveEditorOverlay(props: {
                   {editorStrings.target.editPath}
                 </button>
               ) : null}
-              {shouldShowTargetMeta(visualState) ? (
+              {shouldShowTargetMeta(visualState) &&
+              (showTargetBadge || showTargetStateChip) ? (
                 <>
+                  {showTargetBadge ? (
                   <div
                     style={{
                       position: "absolute",
@@ -4882,6 +4900,8 @@ export function ZoneMoveEditorOverlay(props: {
                       kind: target.kind,
                     })}
                   </div>
+                  ) : null}
+                  {showTargetStateChip ? (
                   <div
                     style={{
                       position: "absolute",
@@ -4902,6 +4922,7 @@ export function ZoneMoveEditorOverlay(props: {
                       isResizing: isResizingTarget,
                     })}
                   </div>
+                  ) : null}
                 </>
               ) : null}
             </div>
