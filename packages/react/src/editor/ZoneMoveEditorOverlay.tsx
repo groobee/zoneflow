@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   findPathSourceZoneId,
   pruneLayoutModel,
@@ -111,6 +111,48 @@ function ToolbarDivider() {
     />
   );
 }
+
+/**
+ * 선택 툴바의 한 종류 그룹(정렬 / 분배 / 순서 / 커스텀 / 삭제)을 감싸는 nowrap
+ * 컨테이너. 바깥 툴바는 flex-wrap 이라 폭이 부족하면 줄바꿈되는데, 각 그룹을 이
+ * 래퍼로 묶어두면 그룹 내부 버튼은 쪼개지지 않고 "디바이더(그룹) 경계"에서만
+ * 줄바꿈된다. `divider` 를 주면 그룹 맨 앞에 구분선을 붙여, 줄바꿈으로 새 줄에
+ * 내려가도 구분선이 그룹과 함께 따라가 고아 구분선이 생기지 않는다.
+ */
+function ToolbarGroup(props: { divider?: boolean; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "nowrap",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {props.divider ? <ToolbarDivider /> : null}
+      {props.children}
+    </div>
+  );
+}
+
+const ALIGN_COMMANDS = [
+  "align-left",
+  "align-right",
+  "align-top",
+  "align-bottom",
+  "align-center-horizontal",
+  "align-center-vertical",
+] as const;
+const DISTRIBUTE_COMMANDS = [
+  "distribute-horizontal",
+  "distribute-vertical",
+] as const;
+const ZORDER_COMMANDS = [
+  "send-to-back",
+  "send-backward",
+  "bring-forward",
+  "bring-to-front",
+] as const;
 
 export type ZoneEditorButtonRenderProps = {
   zoneId: ZoneId;
@@ -2945,6 +2987,104 @@ export function ZoneMoveEditorOverlay(props: {
         })
       : undefined;
 
+  // 정렬/분배는 두 그룹으로 나뉘므로(각각 ToolbarGroup) 버튼 렌더를 헬퍼로 공유한다.
+  const renderZoneSelectionButton = (command: string) => (
+    <button
+      key={command}
+      type="button"
+      disabled={
+        !canRunZoneSelectionCommands ||
+        (command.includes("distribute") && selectedZoneTargets.length < 3)
+      }
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        runZoneSelectionCommand(
+          command as
+            | "align-left"
+            | "align-right"
+            | "align-top"
+            | "align-bottom"
+            | "align-center-horizontal"
+            | "align-center-vertical"
+            | "distribute-horizontal"
+            | "distribute-vertical"
+        );
+      }}
+      style={{
+        ...floatingToolbarButtonStyle,
+        background: canRunZoneSelectionCommands
+          ? floatingToolbarButtonStyle.background
+          : resolvedEditorTheme.overlay.floatingToolbar.background,
+        color: canRunZoneSelectionCommands
+          ? floatingToolbarButtonStyle.color
+          : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
+        cursor: canRunZoneSelectionCommands ? "pointer" : "not-allowed",
+      }}
+      title={
+        canRunZoneSelectionCommands
+          ? getSelectionCommandLabel({
+              locale: editorLocale,
+              command: command as SelectionCommandKey,
+            })
+          : editorStrings.selectionToolbar.sameParentOnlyHint
+      }
+    >
+      {getSelectionCommandLabel({
+        locale: editorLocale,
+        command: command as SelectionCommandKey,
+      })}
+    </button>
+  );
+  const renderPathSelectionButton = (command: string) => (
+    <button
+      key={command}
+      type="button"
+      disabled={
+        !canRunPathSelectionCommands ||
+        (command.includes("distribute") && selectedPathTargets.length < 3)
+      }
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        runPathSelectionCommand(
+          command as
+            | "align-left"
+            | "align-right"
+            | "align-top"
+            | "align-bottom"
+            | "align-center-horizontal"
+            | "align-center-vertical"
+            | "distribute-horizontal"
+            | "distribute-vertical"
+        );
+      }}
+      style={{
+        ...floatingToolbarButtonStyle,
+        background: canRunPathSelectionCommands
+          ? floatingToolbarButtonStyle.background
+          : resolvedEditorTheme.overlay.floatingToolbar.background,
+        color: canRunPathSelectionCommands
+          ? floatingToolbarButtonStyle.color
+          : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
+        cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
+      }}
+      title={
+        canRunPathSelectionCommands
+          ? getSelectionCommandLabel({
+              locale: editorLocale,
+              command: command as SelectionCommandKey,
+            })
+          : editorStrings.selectionToolbar.sameParentOnlyHint
+      }
+    >
+      {getSelectionCommandLabel({
+        locale: editorLocale,
+        command: command as SelectionCommandKey,
+      })}
+    </button>
+  );
+
   return (
     <div
       ref={overlayRef}
@@ -3516,128 +3656,72 @@ export function ZoneMoveEditorOverlay(props: {
             </span>
             {selectedZoneTargets.length > 1 ? (
               <>
-                <ToolbarDivider />
-                {[
-                  "align-left",
-                  "align-right",
-                  "align-top",
-                  "align-bottom",
-                  "align-center-horizontal",
-                  "align-center-vertical",
-                  "distribute-horizontal",
-                  "distribute-vertical",
-                ].map((command) => (
-                  <Fragment key={command}>
-                    {command === "distribute-horizontal" ? <ToolbarDivider /> : null}
-                    <button
-                      type="button"
-                      disabled={
-                        !canRunZoneSelectionCommands ||
-                        (command.includes("distribute") && selectedZoneTargets.length < 3)
-                      }
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        runZoneSelectionCommand(
-                          command as
-                            | "align-left"
-                            | "align-right"
-                            | "align-top"
-                            | "align-bottom"
-                            | "align-center-horizontal"
-                            | "align-center-vertical"
-                            | "distribute-horizontal"
-                            | "distribute-vertical"
-                        );
-                      }}
-                      style={{
-                        ...floatingToolbarButtonStyle,
-                        background: canRunZoneSelectionCommands
-                          ? floatingToolbarButtonStyle.background
-                          : resolvedEditorTheme.overlay.floatingToolbar.background,
-                        color: canRunZoneSelectionCommands
-                          ? floatingToolbarButtonStyle.color
-                          : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
-                        cursor: canRunZoneSelectionCommands ? "pointer" : "not-allowed",
-                      }}
-                      title={
-                        canRunZoneSelectionCommands
-                          ? getSelectionCommandLabel({
-                              locale: editorLocale,
-                              command: command as SelectionCommandKey,
-                            })
-                          : editorStrings.selectionToolbar.sameParentOnlyHint
-                      }
-                    >
-                      {getSelectionCommandLabel({
-                        locale: editorLocale,
-                        command: command as SelectionCommandKey,
-                      })}
-                    </button>
-                  </Fragment>
-                ))}
+                <ToolbarGroup divider>
+                  {ALIGN_COMMANDS.map(renderZoneSelectionButton)}
+                </ToolbarGroup>
+                <ToolbarGroup divider>
+                  {DISTRIBUTE_COMMANDS.map(renderZoneSelectionButton)}
+                </ToolbarGroup>
               </>
             ) : null}
-            <ToolbarDivider />
-            {[
-              "send-to-back",
-              "send-backward",
-              "bring-forward",
-              "bring-to-front",
-            ].map((command) => (
-              <button
-                key={command}
-                type="button"
-                disabled={!canRunZoneZOrderCommands}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  runZoneZOrderCommand(command as ZOrderMode);
-                }}
-                style={{
-                  ...floatingToolbarButtonStyle,
-                  color: canRunZoneZOrderCommands
-                    ? floatingToolbarButtonStyle.color
-                    : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
-                  cursor: canRunZoneZOrderCommands ? "pointer" : "not-allowed",
-                }}
-                title={getSelectionCommandLabel({
-                  locale: editorLocale,
-                  command: command as SelectionCommandKey,
-                })}
-              >
-                {getSelectionCommandLabel({
-                  locale: editorLocale,
-                  command: command as SelectionCommandKey,
-                })}
-              </button>
-            ))}
-            {commonZoneSelectionActions.length > 0 ? <ToolbarDivider /> : null}
-            {commonZoneSelectionActions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                title={action.title}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  action.onClick({
-                    zoneIds: [...selectedZoneIds],
-                    zones: selectedZones,
-                  });
-                }}
-                style={
-                  action.variant === "danger"
-                    ? floatingToolbarDangerButtonStyle
-                    : floatingToolbarButtonStyle
-                }
-              >
-                {action.label}
-              </button>
-            ))}
+            <ToolbarGroup divider>
+              {ZORDER_COMMANDS.map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  disabled={!canRunZoneZOrderCommands}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    runZoneZOrderCommand(command as ZOrderMode);
+                  }}
+                  style={{
+                    ...floatingToolbarButtonStyle,
+                    color: canRunZoneZOrderCommands
+                      ? floatingToolbarButtonStyle.color
+                      : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
+                    cursor: canRunZoneZOrderCommands ? "pointer" : "not-allowed",
+                  }}
+                  title={getSelectionCommandLabel({
+                    locale: editorLocale,
+                    command: command as SelectionCommandKey,
+                  })}
+                >
+                  {getSelectionCommandLabel({
+                    locale: editorLocale,
+                    command: command as SelectionCommandKey,
+                  })}
+                </button>
+              ))}
+            </ToolbarGroup>
+            {commonZoneSelectionActions.length > 0 ? (
+              <ToolbarGroup divider>
+                {commonZoneSelectionActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    title={action.title}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      action.onClick({
+                        zoneIds: [...selectedZoneIds],
+                        zones: selectedZones,
+                      });
+                    }}
+                    style={
+                      action.variant === "danger"
+                        ? floatingToolbarDangerButtonStyle
+                        : floatingToolbarButtonStyle
+                    }
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </ToolbarGroup>
+            ) : null}
             {permissions.deleteZone ? (
-              <>
-                <ToolbarDivider />
+              <ToolbarGroup divider>
                 <button
                   type="button"
                   onClick={(event) => {
@@ -3651,7 +3735,7 @@ export function ZoneMoveEditorOverlay(props: {
                 >
                   {editorStrings.selectionToolbar.delete}
                 </button>
-              </>
+              </ToolbarGroup>
             ) : null}
           </div>
         ) : null}
@@ -3698,131 +3782,74 @@ export function ZoneMoveEditorOverlay(props: {
                 count: selectedPathTargets.length,
               })}
             </span>
-            {selectedPathTargets.length > 1
-              ? (
-                <>
-                  <ToolbarDivider />
-                  {[
-                    "align-left",
-                    "align-right",
-                    "align-top",
-                    "align-bottom",
-                    "align-center-horizontal",
-                    "align-center-vertical",
-                    "distribute-horizontal",
-                    "distribute-vertical",
-                  ].map((command) => (
-                    <Fragment key={command}>
-                      {command === "distribute-horizontal" ? <ToolbarDivider /> : null}
-                      <button
-                        type="button"
-                        disabled={
-                          !canRunPathSelectionCommands ||
-                          (command.includes("distribute") && selectedPathTargets.length < 3)
-                        }
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          runPathSelectionCommand(
-                            command as
-                              | "align-left"
-                              | "align-right"
-                              | "align-top"
-                              | "align-bottom"
-                              | "align-center-horizontal"
-                              | "align-center-vertical"
-                              | "distribute-horizontal"
-                              | "distribute-vertical"
-                          );
-                        }}
-                        style={{
-                          ...floatingToolbarButtonStyle,
-                          background: canRunPathSelectionCommands
-                            ? floatingToolbarButtonStyle.background
-                            : resolvedEditorTheme.overlay.floatingToolbar.background,
-                          color: canRunPathSelectionCommands
-                            ? floatingToolbarButtonStyle.color
-                            : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
-                          cursor: canRunPathSelectionCommands ? "pointer" : "not-allowed",
-                        }}
-                        title={
-                          canRunPathSelectionCommands
-                            ? getSelectionCommandLabel({
-                                locale: editorLocale,
-                                command: command as SelectionCommandKey,
-                              })
-                            : editorStrings.selectionToolbar.sameParentOnlyHint
-                        }
-                      >
-                        {getSelectionCommandLabel({
-                          locale: editorLocale,
-                          command: command as SelectionCommandKey,
-                        })}
-                      </button>
-                    </Fragment>
-                  ))}
-                </>
-              ) : null}
-            <ToolbarDivider />
-            {[
-              "send-to-back",
-              "send-backward",
-              "bring-forward",
-              "bring-to-front",
-            ].map((command) => (
-              <button
-                key={command}
-                type="button"
-                disabled={!canRunPathZOrderCommands}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  runPathZOrderCommand(command as ZOrderMode);
-                }}
-                style={{
-                  ...floatingToolbarButtonStyle,
-                  color: canRunPathZOrderCommands
-                    ? floatingToolbarButtonStyle.color
-                    : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
-                  cursor: canRunPathZOrderCommands ? "pointer" : "not-allowed",
-                }}
-                title={getSelectionCommandLabel({
-                  locale: editorLocale,
-                  command: command as SelectionCommandKey,
-                })}
-              >
-                {getSelectionCommandLabel({
-                  locale: editorLocale,
-                  command: command as SelectionCommandKey,
-                })}
-              </button>
-            ))}
-            {commonPathSelectionActions.length > 0 ? <ToolbarDivider /> : null}
-            {commonPathSelectionActions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                title={action.title}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  action.onClick({
-                    pathIds: [...selectedPathIds],
-                    paths: selectedPathRefs,
-                  });
-                }}
-                style={
-                  action.variant === "danger"
-                    ? floatingToolbarDangerButtonStyle
-                    : floatingToolbarButtonStyle
-                }
-              >
-                {action.label}
-              </button>
-            ))}
-            {permissions.deletePath ? (
+            {selectedPathTargets.length > 1 ? (
               <>
-                <ToolbarDivider />
+                <ToolbarGroup divider>
+                  {ALIGN_COMMANDS.map(renderPathSelectionButton)}
+                </ToolbarGroup>
+                <ToolbarGroup divider>
+                  {DISTRIBUTE_COMMANDS.map(renderPathSelectionButton)}
+                </ToolbarGroup>
+              </>
+            ) : null}
+            <ToolbarGroup divider>
+              {ZORDER_COMMANDS.map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  disabled={!canRunPathZOrderCommands}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    runPathZOrderCommand(command as ZOrderMode);
+                  }}
+                  style={{
+                    ...floatingToolbarButtonStyle,
+                    color: canRunPathZOrderCommands
+                      ? floatingToolbarButtonStyle.color
+                      : resolvedEditorTheme.overlay.floatingToolbar.buttonDisabledText,
+                    cursor: canRunPathZOrderCommands ? "pointer" : "not-allowed",
+                  }}
+                  title={getSelectionCommandLabel({
+                    locale: editorLocale,
+                    command: command as SelectionCommandKey,
+                  })}
+                >
+                  {getSelectionCommandLabel({
+                    locale: editorLocale,
+                    command: command as SelectionCommandKey,
+                  })}
+                </button>
+              ))}
+            </ToolbarGroup>
+            {commonPathSelectionActions.length > 0 ? (
+              <ToolbarGroup divider>
+                {commonPathSelectionActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    title={action.title}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      action.onClick({
+                        pathIds: [...selectedPathIds],
+                        paths: selectedPathRefs,
+                      });
+                    }}
+                    style={
+                      action.variant === "danger"
+                        ? floatingToolbarDangerButtonStyle
+                        : floatingToolbarButtonStyle
+                    }
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </ToolbarGroup>
+            ) : null}
+            {permissions.deletePath ? (
+              <ToolbarGroup divider>
                 <button
                   type="button"
                   onClick={(event) => {
@@ -3836,7 +3863,7 @@ export function ZoneMoveEditorOverlay(props: {
                 >
                   {editorStrings.selectionToolbar.delete}
                 </button>
-              </>
+              </ToolbarGroup>
             ) : null}
           </div>
         ) : null}
