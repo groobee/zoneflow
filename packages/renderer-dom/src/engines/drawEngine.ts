@@ -33,6 +33,13 @@ import {
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
 } from "./edgeFlow";
+import {
+  ZONE_CLIP_SHADOW,
+  applyStyles,
+  createSurfaceChrome,
+  toLocalRect,
+} from "./drawShared";
+import { renderDefaultZoneBody } from "./defaultZoneRenderer";
 
 const SCENE_PADDING = 64;
 const RENDER_Z_INDEX = {
@@ -47,16 +54,6 @@ const RENDER_Z_INDEX = {
 const EDGE_FLOW_CLASS = "zoneflow-edge-flow";
 const PULSE_CLASS = "zoneflow-pulse";
 const PULSE_ANIMATION_NAME = "zoneflow-pulse";
-
-function applyStyles(
-  el: HTMLElement | SVGElement,
-  styles: Record<string, string | number>
-) {
-  for (const [key, value] of Object.entries(styles)) {
-    // @ts-expect-error CSSStyleDeclaration index access
-    el.style[key] = String(value);
-  }
-}
 
 function createEmptyMountRegistry(): RenderMountRegistry {
   return {
@@ -367,93 +364,6 @@ function computeSceneBounds(input: RendererDrawInput): Rect {
   };
 }
 
-function renderZoneFallback(
-  host: HTMLElement,
-  slot: ZoneComponentSlotName,
-  context: ZoneComponentRendererContext
-) {
-  const base: Record<string, string | number> = {
-    width: "100%",
-    height: "100%",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    color: context.theme.zoneTitle,
-    boxSizing: "border-box",
-    fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
-  };
-
-  if (slot === "title") {
-    host.textContent = context.zone.name;
-    applyStyles(host, {
-      ...base,
-      fontSize: context.textScale === "lg" ? "15px" : context.textScale === "sm" ? "12px" : "13px",
-      fontWeight: 700,
-    });
-    return;
-  }
-
-  if (slot === "type") {
-    host.textContent = context.zone.zoneType;
-    applyStyles(host, {
-      ...base,
-      color: context.theme.zoneSubtext,
-      fontSize: "11px",
-      textTransform: "uppercase",
-      letterSpacing: "0.04em",
-    });
-    return;
-  }
-
-  if (slot === "badge") {
-    const badge = document.createElement("div");
-    badge.textContent = context.zone.action?.type ?? "zone";
-    applyStyles(badge, {
-      display: "inline-flex",
-      alignItems: "center",
-      height: "100%",
-      maxWidth: "100%",
-      padding: "0 8px",
-      borderRadius: "999px",
-      background: context.theme.zoneBadgeBg,
-      color: context.theme.zoneTitle,
-      fontSize: "11px",
-      fontWeight: 600,
-      boxSizing: "border-box",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    });
-    host.appendChild(badge);
-    return;
-  }
-
-  if (slot === "body") {
-    host.textContent = context.zone.action?.type
-      ? `Action: ${context.zone.action.type}`
-      : `${context.zone.childZoneIds.length} child zones`;
-    applyStyles(host, {
-      ...base,
-      whiteSpace: "normal",
-      color: context.theme.zoneSubtext,
-      fontSize: "12px",
-      lineHeight: "1.4",
-    });
-    return;
-  }
-
-  if (slot === "footer") {
-    host.textContent = context.zone.zoneType === "action"
-      ? "action node"
-      : `${context.zone.pathIds.length} conditions`;
-    applyStyles(host, {
-      ...base,
-      color: context.theme.zoneSubtext,
-      fontSize: "11px",
-    });
-  }
-}
-
 function renderPathFallback(
   host: HTMLElement,
   slot: PathComponentSlotName,
@@ -533,84 +443,6 @@ function renderPathFallback(
       lineHeight: "1.4",
     });
   }
-}
-
-function toLocalRect(ownerRect: Rect, slotRect: Rect): Rect {
-  return {
-    x: slotRect.x - ownerRect.x,
-    y: slotRect.y - ownerRect.y,
-    width: slotRect.width,
-    height: slotRect.height,
-  };
-}
-
-function createZoneSlotHost(params: {
-  zoneVisual: ZoneVisualNode;
-  componentLayout: ZoneComponentLayout;
-  slot: ZoneComponentSlotName;
-  input: RendererDrawInput;
-  mounts: RenderMountRegistry;
-  owner: HTMLElement;
-}) {
-  const {
-    zoneVisual,
-    componentLayout,
-    slot,
-    input,
-    mounts,
-    owner,
-  } = params;
-
-  const rect = componentLayout.slots[slot];
-  if (!rect) return;
-
-  const localRect = toLocalRect(zoneVisual.rect, rect);
-  const host = document.createElement("div");
-  host.dataset.zoneflowZoneId = zoneVisual.zoneId;
-  host.dataset.zoneflowSlot = slot;
-
-  applyStyles(host, {
-    position: "absolute",
-    left: `${localRect.x}px`,
-    top: `${localRect.y}px`,
-    width: `${localRect.width}px`,
-    height: `${localRect.height}px`,
-    pointerEvents: "auto",
-  });
-
-  const visibility = input.pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
-  const density = input.pipeline.density.zoneDensityById[zoneVisual.zoneId];
-  const context: ZoneComponentRendererContext = {
-    model: input.model,
-    layoutModel: input.layoutModel,
-    zone: zoneVisual.zone,
-    zoneVisual,
-    density,
-    visibility,
-    componentLayout,
-    camera: input.camera,
-    theme: input.theme,
-    zoneColor:
-      input.resolveZoneColor?.(zoneVisual.zone, { density }) ?? undefined,
-    textScale: input.textScale,
-  };
-
-  const renderer = input.zoneComponentRenderers?.[slot];
-  if (renderer) {
-    renderer(host, context);
-  } else {
-    renderZoneFallback(host, slot, context);
-  }
-
-  owner.appendChild(host);
-  mounts.zones.push({
-    key: `${zoneVisual.zoneId}:${slot}`,
-    zoneId: zoneVisual.zoneId,
-    slot,
-    host,
-    rect,
-    context,
-  });
 }
 
 function createPathSlotHost(params: {
@@ -816,77 +648,6 @@ function drawEdges(params: {
 // Depth for clipped shapes: box-shadow is cut away by clip-path, so a
 // polygon-following drop-shadow filter is used instead. Tuned to match the
 // zone surface box-shadow tokens (rgba(15, 23, 42, …)).
-const ZONE_CLIP_SHADOW =
-  "drop-shadow(0 14px 22px rgba(15, 23, 42, 0.12)) drop-shadow(0 3px 6px rgba(15, 23, 42, 0.08))";
-
-function createSurfaceChrome(params: {
-  owner: HTMLElement;
-  accent: string;
-  radius: string;
-  theme: RendererDrawInput["theme"];
-  header?: boolean;
-  topBandOpacity?: number;
-}) {
-  const { owner, accent, radius, theme, header = true, topBandOpacity = 0.64 } =
-    params;
-  const chrome = document.createElement("div");
-
-  applyStyles(chrome, {
-    position: "absolute",
-    inset: "0",
-    borderRadius: radius,
-    pointerEvents: "none",
-    background: theme.surface.chrome.overlay,
-  });
-
-  if (header) {
-    const topBand = document.createElement("div");
-    const cornerGlow = document.createElement("div");
-
-    applyStyles(topBand, {
-      position: "absolute",
-      left: "0",
-      top: "0",
-      right: "0",
-      height: "44px",
-      borderTopLeftRadius: radius,
-      borderTopRightRadius: radius,
-      background: `linear-gradient(90deg, ${accent} 0%, ${theme.surface.chrome.accentFade} 72%)`,
-      opacity: topBandOpacity,
-      pointerEvents: "none",
-    });
-
-    applyStyles(cornerGlow, {
-      position: "absolute",
-      right: "-20px",
-      top: "-24px",
-      width: "116px",
-      height: "116px",
-      borderRadius: "999px",
-      background: theme.surface.chrome.glow,
-      pointerEvents: "none",
-    });
-
-    chrome.appendChild(topBand);
-    chrome.appendChild(cornerGlow);
-  } else {
-    // Header-less shapes (circle/pill/diamond/…) keep their accent identity
-    // via a soft top-centered wash instead of the rectangular band.
-    const accentWash = document.createElement("div");
-    applyStyles(accentWash, {
-      position: "absolute",
-      inset: "0",
-      borderRadius: radius,
-      background: `radial-gradient(135% 100% at 50% 0%, ${accent} 0%, ${theme.surface.chrome.accentFade} 70%)`,
-      opacity: 0.85,
-      pointerEvents: "none",
-    });
-    chrome.appendChild(accentWash);
-  }
-
-  owner.appendChild(chrome);
-}
-
 function drawZoneAnchors(params: {
   owner: HTMLElement;
   zone: ZoneVisualNode;
@@ -1247,6 +1008,9 @@ export const domDrawEngine: DrawEngine = {
         undefined;
 
       if (customZoneRenderer) {
+        // Full-body renderer escape hatch: the consumer's renderer owns the
+        // entire body (border, background, content). Geometry, anchors, click
+        // and opacity/pulse stay library-controlled.
         applyStyles(zoneBodyEl, {
           position: "absolute",
           left: "0",
@@ -1277,66 +1041,24 @@ export const domDrawEngine: DrawEngine = {
           rect: zoneVisual.rect,
           context: rendererContext,
         });
-      } else if (shape.clipPath) {
-        // Clipped polygon (diamond/hexagon/custom). A CSS border would be
-        // cut by clip-path, so the outline is synthesized: a border-colored
-        // base layer with a 1px-inset fill layer on top. Depth comes from a
-        // drop-shadow filter since box-shadow is clipped away.
-        applyStyles(zoneBodyEl, {
-          position: "absolute",
-          left: "0",
-          top: "0",
-          width: "100%",
-          height: "100%",
-          background: zoneBorderColor,
-          clipPath: shape.clipPath,
-          boxSizing: "border-box",
-          overflow: "hidden",
-          filter: ZONE_CLIP_SHADOW,
-        });
-
-        const zoneFillEl = document.createElement("div");
-        applyStyles(zoneFillEl, {
-          position: "absolute",
-          inset: "1px",
-          background: theme.surface.zone.background,
-          clipPath: shape.clipPath,
-          boxSizing: "border-box",
-          overflow: "hidden",
-        });
-        zoneBodyEl.appendChild(zoneFillEl);
-
-        createSurfaceChrome({
-          owner: zoneFillEl,
-          accent: zoneAccentColor,
-          radius: "0",
-          theme,
-          header: shape.header,
-        });
       } else {
-        applyStyles(zoneBodyEl, {
-          position: "absolute",
-          left: "0",
-          top: "0",
-          width: "100%",
-          height: "100%",
-          borderRadius: shape.borderRadius,
-          border: `1px ${zoneStyle?.borderStyle ?? "solid"} ${zoneBorderColor}`,
-          background: theme.surface.zone.background,
-          boxSizing: "border-box",
-          boxShadow: theme.surface.zone.shadow,
-          overflow: "hidden",
+        // No consumer renderer → the library's default zone renderer draws the
+        // standard card (chrome + built-in slots + farest icon). The built-in
+        // slot taxonomy lives in that renderer, not in the engine core.
+        renderDefaultZoneBody({
+          host: zoneBodyEl,
+          zoneVisual,
+          componentLayout,
+          shape,
+          zoneBorderColor,
+          zoneAccentColor,
+          zoneStyle,
+          zoneDensity,
+          zoneColor,
+          zoneResolveContext,
+          input,
+          mounts,
         });
-
-        const zoneChromeEl = document.createElement("div");
-        createSurfaceChrome({
-          owner: zoneChromeEl,
-          accent: zoneAccentColor,
-          radius: shape.borderRadius,
-          theme,
-          header: shape.header,
-        });
-        zoneBodyEl.appendChild(zoneChromeEl);
       }
 
       zoneEl.addEventListener("click", (event) => {
@@ -1345,53 +1067,6 @@ export const domDrawEngine: DrawEngine = {
       });
 
       zoneEl.appendChild(zoneBodyEl);
-
-      // Built-in content (slots + farest icon) only when no full-body renderer
-      // took over — the custom renderer owns everything inside the body.
-      if (!customZoneRenderer) {
-        for (const slot of Object.keys(componentLayout?.slots ?? {}) as ZoneComponentSlotName[]) {
-          createZoneSlotHost({
-            zoneVisual,
-            componentLayout,
-            slot,
-            input,
-            mounts,
-            owner: zoneBodyEl,
-          });
-        }
-
-        // "farest" — the zone is too small for any slot, so show an icon-only
-        // marker (consumer-resolved glyph, else the name's first character) so
-        // it never reads as a blank card.
-        if (zoneDensity === "farest") {
-          const iconText =
-            input.resolveZoneIcon?.(zoneVisual.zone, zoneResolveContext) ??
-            Array.from(zoneVisual.zone.name.trim())[0] ??
-            "";
-          if (iconText) {
-            const iconEl = document.createElement("div");
-            const fontSize = Math.max(
-              8,
-              Math.min(zoneVisual.rect.width, zoneVisual.rect.height) * 0.5
-            );
-            applyStyles(iconEl, {
-              position: "absolute",
-              inset: "0",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: zoneColor ?? theme.zoneTitle,
-              fontSize: `${fontSize}px`,
-              fontWeight: "600",
-              lineHeight: "1",
-              overflow: "hidden",
-              pointerEvents: "none",
-            });
-            iconEl.textContent = iconText;
-            zoneBodyEl.appendChild(iconEl);
-          }
-        }
-      }
 
       drawZoneAnchors({
         owner: zoneEl,

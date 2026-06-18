@@ -11,5 +11,6 @@ export * from "./engines/graphLayoutEngine";
 export * from "./engines/densityEngine";
 export * from "./engines/visibilityEngine";
 export * from "./engines/componentLayoutEngine";
+export * from "./engines/defaultZoneRenderer";
 export * from "./engines/drawEngine";
 export * from "./engines/debugDrawEngine";

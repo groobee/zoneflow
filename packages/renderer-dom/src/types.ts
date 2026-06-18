@@ -113,6 +113,12 @@ export type VisibilityResult = {
   pathVisibilityById: Record<PathId, PathVisibility>;
 };
 
+/**
+ * 라이브러리 **기본 zone 렌더러**(`renderDefaultZoneBody`)가 그리는 슬롯 이름들.
+ * 코어 엔진이 강제하는 고정 목록이 아니라 기본 렌더러의 구현 디테일이다 — 존
+ * 전체를 직접 그리려면 `resolveZoneRenderer` 로 풀바디 렌더러를 주면 이 슬롯들은
+ * 아예 만들어지지 않는다.
+ */
 export type BuiltInZoneSlotName =
   | "title"
   | "type"
