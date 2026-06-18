@@ -7,7 +7,7 @@ import type {
   ZoneId,
 } from "@zoneflow/core";
 import type { Rect } from "@zoneflow/renderer-dom";
-import type { ZoneflowEditorTheme } from "./theme";
+import type { ZoneflowEditorTheme } from "@zoneflow/editor-dom";
 
 /**
  * 소비자가 에디터에 주입하는 "그리기 훅"들의 prop 계약. 존 배치/이동을 다루는

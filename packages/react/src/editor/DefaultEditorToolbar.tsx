@@ -6,7 +6,7 @@ import {
   getZoneflowEditorStrings,
   resolveEditorLocale,
 } from "./strings";
-import { resolveEditorTheme, type ZoneflowEditorThemeInput } from "./theme";
+import { resolveEditorTheme, type ZoneflowEditorThemeInput } from "@zoneflow/editor-dom";
 import type { UniverseEditorController } from "./useUniverseEditor";
 
 const groupStyle: CSSProperties = {

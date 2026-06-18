@@ -1,6 +1,11 @@
 export * from "./canvas/UniverseCanvas";
 export * from "./editor/DefaultEditorToolbar";
-export * from "./editor/theme";
+export {
+  defaultEditorTheme,
+  resolveEditorTheme,
+  type ZoneflowEditorTheme,
+  type ZoneflowEditorThemeInput,
+} from "@zoneflow/editor-dom";
 export * from "./editor/strings";
 export * from "./editor/editorRenderProps";
 export * from "./editor/UniverseEditorCanvas";

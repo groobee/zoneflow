@@ -1,4 +1,4 @@
-import type { ZoneflowEditorThemeInput } from "@zoneflow/react";
+import type { ZoneflowEditorThemeInput } from "@zoneflow/editor-dom";
 import type { ZoneflowTheme } from "@zoneflow/renderer-dom";
 
 export type ZoneflowThemePresetId =

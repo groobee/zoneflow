@@ -2,6 +2,7 @@ export * from "./zoneMoveEditor";
 export * from "./pathCreateEditor";
 export * from "./zOrderEditor";
 export * from "./floatingLayout";
+export * from "./theme";
 export {
   alignPathsByMode,
   alignZonesByMode,

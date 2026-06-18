@@ -23,7 +23,7 @@ import {
   resolveEditorLocale,
 } from "./strings";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay";
-import { resolveEditorTheme } from "./theme";
+import { resolveEditorTheme } from "@zoneflow/editor-dom";
 import type { UniverseEditorController } from "./useUniverseEditor";
 
 type ControlledZoneMoveEditorConfig = Omit<

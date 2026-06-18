@@ -8,7 +8,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../react" },
+    { "path": "../editor-dom" },
     { "path": "../renderer-dom" }
   ]
 }

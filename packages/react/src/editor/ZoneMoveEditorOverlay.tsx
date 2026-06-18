@@ -88,7 +88,7 @@ import {
   resolveEditorTheme,
   type ZoneflowEditorTheme,
   type ZoneflowEditorThemeInput,
-} from "./theme";
+} from "@zoneflow/editor-dom";
 import type {
   PathEditorRenderProps,
   ZoneEditorRenderProps,

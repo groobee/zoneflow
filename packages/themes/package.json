@@ -17,7 +17,7 @@
   },
   "files": ["dist"],
   "dependencies": {
-    "@zoneflow/react": "workspace:*",
+    "@zoneflow/editor-dom": "workspace:*",
     "@zoneflow/renderer-dom": "workspace:*"
   },
   "scripts": {
