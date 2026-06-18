@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   findPathSourceZoneId,
   pruneLayoutModel,
@@ -99,6 +99,7 @@ function ToolbarDivider() {
   return (
     <span
       aria-hidden="true"
+      data-toolbar-divider="true"
       style={{
         alignSelf: "stretch",
         width: 1,
@@ -133,6 +134,45 @@ function ToolbarGroup(props: { divider?: boolean; children: ReactNode }) {
       {props.children}
     </div>
   );
+}
+
+/**
+ * 줄바꿈된 선택 툴바에서 "줄 맨 앞"에 오게 된 그룹 선행 구분선을 숨긴다. flex-wrap
+ * 만으로는 어느 그룹이 새 줄의 첫 항목인지 CSS 로 알 수 없어, 레이아웃을 측정해
+ * 처리한다. (구분선은 그룹 안 선행 요소뿐이라 "줄 끝"에는 오지 않는다.)
+ *
+ * - 같은 줄 항목은 `alignItems:center` 라 수직 중심(centerY)이 동일하므로, 직전
+ *   형제와 centerY 가 다르면 그 그룹은 새 줄의 첫 항목 → 구분선 숨김. (높이가
+ *   다른 count 라벨과 버튼 그룹이 섞여도 안전하다.)
+ * - `visibility: hidden` 으로 숨겨 박스 크기는 유지 → ResizeObserver 재귀(루프) 없음.
+ * - 컨테이너 크기 변화(뷰포트 리사이즈로 인한 재줄바꿈)는 ResizeObserver 로 추적.
+ */
+function useHideRowStartGroupDividers(
+  containerRef: { current: HTMLDivElement | null },
+  deps: unknown[]
+) {
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const apply = () => {
+      let prevCenter: number | null = null;
+      for (const child of Array.from(container.children) as HTMLElement[]) {
+        const center = child.offsetTop + child.offsetHeight / 2;
+        const divider = child.firstElementChild as HTMLElement | null;
+        if (divider?.dataset.toolbarDivider === "true") {
+          const isRowStart =
+            prevCenter === null || Math.abs(center - prevCenter) > 2;
+          divider.style.visibility = isRowStart ? "hidden" : "visible";
+        }
+        prevCenter = center;
+      }
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(container);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }
 
 const ALIGN_COMMANDS = [
@@ -1429,6 +1469,8 @@ export function ZoneMoveEditorOverlay(props: {
   const [objectSnapGuideLines, setObjectSnapGuideLines] =
     useState<ObjectSnapGuideLineState | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const zoneToolbarRef = useRef<HTMLDivElement | null>(null);
+  const pathToolbarRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
   const pathResizeRef = useRef<PathResizeState | null>(null);
@@ -2551,6 +2593,22 @@ export function ZoneMoveEditorOverlay(props: {
     selectedZoneTargets.length >= 1 && permissions.moveZone;
   const canRunPathZOrderCommands =
     selectedPathTargets.length >= 1 && permissions.routePath;
+  // 줄바꿈된 툴바에서 줄 맨 앞에 오게 된 그룹 구분선을 숨긴다(zone/path 각각).
+  // (early return 보다 위에서 호출해야 hook 순서가 항상 일정하다.)
+  useHideRowStartGroupDividers(zoneToolbarRef, [
+    selectedZoneTargets.length,
+    commonZoneSelectionActions.length,
+    canRunZoneZOrderCommands,
+    permissions.deleteZone,
+    editorLocale,
+  ]);
+  useHideRowStartGroupDividers(pathToolbarRef, [
+    selectedPathTargets.length,
+    commonPathSelectionActions.length,
+    canRunPathZOrderCommands,
+    permissions.deletePath,
+    editorLocale,
+  ]);
   const selectedTarget = useMemo(
     () =>
       selectedTargetKey
@@ -3616,6 +3674,7 @@ export function ZoneMoveEditorOverlay(props: {
         selectedZoneTargets.length > 0 &&
         (permissions.moveZone || permissions.deleteZone) ? (
           <div
+            ref={zoneToolbarRef}
             style={{
               position: "absolute",
               left: `${clamp(selectionBounds.x + selectionBounds.width / 2, 96, overlayWidth - 96)}px`,
@@ -3744,6 +3803,7 @@ export function ZoneMoveEditorOverlay(props: {
         selectedPathTargets.length > 0 &&
         (permissions.routePath || permissions.deletePath) ? (
           <div
+            ref={pathToolbarRef}
             style={{
               position: "absolute",
               left: `${clamp(pathSelectionBounds.x + pathSelectionBounds.width / 2, 96, overlayWidth - 96)}px`,
