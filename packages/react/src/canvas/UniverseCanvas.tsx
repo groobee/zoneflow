@@ -30,6 +30,7 @@ import {
   type ResolvePathStyle,
   type ResolveZoneColor,
   type ResolveZoneIcon,
+  type ResolvePathRenderer,
   type ResolveZoneRenderer,
   type ResolveZoneShape,
   type ResolveZoneStyle,
@@ -54,6 +55,7 @@ import {resolvePermissions} from "../editor/editorPermissions";
 import {
   type BackgroundComponent,
   type PathSlotComponentMap,
+  type ResolvePathRenderComponent,
   type ResolveZoneRenderComponent,
   SlotPortals,
   type ZoneSlotComponentMap,
@@ -80,6 +82,7 @@ export type UniverseCanvasProps = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
   renderZone?: ResolveZoneRenderComponent;
+  renderPath?: ResolvePathRenderComponent;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -170,6 +173,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneStyle,
     resolveZoneIcon,
     renderZone,
+    renderPath,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -197,6 +201,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     zones: [],
     paths: [],
     zoneRenderers: [],
+      pathRenderers: [],
     background: null,
   });
   const camera = cameraState ?? internalCamera;
@@ -279,6 +284,14 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     return (zone, context) =>
       renderZone(zone, context) ? noopRenderer : undefined;
   }, [renderZone]);
+
+  const effectiveResolvePathRenderer = useMemo<
+    ResolvePathRenderer | undefined
+  >(() => {
+    if (!renderPath) return undefined;
+    return (path, context) =>
+      renderPath(path, context) ? noopRenderer : undefined;
+  }, [renderPath]);
 
   useCameraControls({
     hostRef: viewportRef,
@@ -403,6 +416,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolveZoneStyle,
       resolveZoneIcon,
       resolveZoneRenderer: effectiveResolveZoneRenderer,
+      resolvePathRenderer: effectiveResolvePathRenderer,
       resolvePathColor,
       resolvePathLineColor,
       resolvePathStyle,
@@ -419,6 +433,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       zones: [],
       paths: [],
       zoneRenderers: [],
+      pathRenderers: [],
       background: null,
     });
     onFrameChange?.(frame ?? null);
@@ -442,6 +457,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolveZoneStyle,
     resolveZoneIcon,
     effectiveResolveZoneRenderer,
+    effectiveResolvePathRenderer,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -516,6 +532,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
         pathComponents={pathComponents}
         background={background}
         renderZone={renderZone}
+        renderPath={renderPath}
       />
       <ZoneMoveEditorOverlay
         model={model}

@@ -1,11 +1,13 @@
 import type { CSSProperties, ComponentType, ReactNode } from "react";
 import { Fragment } from "react";
 import { createPortal } from "react-dom";
-import type { Zone } from "@zoneflow/core";
+import type { Path, Zone } from "@zoneflow/core";
 import type {
   BackgroundMount,
   PathComponentMount,
   PathComponentSlotName,
+  PathRendererMount,
+  PathResolveContext,
   RenderMountRegistry,
   ZoneComponentMount,
   ZoneComponentSlotName,
@@ -36,6 +38,22 @@ export type ResolveZoneRenderComponent = (
 export type PathSlotComponentProps = {
   mount: PathComponentMount;
 };
+
+export type PathRenderComponentProps = {
+  mount: PathRendererMount;
+};
+
+export type PathRenderComponent = ComponentType<PathRenderComponentProps>;
+
+/**
+ * Resolver picking a full-node path React component for the current visual mode
+ * (or any per-path condition). Return `undefined`/`null` for the default chip.
+ * The path-side equivalent of {@link ResolveZoneRenderComponent}.
+ */
+export type ResolvePathRenderComponent = (
+  path: Path,
+  context: PathResolveContext
+) => PathRenderComponent | null | undefined;
 
 export type BackgroundComponentProps = {
   mount: BackgroundMount;
@@ -87,6 +105,7 @@ export function SlotPortals(props: {
   pathComponents?: PathSlotComponentMap;
   background?: BackgroundComponent;
   renderZone?: ResolveZoneRenderComponent;
+  renderPath?: ResolvePathRenderComponent;
 }) {
   const {
     mounts,
@@ -94,6 +113,7 @@ export function SlotPortals(props: {
     pathComponents,
     background: BackgroundComponent,
     renderZone,
+    renderPath,
   } = props;
 
   return (
@@ -110,6 +130,19 @@ export function SlotPortals(props: {
       {mounts.zoneRenderers.map((mount: ZoneRendererMount) => {
         const Component = renderZone?.(mount.context.zone, {
           density: mount.context.density,
+        });
+        if (!Component) return null;
+
+        return (
+          <Fragment key={mount.key}>
+            {createPortal(<Component mount={mount} />, mount.host)}
+          </Fragment>
+        );
+      })}
+
+      {mounts.pathRenderers.map((mount: PathRendererMount) => {
+        const Component = renderPath?.(mount.context.path, {
+          mode: mount.context.mode,
         });
         if (!Component) return null;
 

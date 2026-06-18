@@ -323,6 +323,63 @@ export type ZoneRendererMount = {
   context: ZoneRendererContext;
 };
 
+/** Context passed to {@link ResolvePathRenderer} (path-side {@link ZoneResolveContext}). */
+export type PathResolveContext = {
+  /** The path's resolved visual mode this frame (edge-only / chip / full). */
+  mode: PathVisualMode;
+};
+
+/**
+ * Context for a full-path renderer ({@link PathRenderer}) — the path-node
+ * counterpart of {@link ZoneRendererContext}. The renderer owns the entire
+ * node body (border, background, content), so it gets the node `rect` and the
+ * resolved `pathColor` rather than a per-slot layout.
+ */
+export type PathRendererContext = {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  path: Path;
+  pathVisual: PathVisualNode;
+  mode: PathVisualMode;
+  visibility: PathVisibility;
+  rect: Rect;
+  camera: CameraState;
+  theme: ZoneflowTheme;
+  pathColor?: string;
+  textScale: TextScaleLevel;
+};
+
+/**
+ * Imperative renderer that draws an ENTIRE path node (border + background +
+ * content) into `host`, replacing the built-in chip chrome, status badge and
+ * slots. The library still owns geometry, the connector edges, hit-testing and
+ * opacity/pulse — only the node's inner visual is yours. See
+ * {@link ResolvePathRenderer}.
+ */
+export type PathRenderer = (
+  host: HTMLElement,
+  context: PathRendererContext
+) => void;
+
+/**
+ * Resolver invoked once per path to pick a full-node renderer for the current
+ * visual mode (or any per-path condition). Return `undefined`/`null` to fall
+ * back to the built-in chip. The path-side equivalent of
+ * {@link ResolveZoneRenderer}.
+ */
+export type ResolvePathRenderer = (
+  path: Path,
+  context: PathResolveContext
+) => PathRenderer | null | undefined;
+
+export type PathRendererMount = {
+  key: string;
+  pathId: PathId;
+  host: HTMLElement;
+  rect: Rect;
+  context: PathRendererContext;
+};
+
 export type PathComponentMount = {
   key: string;
   pathId: PathId;
@@ -363,6 +420,8 @@ export type RenderMountRegistry = {
   paths: PathComponentMount[];
   /** Full-body zone renderers (see {@link ResolveZoneRenderer}). */
   zoneRenderers: ZoneRendererMount[];
+  /** Full-node path renderers (see {@link ResolvePathRenderer}). */
+  pathRenderers: PathRendererMount[];
   background: BackgroundMount | null;
 };
 
@@ -410,6 +469,7 @@ export type RendererDrawInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
   resolveZoneRenderer?: ResolveZoneRenderer;
+  resolvePathRenderer?: ResolvePathRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -499,6 +559,7 @@ export type RendererInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
   resolveZoneRenderer?: ResolveZoneRenderer;
+  resolvePathRenderer?: ResolvePathRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;

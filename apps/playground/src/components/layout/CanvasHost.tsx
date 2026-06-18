@@ -27,10 +27,12 @@ import { readPaletteZoneDragData } from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
 import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
+  CustomPathNode,
   customZoneComponents,
   customZoneLayoutEngine,
   FarZoneCard,
 } from "../renderers/customSlots";
+import type { ResolvePathRenderComponent } from "@zoneflow/react";
 import type { ResolveZoneRenderComponent } from "@zoneflow/react";
 import {
   makeWeatherBackground,
@@ -97,6 +99,10 @@ const resolveZoneStyle: ResolveZoneStyle = (_zone, { density }) =>
 /** far 레벨에서 기본 카드 대신 커스텀 컴포넌트로 통째 렌더. 그 외엔 기본. */
 const renderZone: ResolveZoneRenderComponent = (_zone, { density }) =>
   density === "far" ? FarZoneCard : undefined;
+
+/** 규칙이 설정된 패스는 노드 전체를 커스텀 칩으로. 미설정 패스는 기본. */
+const renderPath: ResolvePathRenderComponent = (path) =>
+  path.rule !== null ? CustomPathNode : undefined;
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -295,6 +301,7 @@ export function CanvasHost({
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle ?? resolveZoneStyle}
         resolveZoneIcon={resolveZoneIcon}
         renderZone={renderZone}
+        renderPath={renderPath}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={
           cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor

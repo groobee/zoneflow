@@ -3,6 +3,8 @@ import {
   type ExtensibleZoneSlot,
 } from "@zoneflow/renderer-dom";
 import {
+  Pathed,
+  type PathRenderComponentProps,
   Zoned,
   type ZoneRenderComponentProps,
   type ZoneSlotComponentMap,
@@ -174,6 +176,53 @@ export function FarZoneCard({ mount }: ZoneRenderComponentProps) {
         {zone.name}
       </span>
     </Zoned>
+  );
+}
+
+/**
+ * renderPath 데모: 패스 노드 전체(테두리+배경+내용)를 직접 그린다 —
+ * 좌측 점 + 패스 이름의 알약형 칩. 기본 칩과 다른 모습으로 "통째 교체"를 보여줌.
+ */
+export function CustomPathNode({ mount }: PathRenderComponentProps) {
+  const { path, pathColor, theme } = mount.context;
+  const accent = pathColor ?? theme.pathEdge;
+
+  return (
+    <Pathed
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "0 10px",
+        borderRadius: 999,
+        border: `2px solid ${accent}`,
+        background: "rgba(255, 255, 255, 0.92)",
+        boxShadow: "0 4px 12px rgba(2, 6, 23, 0.12)",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: accent,
+          flex: "0 0 auto",
+        }}
+      />
+      <span
+        style={{
+          fontFamily: sans,
+          fontSize: 12,
+          fontWeight: 700,
+          color: theme.pathLabel,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {path.name?.trim() || path.key}
+      </span>
+    </Pathed>
   );
 }
 

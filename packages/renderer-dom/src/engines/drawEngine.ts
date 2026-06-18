@@ -6,6 +6,7 @@ import type {
   PathComponentRendererContext,
   PathComponentSlotName,
   PathLineStyle,
+  PathRendererContext,
   PathVisualNode,
   Rect,
   RenderMountRegistry,
@@ -62,6 +63,7 @@ function createEmptyMountRegistry(): RenderMountRegistry {
     zones: [],
     paths: [],
     zoneRenderers: [],
+    pathRenderers: [],
     background: null,
   };
 }
@@ -1415,9 +1417,16 @@ export const domDrawEngine: DrawEngine = {
       }
 
       const componentLayout = pipeline.componentLayout.pathsById[pathVisual.pathId];
+      const pathDensity = pipeline.density.pathDensityById[pathVisual.pathId];
       const pathEl = document.createElement("div");
-      const pathChromeEl = document.createElement("div");
       pathEl.dataset.zoneflowPathId = pathVisual.pathId;
+
+      // Full-node renderer escape hatch (path-side renderZone): when present it
+      // owns the whole node — skip the built-in chip chrome, status badge and
+      // slots. Geometry, connector edges, click and opacity/pulse stay ours.
+      const customPathRenderer =
+        input.resolvePathRenderer?.(pathVisual.path, { mode: pathDensity }) ??
+        undefined;
 
       applyStyles(pathEl, {
         position: "absolute",
@@ -1425,11 +1434,16 @@ export const domDrawEngine: DrawEngine = {
         top: `${pathVisual.rect.y}px`,
         width: `${pathVisual.rect.width}px`,
         height: `${pathVisual.rect.height}px`,
-        borderRadius: "18px",
-        border: `1px solid ${theme.pathEdge}`,
-        background: theme.surface.path.background,
+        // The custom renderer draws its own border/background.
+        ...(customPathRenderer
+          ? {}
+          : {
+              borderRadius: "18px",
+              border: `1px solid ${theme.pathEdge}`,
+              background: theme.surface.path.background,
+              boxShadow: theme.surface.path.shadow,
+            }),
         boxSizing: "border-box",
-        boxShadow: theme.surface.path.shadow,
         opacity: getOpacity(visibility.emphasis),
         zIndex: RENDER_Z_INDEX.pathNode,
         overflow: "hidden",
@@ -1446,38 +1460,62 @@ export const domDrawEngine: DrawEngine = {
         interactionHandlers?.onPathClick?.(pathVisual.pathId);
       });
 
-      createSurfaceChrome({
-        owner: pathChromeEl,
-        accent: theme.surface.path.accent,
-        radius: "18px",
-        theme,
-        topBandOpacity: 0.72,
-      });
-
-      pathEl.appendChild(pathChromeEl);
-
-      const targetDisplay = resolvePathTargetDisplay({
-        model: input.model,
-        pathVisual,
-      });
-
-      if (targetDisplay.status !== "resolved") {
-        createPathStatusBadge({
-          owner: pathEl,
-          status: targetDisplay.status,
-          theme,
-        });
-      }
-
-      for (const slot of Object.keys(componentLayout?.slots ?? {}) as PathComponentSlotName[]) {
-        createPathSlotHost({
+      if (customPathRenderer) {
+        const rendererContext: PathRendererContext = {
+          model: input.model,
+          layoutModel: input.layoutModel,
+          path: pathVisual.path,
           pathVisual,
-          componentLayout,
-          slot,
-          input,
-          mounts,
-          owner: pathEl,
+          mode: pathDensity,
+          visibility,
+          rect: pathVisual.rect,
+          camera: input.camera,
+          theme,
+          pathColor: input.resolvePathColor?.(pathVisual.path) ?? undefined,
+          textScale: input.textScale,
+        };
+        customPathRenderer(pathEl, rendererContext);
+        mounts.pathRenderers.push({
+          key: `${pathVisual.pathId}:__path__`,
+          pathId: pathVisual.pathId,
+          host: pathEl,
+          rect: pathVisual.rect,
+          context: rendererContext,
         });
+      } else {
+        const pathChromeEl = document.createElement("div");
+        createSurfaceChrome({
+          owner: pathChromeEl,
+          accent: theme.surface.path.accent,
+          radius: "18px",
+          theme,
+          topBandOpacity: 0.72,
+        });
+        pathEl.appendChild(pathChromeEl);
+
+        const targetDisplay = resolvePathTargetDisplay({
+          model: input.model,
+          pathVisual,
+        });
+
+        if (targetDisplay.status !== "resolved") {
+          createPathStatusBadge({
+            owner: pathEl,
+            status: targetDisplay.status,
+            theme,
+          });
+        }
+
+        for (const slot of Object.keys(componentLayout?.slots ?? {}) as PathComponentSlotName[]) {
+          createPathSlotHost({
+            pathVisual,
+            componentLayout,
+            slot,
+            input,
+            mounts,
+            owner: pathEl,
+          });
+        }
       }
 
       pathLayer.appendChild(pathEl);
