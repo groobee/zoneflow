@@ -50,8 +50,6 @@ type EditorStrings = {
     deleted: (label: string) => string;
   };
   target: {
-    zoneBadge: string;
-    pathBadge: string;
     edit: string;
     open: string;
     editPath: string;
@@ -119,8 +117,6 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       deleted: (label) => `${label} 삭제됨`,
     },
     target: {
-      zoneBadge: "ZONE",
-      pathBadge: "PATH",
       edit: "수정",
       open: "열림",
       editPath: "Edit path",
@@ -186,8 +182,6 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       deleted: (label) => `${label} deleted`,
     },
     target: {
-      zoneBadge: "ZONE",
-      pathBadge: "PATH",
       edit: "Edit",
       open: "Open",
       editPath: "Edit path",
@@ -258,14 +252,6 @@ export function getSelectionToolbarCountLabel(params: {
     : `${count} ${strings.pathSelectionSuffix}`;
 }
 
-export function getTargetBadgeLabel(params: {
-  locale: ZoneflowEditorLocale;
-  kind: "zone" | "path";
-}) {
-  return params.kind === "zone"
-    ? EDITOR_STRINGS[params.locale].target.zoneBadge
-    : EDITOR_STRINGS[params.locale].target.pathBadge;
-}
 
 export function getTargetMetaStateLabel(params: {
   locale: ZoneflowEditorLocale;

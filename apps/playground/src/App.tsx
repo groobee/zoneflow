@@ -109,9 +109,6 @@ export default function App() {
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
   const [floatingEnabled, setFloatingEnabled] = useState(false);
-  const [badgeVisibility, setBadgeVisibility] = useState<
-    "always" | "selected" | "hidden"
-  >("always");
   const [editPermissionMode, setEditPermissionMode] =
     useState<EditPermissionMode>("full");
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
@@ -275,8 +272,6 @@ export default function App() {
         onToggleOverlayHud={() => setOverlayHudVisible((current) => !current)}
         floatingEnabled={floatingEnabled}
         onToggleFloating={() => setFloatingEnabled((current) => !current)}
-        badgeVisibility={badgeVisibility}
-        setBadgeVisibility={setBadgeVisibility}
         onOpenDataModal={() => setIsDataModalOpen(true)}
         onCreateNewDocument={handleCreateNewDocument}
         onExportFile={handleExportFile}
@@ -301,7 +296,6 @@ export default function App() {
         debug={debug}
         onResize={setHostSize}
         overlayHudVisible={overlayHudVisible}
-        badgeVisibility={badgeVisibility}
         themePreset={themePreset}
         weatherBackgroundId={weatherBackgroundId}
         canConnectPath={canConnectPath}

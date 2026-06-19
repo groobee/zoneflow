@@ -77,12 +77,10 @@ import {
   getObjectSnapToggleLabel,
   getSelectionCommandLabel,
   getSelectionToolbarCountLabel,
-  getTargetBadgeLabel as getTargetBadgeLabelText,
   getTargetMetaStateLabel,
   getZoneflowEditorStrings,
   resolveEditorLocale,
   type SelectionCommandKey,
-  type ZoneflowEditorLocale,
 } from "./strings";
 import {
   resolveEditorTheme,
@@ -467,31 +465,14 @@ export type ZoneMoveEditorConfig = {
    */
   permissions?: Partial<EditorPermissions>;
   /**
-   * 타깃 위에 뜨는 메타 표기를 제어합니다.
+   * 편집 중 타깃 위에 뜨는 상태 표기를 제어합니다.
    *
-   * - `badgeVisibility`: 좌상단 종류 배지의 표시 시점.
-   *   - `"always"` : 편집 모드에서 항상 노출
-   *   - `"selected"` : 선택/드래그 중일 때만 노출 (기본값)
-   *   - `"hidden"` : 항상 숨김
-   * - `resolveBadgeLabel`: 배지 라벨을 타깃별로 커스터마이즈. 예) 발송존 → "SEND",
-   *   분기존 → "BRANCH". 문자열을 반환하면 그 라벨을, `null` 을 반환하면 그 타깃의
-   *   배지만 숨기고, `undefined` 를 반환하면 기본 라벨(ZONE / PATH)을 씁니다.
    * - `showStateChip`: 우하단의 상태 표기(DRAG / MOVING / RESIZE). 기본 `false`(숨김).
    *
-   * 미지정 시 종류 배지는 선택 시 기본 라벨로 노출되고 상태 표기는 숨겨집니다.
+   * (종류 배지는 더 이상 여기 있지 않습니다 — 뷰/편집 양쪽에서 동작하는 렌더
+   *  레벨 훅 `UniverseCanvas.renderZoneOverlay` 로 그리세요.)
    */
   targetMeta?: {
-    badgeVisibility?: "always" | "selected" | "hidden";
-    resolveBadgeLabel?: (params: {
-      kind: "zone" | "path";
-      zone?: Zone;
-      path?: Path;
-      zoneId?: ZoneId;
-      pathId?: PathId;
-      model: UniverseModel;
-      locale: ZoneflowEditorLocale;
-      defaultLabel: string;
-    }) => string | null | undefined;
     showStateChip?: boolean;
   };
   deleteInteraction?: {
@@ -803,17 +784,6 @@ function getTargetOutlineStyle(
     background: tone.background,
     boxShadow: tone.boxShadow,
     borderRadius: isZone ? 18 : 14,
-  };
-}
-
-function getTargetBadgeStyle(
-  visualState: TargetVisualState,
-  editorTheme: ZoneflowEditorTheme
-): CSSProperties {
-  const tone = editorTheme.targetBadge[visualState];
-  return {
-    background: tone.background,
-    color: tone.color,
   };
 }
 
@@ -1620,9 +1590,7 @@ export function ZoneMoveEditorOverlay(props: {
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
   const overlayControlsEnabled = editor?.overlayControls?.enabled ?? false;
   const overlayControls = editor?.overlayControls;
-  // 종류 배지는 기본 "선택 시" 노출, 상태 표기(DRAG/MOVING/RESIZE)는 기본 숨김.
-  const targetBadgeVisibility = editor?.targetMeta?.badgeVisibility ?? "selected";
-  const resolveTargetBadgeLabel = editor?.targetMeta?.resolveBadgeLabel;
+  // 상태 표기(DRAG/MOVING/RESIZE)는 기본 숨김. (종류 배지는 renderZoneOverlay 로 이동)
   const showTargetStateChip = editor?.targetMeta?.showStateChip === true;
 
   const startTransaction = (transaction: EditorTransactionMeta) => {
@@ -4177,43 +4145,6 @@ export function ZoneMoveEditorOverlay(props: {
             draggingTargetKey: draggingTarget?.key ?? null,
           });
           const zone = target.kind === "zone" ? model.zonesById[target.zoneId] : undefined;
-          // 종류 배지(좌상단)의 라벨/표시 여부를 타깃별로 결정.
-          let badgePath: Path | undefined;
-          if (resolveTargetBadgeLabel && target.kind === "path") {
-            const badgeSourceZoneId = findPathSourceZoneId(model, target.pathId);
-            badgePath = badgeSourceZoneId
-              ? model.zonesById[badgeSourceZoneId]?.pathsById[target.pathId]
-              : undefined;
-          }
-          const defaultBadgeLabel = getTargetBadgeLabelText({
-            locale: editorLocale,
-            kind: target.kind,
-          });
-          const resolvedBadgeLabel = resolveTargetBadgeLabel
-            ? resolveTargetBadgeLabel({
-                kind: target.kind,
-                zone,
-                path: badgePath,
-                zoneId: target.kind === "zone" ? target.zoneId : undefined,
-                pathId: target.kind === "path" ? target.pathId : undefined,
-                model,
-                locale: editorLocale,
-                defaultLabel: defaultBadgeLabel,
-              })
-            : undefined;
-          const badgeLabel =
-            resolvedBadgeLabel === null
-              ? null
-              : typeof resolvedBadgeLabel === "string" && resolvedBadgeLabel.length > 0
-                ? resolvedBadgeLabel
-                : defaultBadgeLabel;
-          const shouldShowBadge =
-            badgeLabel !== null &&
-            (targetBadgeVisibility === "always"
-              ? true
-              : targetBadgeVisibility === "hidden"
-                ? false
-                : shouldShowTargetMeta(visualState));
           const isEditingZone =
             target.kind === "zone" && editingZoneId === target.zoneId;
           const sourceAnchorScreenRect =
@@ -4994,50 +4925,27 @@ export function ZoneMoveEditorOverlay(props: {
                   {editorStrings.target.editPath}
                 </button>
               ) : null}
-              {shouldShowBadge ||
-              (shouldShowTargetMeta(visualState) && showTargetStateChip) ? (
-                <>
-                  {shouldShowBadge ? (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 10,
-                      top: -12,
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      letterSpacing: "0.08em",
-                      boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
-                      ...getTargetBadgeStyle(visualState, resolvedEditorTheme),
-                    }}
-                  >
-                    {badgeLabel}
-                  </div>
-                  ) : null}
-                  {shouldShowTargetMeta(visualState) && showTargetStateChip ? (
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 10,
-                      bottom: 8,
-                      padding: "3px 7px",
-                      borderRadius: 999,
-                      background: resolvedEditorTheme.overlay.metaChip.background,
-                      color: resolvedEditorTheme.overlay.metaChip.color,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
-                    }}
-                  >
-                    {getTargetMetaStateLabel({
-                      locale: editorLocale,
-                      isDragging,
-                      isResizing: isResizingTarget,
-                    })}
-                  </div>
-                  ) : null}
-                </>
+              {shouldShowTargetMeta(visualState) && showTargetStateChip ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    bottom: 8,
+                    padding: "3px 7px",
+                    borderRadius: 999,
+                    background: resolvedEditorTheme.overlay.metaChip.background,
+                    color: resolvedEditorTheme.overlay.metaChip.color,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    boxShadow: resolvedEditorTheme.overlay.metaChip.shadow,
+                  }}
+                >
+                  {getTargetMetaStateLabel({
+                    locale: editorLocale,
+                    isDragging,
+                    isResizing: isResizingTarget,
+                  })}
+                </div>
               ) : null}
             </div>
           );
