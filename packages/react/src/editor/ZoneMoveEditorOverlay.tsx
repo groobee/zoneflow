@@ -307,6 +307,16 @@ export type ZoneMoveEditorConfig = {
    * 무엇을 어떻게 그릴지는 전적으로 소비자 몫이다. {@link ZoneOverlayRenderProps}.
    */
   renderZoneOverlays?: (props: ZoneOverlayRenderProps) => ReactNode;
+  /**
+   * 패스 라벨의 output(retarget) 앵커 핸들 내부 비주얼을 커스터마이즈한다. 라이브러리는
+   * 핸들 위치·드래그(패스 재연결)를 그대로 소유하고, `→` 자리에 들어갈 내부 콘텐츠만
+   * 소비자가 그린다(동그라미·아이콘·SVG 등). `null`/미지정 시 테마 글리프
+   * (`overlay.handles.connect.glyph`, 기본 "→")로 폴백.
+   */
+  renderPathOutputAnchor?: (params: {
+    path: Path;
+    sourceZoneId: ZoneId;
+  }) => ReactNode;
   renderZoneEditor?: (props: ZoneEditorRenderProps) => ReactNode;
   renderPathEditor?: (props: PathEditorRenderProps) => ReactNode;
   onZoneEditClick?: (zoneId: ZoneId) => void;
@@ -4693,7 +4703,13 @@ export function ZoneMoveEditorOverlay(props: {
                       lineHeight: 1,
                     }}
                   >
-                    →
+                    {(pathVisual &&
+                      editor?.renderPathOutputAnchor?.({
+                        path: pathVisual.path,
+                        sourceZoneId: pathVisual.sourceZoneId,
+                      })) ??
+                      resolvedEditorTheme.overlay.handles.connect.glyph ??
+                      "→"}
                   </span>
                 </button>
               ) : null}

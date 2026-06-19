@@ -26,6 +26,12 @@ type HandleTone = {
   border: string;
   color: string;
   shadow: string;
+  /**
+   * connect(패스 output) 핸들 내부 글리프. 기본 "→". 소비자의
+   * `renderPathOutputAnchor` 가 더 우선이며, 그게 없을 때 이 값이 쓰인다.
+   * (zoneResize 핸들에는 적용되지 않음)
+   */
+  glyph?: string;
 };
 
 type HighlightTone = {
@@ -381,6 +387,7 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
         background: "#f0fdfa",
         color: "#0f766e",
         shadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+        glyph: "→",
       },
       zoneResize: {
         border: "1px solid rgba(14, 165, 233, 0.92)",
