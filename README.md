@@ -59,6 +59,9 @@ pnpm add @zoneflow/core @zoneflow/react react react-dom
 - `apps/kittyflow`
   - 편집 없는 read-only viewer 예제 — 골목 고양이 관계도
   - `UniverseCanvas + interactionHandlers.onZoneClick` 으로 존 클릭 시 우측에 정보 패널(모달 아님)을 띄우는 패턴과, 슬롯 커스터마이즈(ASCII 얼굴) / `resolveZoneColor` / `resolvePathColor` 활용을 보여줍니다
+- `apps/custom-zone`
+  - 빌트인 슬롯(`title | type | badge | body | footer`)을 전혀 쓰지 않고, `renderZone` 풀바디 렌더러로 존 카드 전체를 직접 그리는 최소 예제
+  - 마운트 직후 `fitToView()` 로 콘텐츠를 화면에 맞추는 패턴도 함께 보여줍니다
 
 ## 핵심 개념
 
@@ -240,9 +243,10 @@ function Viewer() {
 
 지원 포인트:
 
-- `renderZoneEditButton`
 - `renderZoneEditor`
 - `renderPathEditor`
+- `renderZoneOverlays` (편집 모드 존 오버레이 — 과거 `renderZoneEditButton` 대체)
+- `resolvePathLabelResize`
 - `onPathLabelDoubleClick`
 - `onPathLabelContextMenu`
 - `onZoneSelectionChange`
@@ -442,6 +446,33 @@ import { createZoneFromDropTemplate } from "@zoneflow/react";
 - zone 과 path 선택은 상호 배타입니다. zone 을 선택하면 path 선택이 풀리면서 `onPathSelectionChange([])` 가 함께 호출될 수 있습니다 (반대도 동일).
 - 선택된 zone 이 모델에서 삭제되면 남은 선택만 담아 다시 호출됩니다.
 
+### 패스 라벨 리사이즈 제약 (resolvePathLabelResize)
+
+패스 라벨 박스의 리사이즈 허용 여부와 크기 제약을 패스별로 외부에서 정할 수 있습니다.
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    resolvePathLabelResize: ({ path, sourceZoneId }) => {
+      // 특정 패스는 리사이즈 금지
+      if (path.meta?.locked) return { enabled: false };
+
+      // 나머지는 최소/최대 크기만 제약 (world units)
+      return { minWidth: 80, maxWidth: 320, minHeight: 28 };
+    },
+  }}
+/>
+```
+
+콜백 파라미터: `pathId` / `path` / `sourceZoneId` / `model`.
+
+반환값 (`PathLabelResizeConfig`):
+
+- `enabled` — 리사이즈 핸들 노출 여부(기본 `true`). `false` 면 해당 라벨은 크기 조정 불가.
+- `minWidth` / `maxWidth` / `minHeight` / `maxHeight` — 라벨 박스 크기 제약(world units). 미지정 시 라이브러리 기본 최소치만 적용(상한 없음).
+- `null` / `undefined` / 콜백 미지정 — 기본 동작(라이브러리 기본 최소치로 리사이즈 허용).
+
 ## 슬롯 확장 (커스텀 UI 요소 추가)
 
 기본 zone 슬롯은 `title | type | badge | body | footer` 5종으로 고정되어 있습니다. 이외에 코멘트 버튼, 전환수, 전환금액 카드 같은 임의의 UI 요소를 zone 안에 끼워 넣고 싶다면 **확장형 layout engine** 을 주입합니다.
@@ -498,10 +529,81 @@ const layoutEngine = createExtensibleComponentLayoutEngine({
 - `extraSlots` 항목은 `placement: "top"` (badge/title/type 다음에 stack) 또는 `"bottom"` (footer 위) 로 배치
 - 빈 config 호출 시 (`createExtensibleComponentLayoutEngine()`) `defaultComponentLayoutEngine` 과 출력이 동일 — 기존 동작과 100% 호환
 - 슬롯 컴포넌트는 React `onClick` 등 일반 이벤트 그대로 사용. `stopPropagation()` 호출하면 zone 단위 click 도 차단 가능
-- 줌 단계별 (`far / mid / near / detail`) 가시성은 슬롯마다 `shouldRender` 로 제어
+- 줌 단계별 (`farest / far / mid / near / detail`) 가시성은 슬롯마다 `shouldRender` 로 제어
 - `disabledBuiltIns` 로 `footer` 같은 기본 슬롯을 꺼서 그 자리를 다른 슬롯이나 body 가 차지하도록 만들 수 있음
 
 zone 의 컨테이너/자식 관계 때문에 부모 zone 의 슬롯 영역 위에 자식 zone 이 그려지는 경우, 마우스 클릭이 자식 zone 에 가로채집니다. 인터랙티브한 슬롯 (버튼 등) 은 leaf zone 에서만 렌더하도록 `shouldRender` 에서 `zone.childZoneIds.length === 0` 조건을 거는 것이 안전합니다.
+
+## 존/패스 전체 직접 그리기 (renderZone / renderPath)
+
+슬롯을 채우는 대신, **존/패스 노드 전체를 컴포넌트 하나로 직접 그릴** 수도 있습니다. 슬롯 골격·레이아웃을 라이브러리가 잡지 않고, 노드 rect 전체를 주입한 컴포넌트가 차지합니다.
+
+- `renderZone(zone, context) => Component | null | undefined` — 존 풀바디 렌더러. 컴포넌트를 반환하면 그 존은 빌트인 슬롯(`title | type | badge | body | footer`)을 **하나도 만들지 않고** 풀바디로 마운트됩니다.
+- `renderPath(path, context) => Component | null | undefined` — 패스 풀노드 렌더러. 기본 라벨 칩 대신 패스 노드를 통째로 그립니다.
+
+`null` / `undefined` 를 반환하면 기본 카드(빌트인 슬롯)로 폴백합니다 → "특정 조건만 커스텀, 나머지는 기본" 이 가능합니다. 둘 다 `UniverseCanvas` / `UniverseEditorCanvas` 의 prop 이며 편집 모드에서도 동작합니다.
+
+```tsx
+import type { ResolveZoneRenderComponent } from "@zoneflow/react";
+
+const renderZone: ResolveZoneRenderComponent = (zone, { density }) =>
+  zone.zoneType === "branch" ? BranchCard
+  : density === "far" ? CompactCard
+  : undefined; // 기본 카드
+
+<UniverseEditorCanvas editor={editor} renderZone={renderZone} />;
+```
+
+풀바디 컴포넌트는 `mount.context` 로 다음을 받습니다.
+
+- `zone` (또는 `path`) — 모델 노드
+- `theme` — 해석된 테마 색
+- `density` — 현재 LOD (`farest | far | mid | near | detail`) → 반응형 분기에 사용
+- `rect` — 화면상 박스 크기
+- `zoneColor` — 외부에서 주입한 색(있으면)
+
+> 캔버스는 뷰포트 밖 존을 그리지 않습니다. 풀바디 렌더만 쓰는 화면이라면 로드 시 콘텐츠가 보이도록 `canvasRef.current?.fitToView()` 로 맞추세요.
+
+전체 동작 예제는 `apps/custom-zone` 을 참고하세요.
+
+## 존 오버레이 (renderZoneOverlay / renderZoneOverlays)
+
+존 본문을 **교체하지 않고 그 위에 덮어 그리는** 레이어입니다. 배지·아이콘·작은 컨트롤처럼 본문과 무관한 장식/버튼을 얹을 때 씁니다. 두 종류가 있습니다.
+
+- `renderZoneOverlay(zone, context) => Component | null | undefined` — **렌더 레벨** 오버레이. `UniverseCanvas` / `UniverseEditorCanvas` 의 prop 이며 **뷰/편집 양쪽 모드**에서 항상 동작합니다. (per-instance 배지·장식 같은 표현 계층 요소)
+- `editorConfig.renderZoneOverlays(props) => ReactNode` — **편집 모드 전용** 오버레이. 과거 라이브러리가 강제로 그리던 편집 버튼(`renderZoneEditButton`)을 대체합니다. 존마다 본문 위를 덮는 레이어를 주고, 편집 버튼/배지/컨트롤을 소비자가 직접 그립니다.
+
+`renderZoneOverlays` 가 받는 `props` (`ZoneOverlayRenderProps`):
+
+- `zone` / `zoneId` / `model` / `layoutModel` / `rect` — 대상 존과 화면 박스
+- `isSelected` / `isHovered` / `isEditing` / `isDragging` — 상태 플래그 (언제 무엇을 그릴지 결정)
+- `openEditor()` / `closeEditor()` — `renderZoneEditor` 패널 열고/닫기
+- `theme` — 에디터 테마
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    renderZoneOverlays: ({ zone, isSelected, isHovered, openEditor }) => {
+      if (!isSelected && !isHovered) return null;
+
+      return (
+        <button
+          style={{ position: "absolute", top: 6, right: 6, pointerEvents: "auto" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            openEditor();
+          }}
+        >
+          ✏️ 편집
+        </button>
+      );
+    },
+  }}
+/>
+```
+
+오버레이 컨테이너는 `pointer-events: none` 이라 빈 영역 클릭은 존(드래그)으로 통과합니다. 버튼에는 `pointerEvents: "auto"` 를 주면 되고, 그 클릭이 드래그를 시작하지 않도록 라이브러리가 컨테이너에서 막아줍니다.
 
 ## 개별 색상 / 모양 (per-instance color & shape)
 
