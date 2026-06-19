@@ -11,6 +11,7 @@ import type {
   RenderMountRegistry,
   ZoneComponentMount,
   ZoneComponentSlotName,
+  ZoneOverlayMount,
   ZoneRendererMount,
   ZoneResolveContext,
 } from "@zoneflow/renderer-dom";
@@ -34,6 +35,23 @@ export type ResolveZoneRenderComponent = (
   zone: Zone,
   context: ZoneResolveContext
 ) => ZoneRenderComponent | null | undefined;
+
+export type ZoneOverlayComponentProps = {
+  mount: ZoneOverlayMount;
+};
+
+export type ZoneOverlayComponent = ComponentType<ZoneOverlayComponentProps>;
+
+/**
+ * 존 본문 위에 덮어 그릴 오버레이(배지·장식 등) React 컴포넌트를 고른다. 본문을
+ * 교체하지 않고 위에 얹으며, 뷰/편집 양쪽 모드에서 렌더된다. 안 그릴 땐
+ * `undefined`/`null`. (편집 모드 전용인 에디터의 `renderZoneOverlays` 와 달리
+ * 렌더 레벨이라 항상 동작한다.)
+ */
+export type ResolveZoneOverlayComponent = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => ZoneOverlayComponent | null | undefined;
 
 export type PathSlotComponentProps = {
   mount: PathComponentMount;
@@ -105,6 +123,7 @@ export function SlotPortals(props: {
   pathComponents?: PathSlotComponentMap;
   background?: BackgroundComponent;
   renderZone?: ResolveZoneRenderComponent;
+  renderZoneOverlay?: ResolveZoneOverlayComponent;
   renderPath?: ResolvePathRenderComponent;
 }) {
   const {
@@ -113,6 +132,7 @@ export function SlotPortals(props: {
     pathComponents,
     background: BackgroundComponent,
     renderZone,
+    renderZoneOverlay,
     renderPath,
   } = props;
 
@@ -129,6 +149,19 @@ export function SlotPortals(props: {
 
       {mounts.zoneRenderers.map((mount: ZoneRendererMount) => {
         const Component = renderZone?.(mount.context.zone, {
+          density: mount.context.density,
+        });
+        if (!Component) return null;
+
+        return (
+          <Fragment key={mount.key}>
+            {createPortal(<Component mount={mount} />, mount.host)}
+          </Fragment>
+        );
+      })}
+
+      {mounts.zoneOverlays.map((mount: ZoneOverlayMount) => {
+        const Component = renderZoneOverlay?.(mount.context.zone, {
           density: mount.context.density,
         });
         if (!Component) return null;

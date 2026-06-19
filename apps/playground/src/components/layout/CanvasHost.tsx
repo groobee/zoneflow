@@ -33,7 +33,11 @@ import {
   FarZoneCard,
 } from "../renderers/customSlots";
 import type { ResolvePathRenderComponent } from "@zoneflow/react";
-import type { ResolveZoneRenderComponent } from "@zoneflow/react";
+import type {
+  ResolveZoneRenderComponent,
+  ResolveZoneOverlayComponent,
+  ZoneOverlayComponentProps,
+} from "@zoneflow/react";
 import {
   makeWeatherBackground,
   type WeatherBackgroundId,
@@ -99,6 +103,51 @@ const resolveZoneStyle: ResolveZoneStyle = (_zone, { density }) =>
 /** far 레벨에서 기본 카드 대신 커스텀 컴포넌트로 통째 렌더. 그 외엔 기본. */
 const renderZone: ResolveZoneRenderComponent = (_zone, { density }) =>
   density === "far" ? FarZoneCard : undefined;
+
+/** 존 유형 태그(SEND/BRANCH 등). 없으면 null. */
+function zoneTypeTag(name: string, zoneType: string): string | null {
+  if (zoneType === "container") return "GROUP";
+  const n = name.toLowerCase();
+  if (n.includes("send") || n.includes("push")) return "SEND";
+  if (n.includes("wait") || n.includes("timer")) return "WAIT";
+  if (n.includes("branch") || n.includes("condition")) return "BRANCH";
+  if (n.includes("offer") || n.includes("nudge")) return "OFFER";
+  if (n.includes("terminal")) return "END";
+  if (n.includes("review") || n.includes("queue")) return "QUEUE";
+  return null;
+}
+
+/**
+ * 렌더 레벨 오버레이 배지 — renderZoneOverlay 로 주입되어 뷰/편집 양쪽 모드에서
+ * 존 우상단에 항상 떠 있는다(targetMeta 의 편집 전용 배지와 대비됨).
+ */
+function ZoneTypeBadgeOverlay({ mount }: ZoneOverlayComponentProps) {
+  const tag = zoneTypeTag(mount.context.zone.name, mount.context.zone.zoneType);
+  if (!tag) return null;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 6,
+        top: 6,
+        padding: "2px 7px",
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 800,
+        letterSpacing: "0.06em",
+        background: "rgba(15, 23, 42, 0.82)",
+        color: "#fff",
+        pointerEvents: "none",
+      }}
+    >
+      {tag}
+    </div>
+  );
+}
+
+/** 태그가 있는 존에만 오버레이 배지 부착(뷰·편집 양쪽 모드). */
+const renderZoneOverlay: ResolveZoneOverlayComponent = (zone) =>
+  zoneTypeTag(zone.name, zone.zoneType) ? ZoneTypeBadgeOverlay : undefined;
 
 /** 규칙이 설정된 패스는 노드 전체를 커스텀 칩으로. 미설정 패스는 기본. */
 const renderPath: ResolvePathRenderComponent = (path) =>
@@ -304,6 +353,7 @@ export function CanvasHost({
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle ?? resolveZoneStyle}
         resolveZoneIcon={resolveZoneIcon}
         renderZone={renderZone}
+        renderZoneOverlay={renderZoneOverlay}
         renderPath={renderPath}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={

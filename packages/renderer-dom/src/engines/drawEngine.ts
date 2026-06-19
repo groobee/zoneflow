@@ -54,6 +54,7 @@ function createEmptyMountRegistry(): RenderMountRegistry {
     zones: [],
     paths: [],
     zoneRenderers: [],
+    zoneOverlays: [],
     pathRenderers: [],
     background: null,
   };
@@ -1059,6 +1060,50 @@ export const domDrawEngine: DrawEngine = {
       });
 
       zoneEl.appendChild(zoneBodyEl);
+
+      // 본문 위에 얹는 오버레이(배지/장식 등). renderer 레벨이라 뷰/편집 양쪽 모드
+      // 에서 렌더된다. 호스트는 pointer-events:none 이라 빈 영역 클릭은 존으로
+      // 통과하고, 소비자가 자기 요소에 pointerEvents:"auto" 를 주면 상호작용 가능.
+      const zoneOverlayRenderer =
+        input.resolveZoneOverlayRenderer?.(
+          zoneVisual.zone,
+          zoneResolveContext
+        ) ?? undefined;
+      if (zoneOverlayRenderer) {
+        const overlayEl = document.createElement("div");
+        overlayEl.dataset.zoneflowZoneOverlay = zoneVisual.zoneId;
+        applyStyles(overlayEl, {
+          position: "absolute",
+          left: "0",
+          top: "0",
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          overflow: "visible",
+        });
+        const overlayContext: ZoneRendererContext = {
+          model: input.model,
+          layoutModel: input.layoutModel,
+          zone: zoneVisual.zone,
+          zoneVisual,
+          density: zoneDensity,
+          visibility,
+          rect: zoneVisual.rect,
+          camera: input.camera,
+          theme,
+          zoneColor,
+          textScale: input.textScale,
+        };
+        zoneOverlayRenderer(overlayEl, overlayContext);
+        zoneEl.appendChild(overlayEl);
+        mounts.zoneOverlays.push({
+          key: `${zoneVisual.zoneId}:__overlay__`,
+          zoneId: zoneVisual.zoneId,
+          host: overlayEl,
+          rect: zoneVisual.rect,
+          context: overlayContext,
+        });
+      }
 
       drawZoneAnchors({
         owner: zoneEl,

@@ -321,7 +321,30 @@ export type ResolveZoneRenderer = (
   context: ZoneResolveContext
 ) => ZoneRenderer | null | undefined;
 
+/**
+ * 존 위에 얹을 오버레이 렌더러를 고른다(없으면 undefined). 본문을 교체하지 않고
+ * 위에 덮으며, 뷰/편집 양쪽 모드에서 적용된다. {@link ZoneOverlayMount}.
+ */
+export type ResolveZoneOverlayRenderer = (
+  zone: Zone,
+  context: ZoneResolveContext
+) => ZoneRenderer | null | undefined;
+
 export type ZoneRendererMount = {
+  key: string;
+  zoneId: ZoneId;
+  host: HTMLElement;
+  rect: Rect;
+  context: ZoneRendererContext;
+};
+
+/**
+ * 존 본문 위에 덮어 그리는 오버레이 마운트(배지·장식 등). 본문을 교체하는
+ * {@link ZoneRendererMount} 와 달리 본문 위에 얹히며, 뷰/편집 양쪽 모드에서
+ * 렌더된다(렌더 레벨이라 편집 모드 전용이 아니다). 호스트는 기본적으로
+ * pointer-events:none 이라 빈 영역 클릭은 존으로 통과한다.
+ */
+export type ZoneOverlayMount = {
   key: string;
   zoneId: ZoneId;
   host: HTMLElement;
@@ -426,6 +449,8 @@ export type RenderMountRegistry = {
   paths: PathComponentMount[];
   /** Full-body zone renderers (see {@link ResolveZoneRenderer}). */
   zoneRenderers: ZoneRendererMount[];
+  /** On-top zone overlays (see {@link ResolveZoneOverlayRenderer}). */
+  zoneOverlays: ZoneOverlayMount[];
   /** Full-node path renderers (see {@link ResolvePathRenderer}). */
   pathRenderers: PathRendererMount[];
   background: BackgroundMount | null;
@@ -475,6 +500,7 @@ export type RendererDrawInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
   resolveZoneRenderer?: ResolveZoneRenderer;
+  resolveZoneOverlayRenderer?: ResolveZoneOverlayRenderer;
   resolvePathRenderer?: ResolvePathRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
@@ -565,6 +591,7 @@ export type RendererInput = {
   resolveZoneStyle?: ResolveZoneStyle;
   resolveZoneIcon?: ResolveZoneIcon;
   resolveZoneRenderer?: ResolveZoneRenderer;
+  resolveZoneOverlayRenderer?: ResolveZoneOverlayRenderer;
   resolvePathRenderer?: ResolvePathRenderer;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
