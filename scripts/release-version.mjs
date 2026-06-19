@@ -264,9 +264,40 @@ function readRegistryVersion(packageName) {
   }
 }
 
+function readLatestGitTagVersion() {
+  try {
+    const output = execFileSync("git", ["tag", "--list", "v*"], {
+      cwd: ROOT_DIR,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+
+    if (!output) {
+      return null;
+    }
+
+    const versions = output
+      .split("\n")
+      .map((tag) => tag.trim().replace(/^v/, ""))
+      .filter((tag) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-.]+)?$/.test(tag));
+
+    if (versions.length === 0) {
+      return null;
+    }
+
+    return versions.sort(compareVersions)[versions.length - 1];
+  } catch {
+    return null;
+  }
+}
+
 function resolveBaseVersion(packages, source) {
   const localVersions = packages.map((entry) => entry.json.version);
   const localBaseVersion = localVersions.sort(compareVersions)[localVersions.length - 1];
+
+  if (source === "git") {
+    return readLatestGitTagVersion() ?? localBaseVersion;
+  }
 
   if (source !== "registry") {
     return localBaseVersion;

@@ -850,3 +850,20 @@ pnpm --filter playground dev
 pnpm --filter @zoneflow/core build
 pnpm --filter @zoneflow/react build
 ```
+
+### 릴리즈 (태그 드리븐)
+
+배포는 **`vX.Y.Z` 태그 push** 로 트리거됩니다. 태그가 그 배포의 앵커가 되어, 배포 간 차이를 `git`/GitHub compare 와 자동 생성 릴리즈 노트로 추적할 수 있습니다.
+
+```bash
+# 1) 릴리즈 컷 — git 태그 기준으로 버전 증가(모든 패키지 lockstep) + 커밋 + 태그 생성
+pnpm release patch              # 또는 minor / major / prerelease / 1.2.0
+pnpm release minor --dry-run    # 실제 변경 없이 다음 버전만 확인
+
+# 2) 태그 push → CI 가 npm publish + GitHub Release(노트 자동 생성)
+git push --follow-tags
+```
+
+- 버전 소스는 **git 태그**(npm 레지스트리 아님) — 레포가 "어느 커밋 = 어느 배포"를 기록합니다.
+- prerelease 태그(`v1.2.0-rc.0`)는 npm dist-tag `next` + GitHub Release `prerelease` 로 배포됩니다.
+- GitHub Actions 의 수동 실행(Run workflow)은 기본 **dry-run** 검증용입니다. `pnpm release … --push` 로 컷+푸시를 한 번에 할 수도 있습니다.

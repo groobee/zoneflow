@@ -1,10 +1,15 @@
 name: Publish Zoneflow Packages
 
 on:
+  # 태그 드리븐(정식 배포): vX.Y.Z 태그 push → npm publish + GitHub Release.
+  push:
+    tags:
+      - "v*.*.*"
+  # 수동 실행(검증/임시 배포): 기본 dry-run, git 태그 기준 자동 증가.
   workflow_dispatch:
     inputs:
       dist_tag:
-        description: 배포할 npm dist-tag
+        description: 배포할 npm dist-tag (수동 실행 전용)
         required: false
         default: latest
         type: string
@@ -32,7 +37,7 @@ on:
           - major
           - prerelease
       release_version:
-        description: 직접 지정할 배포 버전. 비우면 npm 기준으로 자동 증가
+        description: 직접 지정할 배포 버전. 비우면 git 태그 기준 자동 증가
         required: false
         default: ""
         type: string
@@ -43,7 +48,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -82,20 +87,41 @@ jobs:
       - name: Resolve release version
         id: release-version
         run: |
-          version_args=(
-            --write
-            --source registry
-            --bump "${{ inputs.release_type }}"
-            --prerelease-id "${{ inputs.prerelease_id }}"
-          )
-
-          if [ -n "${{ inputs.release_version }}" ]; then
-            version_args+=(--version "${{ inputs.release_version }}")
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # 태그 드리븐: 버전은 태그(vX.Y.Z)에서 그대로 가져온다.
+            version="${GITHUB_REF_NAME#v}"
+            case "$version" in
+              *-*) dist_tag="next" ;;
+              *)   dist_tag="latest" ;;
+            esac
+            access="public"
+            dry_run="false"
+          else
+            # 수동 실행: git 태그 기준 자동 증가(또는 직접 지정).
+            version_args=(
+              --source git
+              --bump "${{ inputs.release_type }}"
+              --prerelease-id "${{ inputs.prerelease_id }}"
+            )
+            if [ -n "${{ inputs.release_version }}" ]; then
+              version_args+=(--version "${{ inputs.release_version }}")
+            fi
+            version=$(node ./scripts/release-version.mjs "${version_args[@]}")
+            dist_tag="${{ inputs.dist_tag }}"
+            access="${{ inputs.access }}"
+            dry_run="${{ inputs.dry_run }}"
           fi
 
-          next_version=$(node ./scripts/release-version.mjs "${version_args[@]}")
-          echo "next_version=${next_version}" >> "$GITHUB_OUTPUT"
-          echo "Resolved release version: ${next_version}"
+          # 모든 package.json(루트+packages)을 배포 버전으로 기록(pack 이 이 값을 씀).
+          node ./scripts/release-version.mjs --write --version "$version" >/dev/null
+
+          {
+            echo "version=${version}"
+            echo "dist_tag=${dist_tag}"
+            echo "access=${access}"
+            echo "dry_run=${dry_run}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved: version=${version} dist_tag=${dist_tag} access=${access} dry_run=${dry_run}"
 
       - name: Build packages
         run: pnpm -r --filter "./packages/*" build
@@ -112,7 +138,7 @@ jobs:
 
       - name: Publish packages
         run: |
-          echo "Publishing version ${{ steps.release-version.outputs.next_version }}"
+          echo "Publishing ${{ steps.release-version.outputs.version }} (dist-tag: ${{ steps.release-version.outputs.dist_tag }}, dry-run: ${{ steps.release-version.outputs.dry_run }})"
           shopt -s nullglob
           tarballs=(./.npm-packages/*.tgz)
 
@@ -121,17 +147,30 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            for tarball in "${tarballs[@]}"; do
+          for tarball in "${tarballs[@]}"; do
+            if [ "${{ steps.release-version.outputs.dry_run }}" = "true" ]; then
               npm publish "$tarball" \
                 --dry-run \
-                --access "${{ inputs.access }}" \
-                --tag "${{ inputs.dist_tag }}"
-            done
-          else
-            for tarball in "${tarballs[@]}"; do
+                --access "${{ steps.release-version.outputs.access }}" \
+                --tag "${{ steps.release-version.outputs.dist_tag }}"
+            else
               npm publish "$tarball" \
-                --access "${{ inputs.access }}" \
-                --tag "${{ inputs.dist_tag }}"
-            done
-          fi
+                --access "${{ steps.release-version.outputs.access }}" \
+                --tag "${{ steps.release-version.outputs.dist_tag }}"
+            fi
+          done
+
+      - name: Create GitHub Release
+        if: ${{ github.event_name == 'push' && steps.release-version.outputs.dry_run == 'false' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease_flag=""
+          case "${{ steps.release-version.outputs.version }}" in
+            *-*) prerelease_flag="--prerelease" ;;
+          esac
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag \
+            $prerelease_flag

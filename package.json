@@ -14,6 +14,7 @@
     "dev": "pnpm -r dev",
     "type-check": "pnpm -r type-check",
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules packages/*/dist apps/*/dist && find . -name tsconfig.tsbuildinfo -delete && find . -name .vite -type d -exec rm -rf {} +",
+    "release": "node ./scripts/release.mjs",
     "release:version": "node ./scripts/release-version.mjs --write"
   },
   "devDependencies": {
