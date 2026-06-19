@@ -325,6 +325,15 @@ export type ZoneMoveEditorConfig = {
    */
   resolveZoneResize?: ResolveZoneResize;
   /**
+   * 선택(존/패스) 옵션바를 선택 영역 기준 어느 변에 띄울지 + 간격. 미지정 시
+   * `placement: "top"`(현재 동작 — 위·가로중앙), `offset: 18`px.
+   * {@link SelectionToolbarPlacement}
+   */
+  selectionToolbar?: {
+    placement?: SelectionToolbarPlacement;
+    offset?: number;
+  };
+  /**
    * zone 선택이 바뀔 때마다 호출됩니다.
    *
    * - 단일 클릭, shift/ctrl/cmd 토글, 마퀴(드래그 박스) 선택 모두 같은 콜백으로 옵니다.
@@ -825,6 +834,52 @@ function areIdListsEqual<Id extends string>(left: Id[], right: Id[]): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+export type SelectionToolbarPlacement = "top" | "bottom" | "left" | "right";
+
+/**
+ * 선택(존/패스) 옵션바를 선택 영역(bounds) 기준 어느 변에 띄울지 계산한다. 화면
+ * 밖으로 과도하게 벗어나지 않게 중심축을 clamp 한다. `top` 이 기존 기본 동작
+ * (위·가로중앙). offset 은 선택과의 간격(px).
+ */
+function resolveSelectionToolbarPosition(params: {
+  bounds: Rect;
+  placement: SelectionToolbarPlacement;
+  offset: number;
+  overlayWidth: number;
+  overlayHeight: number;
+}): { left: number; top: number; transform: string } {
+  const { bounds, placement, offset, overlayWidth, overlayHeight } = params;
+  const centerX = clamp(bounds.x + bounds.width / 2, 96, overlayWidth - 96);
+  const centerY = clamp(bounds.y + bounds.height / 2, 48, overlayHeight - 48);
+  switch (placement) {
+    case "bottom":
+      return {
+        left: centerX,
+        top: bounds.y + bounds.height + offset,
+        transform: "translate(-50%, 0)",
+      };
+    case "left":
+      return {
+        left: bounds.x - offset,
+        top: centerY,
+        transform: "translate(-100%, -50%)",
+      };
+    case "right":
+      return {
+        left: bounds.x + bounds.width + offset,
+        top: centerY,
+        transform: "translate(0, -50%)",
+      };
+    case "top":
+    default:
+      return {
+        left: centerX,
+        top: Math.max(offset, bounds.y - offset),
+        transform: "translate(-50%, -100%)",
+      };
+  }
 }
 
 function normalizeMarqueeRect(selection: MarqueeSelectionState): Rect {
@@ -2903,6 +2958,31 @@ export function ZoneMoveEditorOverlay(props: {
   const overlayWidth =
     overlayRef.current?.clientWidth ??
     (typeof window === "undefined" ? 0 : window.innerWidth);
+  const overlayHeight =
+    overlayRef.current?.clientHeight ??
+    (typeof window === "undefined" ? 0 : window.innerHeight);
+  // 선택 옵션바 배치(선택 영역 기준). 미지정 시 기존 동작(top/18px).
+  const selectionToolbarPlacement =
+    editor?.selectionToolbar?.placement ?? "top";
+  const selectionToolbarOffset = editor?.selectionToolbar?.offset ?? 18;
+  const zoneToolbarPos = selectionBounds
+    ? resolveSelectionToolbarPosition({
+        bounds: selectionBounds,
+        placement: selectionToolbarPlacement,
+        offset: selectionToolbarOffset,
+        overlayWidth,
+        overlayHeight,
+      })
+    : null;
+  const pathToolbarPos = pathSelectionBounds
+    ? resolveSelectionToolbarPosition({
+        bounds: pathSelectionBounds,
+        placement: selectionToolbarPlacement,
+        offset: selectionToolbarOffset,
+        overlayWidth,
+        overlayHeight,
+      })
+    : null;
   const canDeleteSelection =
     !deleteConfirmState &&
     ((permissions.deleteZone &&
@@ -3610,9 +3690,9 @@ export function ZoneMoveEditorOverlay(props: {
             ref={zoneToolbarRef}
             style={{
               position: "absolute",
-              left: `${clamp(selectionBounds.x + selectionBounds.width / 2, 96, overlayWidth - 96)}px`,
-              top: `${Math.max(18, selectionBounds.y - 18)}px`,
-              transform: "translate(-50%, -100%)",
+              left: `${zoneToolbarPos?.left ?? 0}px`,
+              top: `${zoneToolbarPos?.top ?? 0}px`,
+              transform: zoneToolbarPos?.transform ?? "translate(-50%, -100%)",
               display: "flex",
               flexWrap: "wrap",
               justifyContent: "center",
@@ -3739,9 +3819,9 @@ export function ZoneMoveEditorOverlay(props: {
             ref={pathToolbarRef}
             style={{
               position: "absolute",
-              left: `${clamp(pathSelectionBounds.x + pathSelectionBounds.width / 2, 96, overlayWidth - 96)}px`,
-              top: `${Math.max(18, pathSelectionBounds.y - 18)}px`,
-              transform: "translate(-50%, -100%)",
+              left: `${pathToolbarPos?.left ?? 0}px`,
+              top: `${pathToolbarPos?.top ?? 0}px`,
+              transform: pathToolbarPos?.transform ?? "translate(-50%, -100%)",
               display: "flex",
               flexWrap: "wrap",
               justifyContent: "center",
