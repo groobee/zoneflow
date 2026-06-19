@@ -1,7 +1,9 @@
 import React from "react";
+import type { PathId, UniverseModel, ZoneId } from "@zoneflow/core";
 import { Card } from "../common/Card";
 import { SectionTitle } from "../common/SectionTitle";
 import { DebugPanel } from "../debug/DebugPanel";
+import { SelectionInspector } from "../debug/SelectionInspector";
 import type { DebugState } from "../../hooks/useDebugState";
 import { rightPanelStyle } from "./layout.styles";
 import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
@@ -11,6 +13,9 @@ type Props = {
   hostWidth: number;
   hostHeight: number;
   themePreset: PlaygroundThemePreset;
+  model: UniverseModel;
+  selectedZoneIds: ZoneId[];
+  selectedPathIds: PathId[];
 };
 
 export function RightPanel({
@@ -18,6 +23,9 @@ export function RightPanel({
   hostWidth,
   hostHeight,
   themePreset,
+  model,
+  selectedZoneIds,
+  selectedPathIds,
 }: Props) {
   const themedPanelStyle: React.CSSProperties = {
     ...rightPanelStyle,
@@ -44,12 +52,11 @@ export function RightPanel({
         hostHeight={hostHeight}
       />
 
-      <Card>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Selection</div>
-        <div style={{ fontSize: 14, color: themePreset.sidebar.mutedText }}>
-          Nothing selected
-        </div>
-      </Card>
+      <SelectionInspector
+        model={model}
+        zoneIds={selectedZoneIds}
+        pathIds={selectedPathIds}
+      />
 
       <Card>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Viewport Notes</div>

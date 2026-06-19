@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { updatePath } from "@zoneflow/core";
+import { updatePath, type PathId, type ZoneId } from "@zoneflow/core";
 import {
   createZoneFromDropTemplate,
   editorPermissionPresets,
@@ -176,6 +176,9 @@ type Props = {
   cleanupPreview?: CleanupPreviewData | null;
   onApplyCleanup?: () => void;
   onCloseCleanupPreview?: () => void;
+  /** 캔버스 선택 변경 → 상위(App)로 전달해 인스펙터에 표시. */
+  onZoneSelectionChange?: (zoneIds: ZoneId[]) => void;
+  onPathSelectionChange?: (pathIds: PathId[]) => void;
 };
 
 export function CanvasHost({
@@ -191,6 +194,8 @@ export function CanvasHost({
   cleanupPreview,
   onApplyCleanup,
   onCloseCleanupPreview,
+  onZoneSelectionChange,
+  onPathSelectionChange,
 }: Props) {
   // density 기준을 바꾸려면 renderer theme 의 density 만 partial 로 덮어쓰면 됨.
   const rendererTheme: ZoneflowThemeInput = densityOverride
@@ -371,12 +376,8 @@ export function CanvasHost({
           },
           onPathCreated: handlePathCreated,
           onPathDropOnEmptySpace: handlePathDropOnEmptySpace,
-          onZoneSelectionChange: (zoneIds) => {
-            console.log("[zoneflow selection] zones", zoneIds);
-          },
-          onPathSelectionChange: (pathIds) => {
-            console.log("[zoneflow selection] paths", pathIds);
-          },
+          onZoneSelectionChange,
+          onPathSelectionChange,
           onZoneResize: ({ zoneId, from, to }) => {
             console.log("[zoneflow resize] handle", { zoneId, from, to });
           },

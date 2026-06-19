@@ -5,6 +5,8 @@ import {
   createUniverseLayoutModel,
   parseZoneflowDocument,
   serializeZoneflowDocument,
+  type PathId,
+  type ZoneId,
 } from "@zoneflow/core";
 import { buildCleanupPreview } from "./cleanupPreview";
 
@@ -101,6 +103,11 @@ export default function App() {
         : editor,
     [editor, localScaleActive, model, localScaleFactor]
   );
+
+  // 캔버스 선택 상태 — 라이브러리의 onZoneSelectionChange / onPathSelectionChange
+  // 로 받아 우측 인스펙터(SelectionInspector)에 그대로 흘려보낸다.
+  const [selectedZoneIds, setSelectedZoneIds] = useState<ZoneId[]>([]);
+  const [selectedPathIds, setSelectedPathIds] = useState<PathId[]>([]);
 
   const [hostSize, setHostSize] = useState({
     width: 0,
@@ -303,6 +310,8 @@ export default function App() {
         cleanupPreview={cleanupPreview}
         onApplyCleanup={handleApplyCleanup}
         onCloseCleanupPreview={() => setCleanupPreviewOpen(false)}
+        onZoneSelectionChange={setSelectedZoneIds}
+        onPathSelectionChange={setSelectedPathIds}
       />
 
       <RightPanel
@@ -310,6 +319,9 @@ export default function App() {
         hostWidth={hostSize.width}
         hostHeight={hostSize.height}
         themePreset={themePreset}
+        model={workingModel}
+        selectedZoneIds={selectedZoneIds}
+        selectedPathIds={selectedPathIds}
       />
 
       {isDataModalOpen ? (

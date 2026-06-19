@@ -1,15 +1,50 @@
 import { useMemo, useState } from "react";
 import type { DebugLayer } from "@zoneflow/renderer-dom";
 
-export const ALL_DEBUG_LAYERS: DebugLayer[] = [
-  "graph-layout",
-  "edges",
-  "anchors",
-  "density",
-  "visibility",
-  "component-layout",
-  "viewport",
-];
+/**
+ * 디버그 레이어별 표시 라벨 + 설명.
+ *
+ * `Record<DebugLayer, …>` 이므로 라이브러리가 DebugLayer 를 추가/변경하면 여기서
+ * 타입 에러로 잡힌다 — 패널이 라이브러리를 자동으로 따라가도록 강제하는 장치.
+ * 설명은 현재 렌더러 개념(풀바디 renderZone, 5단계 density 등)을 반영한다.
+ */
+export const DEBUG_LAYER_META: Record<
+  DebugLayer,
+  { label: string; description: string }
+> = {
+  "graph-layout": {
+    label: "Graph layout",
+    description: "존·패스 bounding box — 배치 엔진이 계산한 골격",
+  },
+  edges: {
+    label: "Edges",
+    description: "존 사이 연결선(패스 경로)",
+  },
+  anchors: {
+    label: "Anchors",
+    description: "입력·출력 앵커 포인트",
+  },
+  density: {
+    label: "Density (LOD)",
+    description: "줌별 LOD 레벨 — farest · far · mid · near · detail",
+  },
+  visibility: {
+    label: "Visibility",
+    description: "뷰포트 컬링 — 그릴/생략할 존 판정",
+  },
+  "component-layout": {
+    label: "Component layout",
+    description:
+      "빌트인 슬롯 박스(title·type·badge·body·footer). 풀바디 renderZone 존은 슬롯이 없어 표시되지 않음",
+  },
+  viewport: {
+    label: "Viewport",
+    description: "Focus Viewport 시뮬레이션 영역",
+  },
+};
+
+/** 표시 순서 = DEBUG_LAYER_META 정의 순서. 한 곳에서 관리해 드리프트를 막는다. */
+export const ALL_DEBUG_LAYERS = Object.keys(DEBUG_LAYER_META) as DebugLayer[];
 
 export type ViewportPresetKey =
   | "desktop"
