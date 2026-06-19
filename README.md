@@ -247,6 +247,7 @@ function Viewer() {
 - `renderPathEditor`
 - `renderZoneOverlays` (편집 모드 존 오버레이 — 과거 `renderZoneEditButton` 대체)
 - `resolvePathLabelResize`
+- `resolveZoneResize`
 - `onPathLabelDoubleClick`
 - `onPathLabelContextMenu`
 - `onZoneSelectionChange`
@@ -472,6 +473,34 @@ import { createZoneFromDropTemplate } from "@zoneflow/react";
 - `enabled` — 리사이즈 핸들 노출 여부(기본 `true`). `false` 면 해당 라벨은 크기 조정 불가.
 - `minWidth` / `maxWidth` / `minHeight` / `maxHeight` — 라벨 박스 크기 제약(world units). 미지정 시 라이브러리 기본 최소치만 적용(상한 없음).
 - `null` / `undefined` / 콜백 미지정 — 기본 동작(라이브러리 기본 최소치로 리사이즈 허용).
+
+### 존 리사이즈 제약 (resolveZoneResize)
+
+존 박스의 리사이즈 허용 여부와 크기 제약을 존별로 외부에서 정할 수 있습니다. 패스의 `resolvePathLabelResize` 와 대칭이며, 모델의 `fixedWidth` / `fixedHeight` / `minWidth` / `minHeight` 필드를 외부에서 덮어쓰는 주입 계층입니다.
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    resolveZoneResize: ({ zone }) => {
+      // action 존은 리사이즈 금지
+      if (zone.zoneType === "action") return { enabled: false };
+
+      // 그 외는 높이만 잠그고 폭은 상/하한만 (world units)
+      return { lockHeight: true, minWidth: 120, maxWidth: 320 };
+    },
+  }}
+/>
+```
+
+콜백 파라미터: `zoneId` / `zone` / `model`.
+
+반환값 (`ZoneResizeConfig`):
+
+- `enabled` — 리사이즈 핸들 노출 여부(기본 `true`). `false` 면 해당 존은 크기 조정 불가.
+- `lockWidth` / `lockHeight` — 축별 잠금. 미지정 시 존의 `fixedWidth` / `fixedHeight` 모델 필드를 따릅니다.
+- `minWidth` / `maxWidth` / `minHeight` / `maxHeight` — 존 박스 크기 제약(world units). min 미지정 시 존의 `minWidth` / `minHeight`(없으면 라이브러리 기본 최소치), max 미지정 시 상한 없음.
+- `null` / `undefined` / 콜백 미지정 — 기본 동작(모델 필드 + `resizeZone` 권한).
 
 ## 슬롯 확장 (커스텀 UI 요소 추가)
 

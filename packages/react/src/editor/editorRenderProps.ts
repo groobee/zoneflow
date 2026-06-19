@@ -98,3 +98,28 @@ export type ResolvePathLabelResize = (params: {
   sourceZoneId: ZoneId;
   model: UniverseModel;
 }) => PathLabelResizeConfig | null | undefined;
+
+/**
+ * 존 박스의 리사이즈 허용/제약을 존별로 결정한다. 패스의
+ * {@link PathLabelResizeConfig} 와 대칭 — 모델의 `fixedWidth`/`fixedHeight`/
+ * `minWidth`/`minHeight` 필드를 외부에서 덮어쓰는 주입 계층이다.
+ * - `enabled`: 리사이즈 핸들 노출 여부(기본 true). false 면 해당 존은 크기 조정 불가.
+ * - `lockWidth`/`lockHeight`: 축별 잠금. 미지정 시 존의 `fixedWidth`/`fixedHeight` 폴백.
+ * - `minWidth`/`maxWidth`/`minHeight`/`maxHeight`: 크기 제약(world units). min 미지정 시
+ *   존의 `minWidth`/`minHeight`(없으면 라이브러리 기본 최소치), max 미지정 시 상한 없음.
+ */
+export type ZoneResizeConfig = {
+  enabled?: boolean;
+  lockWidth?: boolean;
+  lockHeight?: boolean;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+};
+
+export type ResolveZoneResize = (params: {
+  zoneId: ZoneId;
+  zone: Zone;
+  model: UniverseModel;
+}) => ZoneResizeConfig | null | undefined;

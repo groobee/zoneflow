@@ -506,6 +506,10 @@ export function resizeZoneByScreenDelta(params: {
   deltaY: number;
   minWidth?: number;
   minHeight?: number;
+  /** Largest width the zone may grow to (world units). Omit = no upper bound. */
+  maxWidth?: number;
+  /** Largest height the zone may grow to (world units). Omit = no upper bound. */
+  maxHeight?: number;
   /**
    * When true, the width is locked to its origin value and deltaX is ignored.
    */
@@ -524,6 +528,8 @@ export function resizeZoneByScreenDelta(params: {
     deltaY,
     minWidth = DEFAULT_MIN_ZONE_WIDTH,
     minHeight = DEFAULT_MIN_ZONE_HEIGHT,
+    maxWidth,
+    maxHeight,
     lockWidth = false,
     lockHeight = false,
     gridSnap,
@@ -534,15 +540,21 @@ export function resizeZoneByScreenDelta(params: {
 
   const nextWidth = lockWidth
     ? origin.originWidth
-    : Math.max(
-        minWidth,
-        snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
+    : Math.min(
+        maxWidth ?? Infinity,
+        Math.max(
+          minWidth,
+          snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
+        )
       );
   const nextHeight = lockHeight
     ? origin.originHeight
-    : Math.max(
-        minHeight,
-        snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
+    : Math.min(
+        maxHeight ?? Infinity,
+        Math.max(
+          minHeight,
+          snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
+        )
       );
 
   return updateZoneLayout(layoutModel, origin.zoneId, {

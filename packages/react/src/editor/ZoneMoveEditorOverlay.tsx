@@ -90,6 +90,7 @@ import {
 import type {
   PathEditorRenderProps,
   ResolvePathLabelResize,
+  ResolveZoneResize,
   ZoneEditorRenderProps,
   ZoneOverlayRenderProps,
 } from "./editorRenderProps";
@@ -318,6 +319,12 @@ export type ZoneMoveEditorConfig = {
    */
   resolvePathLabelResize?: ResolvePathLabelResize;
   /**
+   * 존 박스의 리사이즈 허용/제약을 존별로 결정한다. 미지정 시 기존 동작(모델의
+   * `fixedWidth`/`fixedHeight`/`minWidth`/`minHeight` + `resizeZone` 권한).
+   * {@link ZoneResizeConfig}
+   */
+  resolveZoneResize?: ResolveZoneResize;
+  /**
    * zone 선택이 바뀔 때마다 호출됩니다.
    *
    * - 단일 클릭, shift/ctrl/cmd 토글, 마퀴(드래그 박스) 선택 모두 같은 콜백으로 옵니다.
@@ -497,6 +504,12 @@ type ResizeState = {
   origin: ZoneResizeOrigin;
   startClientX: number;
   startClientY: number;
+  lockWidth?: boolean;
+  lockHeight?: boolean;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
 };
 
 type PathResizeState = {
@@ -2118,19 +2131,20 @@ export function ZoneMoveEditorOverlay(props: {
         event.preventDefault();
         setObjectSnapGuideLines(null);
 
-        const resizingZone =
-          latestRef.current.model.zonesById[resize.origin.zoneId];
         const nextLayoutModel = resizeZoneByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: resize.origin,
           deltaX: event.clientX - resize.startClientX,
           deltaY: event.clientY - resize.startClientY,
-          lockWidth: !!resizingZone?.fixedWidth,
-          lockHeight: !!resizingZone?.fixedHeight,
-          // Per-zone floor (undefined → editor's built-in default).
-          minWidth: resizingZone?.minWidth,
-          minHeight: resizingZone?.minHeight,
+          // 리사이즈 시작 시점에 캡처한 제약(resolveZoneResize ∪ 모델 필드).
+          // undefined min → 코어의 기본 최소치, undefined max → 상한 없음.
+          lockWidth: resize.lockWidth,
+          lockHeight: resize.lockHeight,
+          minWidth: resize.minWidth,
+          minHeight: resize.minHeight,
+          maxWidth: resize.maxWidth,
+          maxHeight: resize.maxHeight,
           gridSnap: latestRef.current.gridSnap,
         });
 
@@ -4230,8 +4244,24 @@ export function ZoneMoveEditorOverlay(props: {
             (visualState === "hover" ||
               visualState === "selected" ||
               isResizingTarget);
-          const zoneLockWidth = target.kind === "zone" && !!zone?.fixedWidth;
-          const zoneLockHeight = target.kind === "zone" && !!zone?.fixedHeight;
+          // 존 리사이즈 허용/제약(소비자 주입). enabled=false 면 핸들 숨김; lock/min/max 는
+          // 모델 필드(fixedWidth/fixedHeight/minWidth/minHeight)를 덮어쓴다.
+          const zoneResize =
+            target.kind === "zone" && zone && editor.resolveZoneResize
+              ? editor.resolveZoneResize({
+                  zoneId: target.zoneId,
+                  zone,
+                  model,
+                }) ?? undefined
+              : undefined;
+          const zoneLockWidth =
+            target.kind === "zone" &&
+            (zoneResize?.enabled === false ||
+              (zoneResize?.lockWidth ?? !!zone?.fixedWidth));
+          const zoneLockHeight =
+            target.kind === "zone" &&
+            (zoneResize?.enabled === false ||
+              (zoneResize?.lockHeight ?? !!zone?.fixedHeight));
           const zoneFullyLocked = zoneLockWidth && zoneLockHeight;
           const resizeCursor: "nwse-resize" | "ns-resize" | "ew-resize" =
             zoneLockWidth
@@ -4612,6 +4642,12 @@ export function ZoneMoveEditorOverlay(props: {
                       origin,
                       startClientX: event.clientX,
                       startClientY: event.clientY,
+                      lockWidth: zoneLockWidth,
+                      lockHeight: zoneLockHeight,
+                      minWidth: zoneResize?.minWidth ?? zone?.minWidth,
+                      minHeight: zoneResize?.minHeight ?? zone?.minHeight,
+                      maxWidth: zoneResize?.maxWidth,
+                      maxHeight: zoneResize?.maxHeight,
                     };
                     startTransaction({
                       kind: "resize-zone",
