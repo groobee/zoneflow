@@ -6,6 +6,7 @@ import type {
   BackgroundMount,
   PathComponentMount,
   PathComponentSlotName,
+  PathOverlayMount,
   PathRendererMount,
   PathResolveContext,
   RenderMountRegistry,
@@ -73,6 +74,23 @@ export type ResolvePathRenderComponent = (
   context: PathResolveContext
 ) => PathRenderComponent | null | undefined;
 
+export type PathOverlayComponentProps = {
+  mount: PathOverlayMount;
+};
+
+export type PathOverlayComponent = ComponentType<PathOverlayComponentProps>;
+
+/**
+ * 패스 노드 위에 덮어 그릴 오버레이(배지·장식 등) React 컴포넌트를 고른다. 본문을
+ * 교체하지 않고 위에 얹으며, 뷰/편집 양쪽 모드에서 렌더된다. 안 그릴 땐
+ * `undefined`/`null`. 존의 {@link ResolveZoneOverlayComponent} 와 대칭이며,
+ * 본문을 교체하는 {@link ResolvePathRenderComponent} 와 대비된다.
+ */
+export type ResolvePathOverlayComponent = (
+  path: Path,
+  context: PathResolveContext
+) => PathOverlayComponent | null | undefined;
+
 export type BackgroundComponentProps = {
   mount: BackgroundMount;
 };
@@ -125,6 +143,7 @@ export function SlotPortals(props: {
   renderZone?: ResolveZoneRenderComponent;
   renderZoneOverlay?: ResolveZoneOverlayComponent;
   renderPath?: ResolvePathRenderComponent;
+  renderPathOverlay?: ResolvePathOverlayComponent;
 }) {
   const {
     mounts,
@@ -134,6 +153,7 @@ export function SlotPortals(props: {
     renderZone,
     renderZoneOverlay,
     renderPath,
+    renderPathOverlay,
   } = props;
 
   return (
@@ -175,6 +195,19 @@ export function SlotPortals(props: {
 
       {mounts.pathRenderers.map((mount: PathRendererMount) => {
         const Component = renderPath?.(mount.context.path, {
+          mode: mount.context.mode,
+        });
+        if (!Component) return null;
+
+        return (
+          <Fragment key={mount.key}>
+            {createPortal(<Component mount={mount} />, mount.host)}
+          </Fragment>
+        );
+      })}
+
+      {mounts.pathOverlays.map((mount: PathOverlayMount) => {
+        const Component = renderPathOverlay?.(mount.context.path, {
           mode: mount.context.mode,
         });
         if (!Component) return null;

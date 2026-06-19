@@ -56,6 +56,7 @@ function createEmptyMountRegistry(): RenderMountRegistry {
     zoneRenderers: [],
     zoneOverlays: [],
     pathRenderers: [],
+    pathOverlays: [],
     background: null,
   };
 }
@@ -1228,6 +1229,50 @@ export const domDrawEngine: DrawEngine = {
             owner: pathEl,
           });
         }
+      }
+
+      // 본문 위에 얹는 오버레이(배지/장식 등). renderer 레벨이라 뷰/편집 양쪽 모드
+      // 에서 렌더된다. 호스트는 pointer-events:none 이라 빈 영역 클릭은 패스로 통과
+      // 하고, 소비자가 자기 요소에 pointerEvents:"auto" 를 주면 상호작용 가능.
+      // (존 오버레이와 대칭 — renderPath 와 달리 본문을 교체하지 않고 위에 얹는다.)
+      const pathOverlayRenderer =
+        input.resolvePathOverlayRenderer?.(pathVisual.path, {
+          mode: pathDensity,
+        }) ?? undefined;
+      if (pathOverlayRenderer) {
+        const overlayEl = document.createElement("div");
+        overlayEl.dataset.zoneflowPathOverlay = pathVisual.pathId;
+        applyStyles(overlayEl, {
+          position: "absolute",
+          left: "0",
+          top: "0",
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          overflow: "visible",
+        });
+        const overlayContext: PathRendererContext = {
+          model: input.model,
+          layoutModel: input.layoutModel,
+          path: pathVisual.path,
+          pathVisual,
+          mode: pathDensity,
+          visibility,
+          rect: pathVisual.rect,
+          camera: input.camera,
+          theme,
+          pathColor: input.resolvePathColor?.(pathVisual.path) ?? undefined,
+          textScale: input.textScale,
+        };
+        pathOverlayRenderer(overlayEl, overlayContext);
+        pathEl.appendChild(overlayEl);
+        mounts.pathOverlays.push({
+          key: `${pathVisual.pathId}:__overlay__`,
+          pathId: pathVisual.pathId,
+          host: overlayEl,
+          rect: pathVisual.rect,
+          context: overlayContext,
+        });
       }
 
       pathLayer.appendChild(pathEl);

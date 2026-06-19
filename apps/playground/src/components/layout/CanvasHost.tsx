@@ -36,7 +36,9 @@ import type { ResolvePathRenderComponent } from "@zoneflow/react";
 import type {
   ResolveZoneRenderComponent,
   ResolveZoneOverlayComponent,
+  ResolvePathOverlayComponent,
   ZoneOverlayComponentProps,
+  PathOverlayComponentProps,
 } from "@zoneflow/react";
 import {
   makeWeatherBackground,
@@ -152,6 +154,41 @@ const renderZoneOverlay: ResolveZoneOverlayComponent = (zone) =>
 /** 규칙이 설정된 패스는 노드 전체를 커스텀 칩으로. 미설정 패스는 기본. */
 const renderPath: ResolvePathRenderComponent = (path) =>
   path.rule !== null ? CustomPathNode : undefined;
+
+/**
+ * 렌더 레벨 패스 오버레이 — 설정 안 된 패스(rule === null) 라벨 우상단에 "!" 주의
+ * 마커를 얹는다. renderPath(본문 교체)와 달리 본문 위에 덮으며 뷰/편집 양쪽 모드
+ * 에서 동작한다. 존의 renderZoneOverlay 와 대칭.
+ */
+function UnconfiguredPathOverlay(_props: PathOverlayComponentProps) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 3,
+        top: 3,
+        width: 14,
+        height: 14,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 800,
+        lineHeight: 1,
+        background: UNCONFIGURED_PATH_COLOR,
+        color: "#fff",
+        pointerEvents: "none",
+      }}
+    >
+      !
+    </div>
+  );
+}
+
+/** 설정 안 된 패스(rule 없음)에만 주의 오버레이를 얹는다. */
+const renderPathOverlay: ResolvePathOverlayComponent = (path) =>
+  isUnconfiguredPath(path) ? UnconfiguredPathOverlay : undefined;
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -357,6 +394,7 @@ export function CanvasHost({
         renderZone={renderZone}
         renderZoneOverlay={renderZoneOverlay}
         renderPath={renderPath}
+        renderPathOverlay={renderPathOverlay}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
         resolvePathLineColor={
           cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor
@@ -434,6 +472,7 @@ export function CanvasHost({
             animation: true,
             confirm: true,
           },
+          selectionToolbar: { placement: "bottom", offset: 12 },
           canConnectPath,
           // 라이브러리가 편집 버튼을 그려주던 대신, 오버레이로 직접 그린다.
           // hover/선택/편집 중일 때만 우상단에 "설정" 버튼을 덮어 그림.

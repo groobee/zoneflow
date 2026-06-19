@@ -31,6 +31,7 @@ import {
   type ResolveZoneColor,
   type ResolveZoneIcon,
   type ResolvePathRenderer,
+  type ResolvePathOverlayRenderer,
   type ResolveZoneRenderer,
   type ResolveZoneOverlayRenderer,
   type ResolveZoneShape,
@@ -56,6 +57,7 @@ import {
   type BackgroundComponent,
   type PathSlotComponentMap,
   type ResolvePathRenderComponent,
+  type ResolvePathOverlayComponent,
   type ResolveZoneRenderComponent,
   type ResolveZoneOverlayComponent,
   SlotPortals,
@@ -89,6 +91,11 @@ export type UniverseCanvasProps = {
    */
   renderZoneOverlay?: ResolveZoneOverlayComponent;
   renderPath?: ResolvePathRenderComponent;
+  /**
+   * 패스 노드 위에 덮어 그릴 오버레이(배지·장식 등). renderPath 와 달리 본문을
+   * 교체하지 않고 위에 얹으며, 뷰/편집 양쪽 모드에서 렌더된다. (renderZoneOverlay 대칭)
+   */
+  renderPathOverlay?: ResolvePathOverlayComponent;
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
@@ -181,6 +188,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     renderZone,
     renderZoneOverlay,
     renderPath,
+    renderPathOverlay,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -210,6 +218,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     zoneRenderers: [],
     zoneOverlays: [],
     pathRenderers: [],
+    pathOverlays: [],
     background: null,
   });
   const camera = cameraState ?? internalCamera;
@@ -308,6 +317,14 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     return (path, context) =>
       renderPath(path, context) ? noopRenderer : undefined;
   }, [renderPath]);
+
+  const effectiveResolvePathOverlayRenderer = useMemo<
+    ResolvePathOverlayRenderer | undefined
+  >(() => {
+    if (!renderPathOverlay) return undefined;
+    return (path, context) =>
+      renderPathOverlay(path, context) ? noopRenderer : undefined;
+  }, [renderPathOverlay]);
 
   useCameraControls({
     hostRef: viewportRef,
@@ -434,6 +451,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolveZoneRenderer: effectiveResolveZoneRenderer,
       resolveZoneOverlayRenderer: effectiveResolveZoneOverlayRenderer,
       resolvePathRenderer: effectiveResolvePathRenderer,
+      resolvePathOverlayRenderer: effectiveResolvePathOverlayRenderer,
       resolvePathColor,
       resolvePathLineColor,
       resolvePathStyle,
@@ -452,6 +470,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       zoneRenderers: [],
       zoneOverlays: [],
       pathRenderers: [],
+      pathOverlays: [],
       background: null,
     });
     onFrameChange?.(frame ?? null);
@@ -477,6 +496,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     effectiveResolveZoneRenderer,
     effectiveResolveZoneOverlayRenderer,
     effectiveResolvePathRenderer,
+    effectiveResolvePathOverlayRenderer,
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
@@ -553,6 +573,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
         renderZone={renderZone}
         renderZoneOverlay={renderZoneOverlay}
         renderPath={renderPath}
+        renderPathOverlay={renderPathOverlay}
       />
       <ZoneMoveEditorOverlay
         model={model}
