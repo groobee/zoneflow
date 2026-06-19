@@ -91,6 +91,7 @@ import {
 } from "@zoneflow/editor-dom";
 import type {
   PathEditorRenderProps,
+  ResolvePathLabelResize,
   ZoneEditorRenderProps,
   ZoneOverlayRenderProps,
 } from "./editorRenderProps";
@@ -314,6 +315,11 @@ export type ZoneMoveEditorConfig = {
   onPathLabelDoubleClick?: (event: PathLabelEventPayload) => void;
   onPathLabelContextMenu?: (event: PathLabelEventPayload) => void;
   /**
+   * 패스 라벨 박스의 리사이즈 허용/제약을 패스별로 결정한다. 미지정 시 기존 동작
+   * (routePath 권한이 있으면 허용 + 라이브러리 기본 최소치). {@link PathLabelResizeConfig}
+   */
+  resolvePathLabelResize?: ResolvePathLabelResize;
+  /**
    * zone 선택이 바뀔 때마다 호출됩니다.
    *
    * - 단일 클릭, shift/ctrl/cmd 토글, 마퀴(드래그 박스) 선택 모두 같은 콜백으로 옵니다.
@@ -517,6 +523,10 @@ type PathResizeState = {
   origin: PathResizeOrigin;
   startClientX: number;
   startClientY: number;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
 };
 
 type PathCreateDragState = {
@@ -2198,6 +2208,10 @@ export function ZoneMoveEditorOverlay(props: {
           origin: pathResize.origin,
           deltaX: event.clientX - pathResize.startClientX,
           deltaY: event.clientY - pathResize.startClientY,
+          minWidth: pathResize.minWidth,
+          minHeight: pathResize.minHeight,
+          maxWidth: pathResize.maxWidth,
+          maxHeight: pathResize.maxHeight,
           gridSnap: latestRef.current.gridSnap,
         });
 
@@ -4257,9 +4271,28 @@ export function ZoneMoveEditorOverlay(props: {
             !isDeleteArmed &&
             !!pathOutputAnchorLocalRect &&
             (visualState === "hover" || visualState === "selected");
+          // 패스 라벨 리사이즈 허용/제약(소비자 주입). enabled=false 면 핸들 숨김.
+          const pathLabelResize =
+            target.kind === "path" && editor.resolvePathLabelResize
+              ? (() => {
+                  const srcZoneId = findPathSourceZoneId(model, target.pathId);
+                  const p = srcZoneId
+                    ? model.zonesById[srcZoneId]?.pathsById[target.pathId]
+                    : undefined;
+                  return p && srcZoneId
+                    ? editor.resolvePathLabelResize({
+                        pathId: target.pathId,
+                        path: p,
+                        sourceZoneId: srcZoneId,
+                        model,
+                      }) ?? undefined
+                    : undefined;
+                })()
+              : undefined;
           const shouldShowPathResizeHandle =
             permissions.routePath &&
             target.kind === "path" &&
+            pathLabelResize?.enabled !== false &&
             !creatingPath &&
             !retargetingPath &&
             !isDeleteArmed &&
@@ -4717,6 +4750,10 @@ export function ZoneMoveEditorOverlay(props: {
                       origin,
                       startClientX: event.clientX,
                       startClientY: event.clientY,
+                      minWidth: pathLabelResize?.minWidth,
+                      maxWidth: pathLabelResize?.maxWidth,
+                      minHeight: pathLabelResize?.minHeight,
+                      maxHeight: pathLabelResize?.maxHeight,
                     };
                     startTransaction({
                       kind: "resize-path",

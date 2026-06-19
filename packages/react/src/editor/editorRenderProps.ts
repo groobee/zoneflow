@@ -76,3 +76,25 @@ export type PathEditorRenderProps = {
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   closeEditor: () => void;
 };
+
+/**
+ * 패스 라벨 박스의 리사이즈 허용/제약을 패스별로 결정한다.
+ * - `enabled`: 리사이즈 핸들 노출 여부(기본 true). false 면 해당 패스 라벨은 크기
+ *   조정 불가.
+ * - `minWidth`/`maxWidth`/`minHeight`/`maxHeight`: 라벨 박스 크기 제약(world units).
+ *   미지정 시 라이브러리 기본 최소치만 적용(상한 없음).
+ */
+export type PathLabelResizeConfig = {
+  enabled?: boolean;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+};
+
+export type ResolvePathLabelResize = (params: {
+  pathId: PathId;
+  path: Path;
+  sourceZoneId: ZoneId;
+  model: UniverseModel;
+}) => PathLabelResizeConfig | null | undefined;

@@ -355,6 +355,8 @@ export function resizePathNodeByScreenDelta(params: {
   deltaY: number;
   minWidth?: number;
   minHeight?: number;
+  maxWidth?: number;
+  maxHeight?: number;
   gridSnap?: GridSnapOptions;
 }): UniverseLayoutModel {
   const {
@@ -365,16 +367,23 @@ export function resizePathNodeByScreenDelta(params: {
     deltaY,
     minWidth = 140,
     minHeight = 32,
+    maxWidth,
+    maxHeight,
     gridSnap,
   } = params;
 
-  const nextWidth = Math.max(
+  const clamp = (value: number, min: number, max?: number) =>
+    max != null ? Math.min(Math.max(value, min), Math.max(min, max)) : Math.max(value, min);
+
+  const nextWidth = clamp(
+    snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap),
     minWidth,
-    snapCoordinate(origin.originWidth + deltaX / camera.zoom, gridSnap)
+    maxWidth
   );
-  const nextHeight = Math.max(
+  const nextHeight = clamp(
+    snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap),
     minHeight,
-    snapCoordinate(origin.originHeight + deltaY / camera.zoom, gridSnap)
+    maxHeight
   );
 
   return setPathComponentLayout(
