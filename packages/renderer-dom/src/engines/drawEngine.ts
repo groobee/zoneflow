@@ -1141,25 +1141,19 @@ export const domDrawEngine: DrawEngine = {
         input.resolvePathRenderer?.(pathVisual.path, { mode: pathDensity }) ??
         undefined;
 
+      // pathEl 은 투명 프레임(overflow:visible) — 오버레이가 라벨 박스 밖으로
+      // 나갈 수 있게 한다. 본문(chrome+슬롯 / 풀노드 렌더러)은 안쪽 pathBodyEl 이
+      // 칩 모양대로 클립한다. zoneEl + zoneBodyEl 구조와 동일.
       applyStyles(pathEl, {
         position: "absolute",
         left: `${pathVisual.rect.x}px`,
         top: `${pathVisual.rect.y}px`,
         width: `${pathVisual.rect.width}px`,
         height: `${pathVisual.rect.height}px`,
-        // The custom renderer draws its own border/background.
-        ...(customPathRenderer
-          ? {}
-          : {
-              borderRadius: "18px",
-              border: `1px solid ${theme.pathEdge}`,
-              background: theme.surface.path.background,
-              boxShadow: theme.surface.path.shadow,
-            }),
         boxSizing: "border-box",
         opacity: getOpacity(visibility.emphasis),
         zIndex: RENDER_Z_INDEX.pathNode,
-        overflow: "hidden",
+        overflow: "visible",
         // pathLayer 의 pointer-events: none 상속 차단 — zoneEl 과 동일한 이유.
         pointerEvents: "auto",
       });
@@ -1172,6 +1166,25 @@ export const domDrawEngine: DrawEngine = {
         event.stopPropagation();
         interactionHandlers?.onPathClick?.(pathVisual.pathId);
       });
+
+      // 본문 래퍼: 칩 모양(rounded)대로 클립. 풀노드 렌더러는 자기 배경/테두리를
+      // 직접 그리므로 chrome 스타일은 생략한다.
+      const pathBodyEl = document.createElement("div");
+      applyStyles(pathBodyEl, {
+        position: "absolute",
+        inset: "0",
+        boxSizing: "border-box",
+        overflow: "hidden",
+        ...(customPathRenderer
+          ? {}
+          : {
+              borderRadius: "18px",
+              border: `1px solid ${theme.pathEdge}`,
+              background: theme.surface.path.background,
+              boxShadow: theme.surface.path.shadow,
+            }),
+      });
+      pathEl.appendChild(pathBodyEl);
 
       if (customPathRenderer) {
         const rendererContext: PathRendererContext = {
@@ -1187,11 +1200,11 @@ export const domDrawEngine: DrawEngine = {
           pathColor: input.resolvePathColor?.(pathVisual.path) ?? undefined,
           textScale: input.textScale,
         };
-        customPathRenderer(pathEl, rendererContext);
+        customPathRenderer(pathBodyEl, rendererContext);
         mounts.pathRenderers.push({
           key: `${pathVisual.pathId}:__path__`,
           pathId: pathVisual.pathId,
-          host: pathEl,
+          host: pathBodyEl,
           rect: pathVisual.rect,
           context: rendererContext,
         });
@@ -1204,7 +1217,7 @@ export const domDrawEngine: DrawEngine = {
           theme,
           topBandOpacity: 0.72,
         });
-        pathEl.appendChild(pathChromeEl);
+        pathBodyEl.appendChild(pathChromeEl);
 
         const targetDisplay = resolvePathTargetDisplay({
           model: input.model,
@@ -1213,7 +1226,7 @@ export const domDrawEngine: DrawEngine = {
 
         if (targetDisplay.status !== "resolved") {
           createPathStatusBadge({
-            owner: pathEl,
+            owner: pathBodyEl,
             status: targetDisplay.status,
             theme,
           });
@@ -1226,7 +1239,7 @@ export const domDrawEngine: DrawEngine = {
             slot,
             input,
             mounts,
-            owner: pathEl,
+            owner: pathBodyEl,
           });
         }
       }
