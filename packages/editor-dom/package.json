@@ -1,6 +1,6 @@
 {
   "name": "@zoneflow/editor-dom",
-  "version": "0.0.1",
+  "version": "0.1.4",
   "license": "MIT",
   "description": "Low-level editor geometry and interaction helpers for Zoneflow.",
   "type": "module",
@@ -15,7 +15,9 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@zoneflow/core": "workspace:*",
     "@zoneflow/renderer-dom": "workspace:*"

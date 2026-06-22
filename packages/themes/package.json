@@ -1,6 +1,6 @@
 {
   "name": "@zoneflow/themes",
-  "version": "0.0.1",
+  "version": "0.1.4",
   "license": "MIT",
   "description": "Preset renderer and editor themes for Zoneflow.",
   "type": "module",
@@ -15,7 +15,9 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@zoneflow/editor-dom": "workspace:*",
     "@zoneflow/renderer-dom": "workspace:*"
