@@ -1,6 +1,6 @@
 {
   "name": "@zoneflow/core",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "description": "Zoneflow core model, layout, mutation, validation, and document utilities.",
   "type": "module",
