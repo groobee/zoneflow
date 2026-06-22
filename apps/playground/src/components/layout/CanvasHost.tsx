@@ -459,6 +459,8 @@ export function CanvasHost({
         pathComponents={pathComponents}
         editorConfig={{
           theme: themePreset.editorTheme,
+          // layoutOnly 프리셋은 reparentZone:false → 자식 존이 컨테이너 밖으로 자동으로
+          // 못 나간다(confineChildZonesToParent 기본값 = !reparentZone). 별도 배선 불필요.
           permissions: editorPermissionPresets[editPermissionMode],
           overlayControls: {
             enabled: overlayHudVisible,
