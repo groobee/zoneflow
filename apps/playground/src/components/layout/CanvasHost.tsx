@@ -156,39 +156,85 @@ const renderPath: ResolvePathRenderComponent = (path) =>
   path.rule !== null ? CustomPathNode : undefined;
 
 /**
- * 렌더 레벨 패스 오버레이 — 설정 안 된 패스(rule === null) 라벨 우상단에 "!" 주의
- * 마커를 얹는다. renderPath(본문 교체)와 달리 본문 위에 덮으며 뷰/편집 양쪽 모드
- * 에서 동작한다. 존의 renderZoneOverlay 와 대칭.
+ * 렌더 레벨 패스 오버레이 — 본문 위에 덮는 레이어(renderPath 와 달리 본문을 교체하지
+ * 않음). 데모로 두 가지를 얹는다.
+ * - "!" 주의 마커: 설정 안 된 패스(rule === null) 좌상단(뷰/편집 양쪽).
+ * - "✏️" 수정 버튼: 편집 모드에서 우상단. 클릭하면 `onEditPath` 로 앱에 알려
+ *   PlaygroundPathEditor 를 연다. (존은 renderZoneOverlays 의 openEditor 로 열지만,
+ *   패스 오버레이엔 openEditor 가 없어 앱이 직접 연다 — 그래서 factory 로 콜백 주입.)
  */
-function UnconfiguredPathOverlay(_props: PathOverlayComponentProps) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        right: 3,
-        top: 3,
-        width: 14,
-        height: 14,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 999,
-        fontSize: 10,
-        fontWeight: 800,
-        lineHeight: 1,
-        background: UNCONFIGURED_PATH_COLOR,
-        color: "#fff",
-        pointerEvents: "none",
-      }}
-    >
-      !
-    </div>
-  );
-}
+function makeRenderPathOverlay(opts: {
+  isEditMode: boolean;
+  onEditPath?: (pathId: PathId, sourceZoneId: ZoneId) => void;
+}): ResolvePathOverlayComponent {
+  const canEdit = opts.isEditMode && !!opts.onEditPath;
 
-/** 설정 안 된 패스(rule 없음)에만 주의 오버레이를 얹는다. */
-const renderPathOverlay: ResolvePathOverlayComponent = (path) =>
-  isUnconfiguredPath(path) ? UnconfiguredPathOverlay : undefined;
+  function PathOverlay({ mount }: PathOverlayComponentProps) {
+    const { path, pathVisual } = mount.context;
+    return (
+      <>
+        {isUnconfiguredPath(path) ? (
+          <div
+            style={{
+              position: "absolute",
+              left: 3,
+              top: 3,
+              width: 14,
+              height: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 999,
+              fontSize: 10,
+              fontWeight: 800,
+              lineHeight: 1,
+              background: UNCONFIGURED_PATH_COLOR,
+              color: "#fff",
+              pointerEvents: "none",
+            }}
+          >
+            !
+          </div>
+        ) : null}
+        {canEdit ? (
+          <button
+            type="button"
+            title="패스 수정"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              opts.onEditPath?.(path.id, pathVisual.sourceZoneId);
+            }}
+            style={{
+              position: "absolute",
+              right: 0,
+              // 라벨 박스 밖(위)으로 띄운다 — 패스 오버레이 escape 시연.
+              top: -22,
+              width: 18,
+              height: 18,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 999,
+              border: "none",
+              padding: 0,
+              fontSize: 11,
+              lineHeight: 1,
+              background: "rgba(15, 23, 42, 0.82)",
+              cursor: "pointer",
+              pointerEvents: "auto",
+            }}
+          >
+            ✏️
+          </button>
+        ) : null}
+      </>
+    );
+  }
+
+  return (path) =>
+    canEdit || isUnconfiguredPath(path) ? PathOverlay : undefined;
+}
 
 /** 편집 권한 프리셋 키. editorPermissionPresets 와 자동 동기화. */
 export type EditPermissionMode = keyof typeof editorPermissionPresets;
@@ -216,6 +262,8 @@ type Props = {
   /** 캔버스 선택 변경 → 상위(App)로 전달해 인스펙터에 표시. */
   onZoneSelectionChange?: (zoneIds: ZoneId[]) => void;
   onPathSelectionChange?: (pathIds: PathId[]) => void;
+  /** 패스 오버레이의 ✏️ 수정 버튼 클릭 → 앱이 PlaygroundPathEditor 를 연다. */
+  onEditPath?: (pathId: PathId, sourceZoneId: ZoneId) => void;
 };
 
 export function CanvasHost({
@@ -233,6 +281,7 @@ export function CanvasHost({
   onCloseCleanupPreview,
   onZoneSelectionChange,
   onPathSelectionChange,
+  onEditPath,
 }: Props) {
   // density 기준을 바꾸려면 renderer theme 의 density 만 partial 로 덮어쓰면 됨.
   const rendererTheme: ZoneflowThemeInput = densityOverride
@@ -249,6 +298,12 @@ export function CanvasHost({
   const Background = useMemo(
     () => makeWeatherBackground(weatherBackgroundId),
     [weatherBackgroundId]
+  );
+  // 패스 오버레이: 미설정 "!" 마커 + 편집 모드 ✏️ 수정 버튼(앱이 에디터를 연다).
+  const renderPathOverlay = useMemo(
+    () =>
+      makeRenderPathOverlay({ isEditMode: editor.isEditMode, onEditPath }),
+    [editor.isEditMode, onEditPath]
   );
 
   // 미리보기 중에는 diff 기반 데코레이션이 앱의 기본 리졸버를 감싼다 —
@@ -508,6 +563,18 @@ export function CanvasHost({
                 onClose={props.closeEditor}
               />
             ) : null,
+          // 패스 output 앵커를 기본 "→" 대신 동그라미(점)로.
+          renderPathOutputAnchor: () => (
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: "currentColor",
+                display: "block",
+              }}
+            />
+          ),
         }}
         debug={{
           enabled: debug.enabled,

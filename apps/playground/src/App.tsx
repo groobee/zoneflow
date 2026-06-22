@@ -26,6 +26,7 @@ import {
   type EditPermissionMode,
 } from "./components/layout/CanvasHost";
 import { ModelDataModal } from "./components/data/ModelDataModal";
+import { PlaygroundPathEditor } from "./components/editor/PlaygroundPathEditor";
 import {
   defaultPlaygroundThemePresetId,
   playgroundThemePresets,
@@ -108,6 +109,11 @@ export default function App() {
   // 로 받아 우측 인스펙터(SelectionInspector)에 그대로 흘려보낸다.
   const [selectedZoneIds, setSelectedZoneIds] = useState<ZoneId[]>([]);
   const [selectedPathIds, setSelectedPathIds] = useState<PathId[]>([]);
+  // 패스 오버레이 ✏️ 버튼이 여는 패스 에디터 대상(앱 관리).
+  const [editingPath, setEditingPath] = useState<{
+    pathId: PathId;
+    sourceZoneId: ZoneId;
+  } | null>(null);
 
   const [hostSize, setHostSize] = useState({
     width: 0,
@@ -312,6 +318,9 @@ export default function App() {
         onCloseCleanupPreview={() => setCleanupPreviewOpen(false)}
         onZoneSelectionChange={setSelectedZoneIds}
         onPathSelectionChange={setSelectedPathIds}
+        onEditPath={(pathId, sourceZoneId) =>
+          setEditingPath({ pathId, sourceZoneId })
+        }
       />
 
       <RightPanel
@@ -329,6 +338,16 @@ export default function App() {
           model={workingModel}
           layoutModel={workingLayoutModel}
           onClose={() => setIsDataModalOpen(false)}
+        />
+      ) : null}
+
+      {editingPath ? (
+        <PlaygroundPathEditor
+          model={editor.model}
+          pathId={editingPath.pathId}
+          sourceZoneId={editingPath.sourceZoneId}
+          onModelChange={editor.updateDraftModel}
+          onClose={() => setEditingPath(null)}
         />
       ) : null}
     </div>
