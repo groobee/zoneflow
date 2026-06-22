@@ -62,6 +62,9 @@ pnpm add @zoneflow/core @zoneflow/react react react-dom
 - `apps/custom-zone`
   - 빌트인 슬롯(`title | type | badge | body | footer`)을 전혀 쓰지 않고, `renderZone` 풀바디 렌더러로 존 카드 전체를 직접 그리는 최소 예제
   - 마운트 직후 `fitToView()` 로 콘텐츠를 화면에 맞추는 패턴도 함께 보여줍니다
+- `apps/material-bank`
+  - 존/패스 **묶음을 자유 선택 → "소재"로 저장 → 드래그&드롭으로 재사용**하는 소재은행 예제
+  - `onZoneSelectionChange` 로 선택을 추적하고, `importZoneSubgraph`(core, 컨테이너 없는 다중 루트 서브그래프 삽입)로 새 ID 를 발급해 `externalDrop.onDrop` 에서 삽입합니다. 위치는 반환 `zoneIdMap` 으로 드롭 지점에 재배치합니다
 
 ## 핵심 개념
 
@@ -870,11 +873,15 @@ pnpm install
 pnpm build
 ```
 
-### Playground 실행
+### 예제 앱 실행
 
 ```bash
-pnpm --filter playground dev
+pnpm --filter playground dev        # 확장 예제(테마/편집/디버그)
+pnpm --filter material-bank dev     # 소재은행(존/패스 묶음 저장→드롭 재사용)
+# 그 외: starter · kittyflow · custom-zone — pnpm --filter <앱이름> dev
 ```
+
+소재은행 사용 흐름: **편집 모드 → 존 여러 개 선택(클릭 + Shift-클릭) → "선택을 소재로 저장" → 좌측 은행 카드를 캔버스로 드래그&드롭**. 떨어뜨린 자리에 새 ID 로 복제 삽입됩니다(묶음 내부 패스는 보존, 선택 밖으로 향하던 패스는 타깃이 끊깁니다).
 
 ### 패키지 빌드
 

@@ -18,6 +18,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "custom-zone", "dev"],
       "port": 5176
+    },
+    {
+      "name": "material-bank",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "material-bank", "dev"],
+      "port": 5177
     }
   ]
 }
