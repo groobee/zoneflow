@@ -55,6 +55,28 @@ export type ZoneOverlayRenderProps = {
   closeEditor: () => void;
 };
 
+/**
+ * 패스 라벨 위에 덮어 그릴 오버레이의 prop 계약. {@link ZoneOverlayRenderProps} 의
+ * 패스판 — 에디터 레이어(맨 위)에 렌더되므로 여기에 그린 버튼이 편집 모드에서 실제로
+ * 클릭된다(렌더러 층 renderPathOverlay 는 에디터 오버레이에 가려 클릭 불가).
+ * `openEditor` 는 패스 편집기(renderPathEditor / onPathLabelClick 등 소비자 설정)를 연다.
+ */
+export type PathOverlayRenderProps = {
+  pathId: PathId;
+  sourceZoneId: ZoneId;
+  path: Path;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  rect: Rect;
+  isSelected: boolean;
+  isHovered: boolean;
+  isEditing: boolean;
+  isDragging: boolean;
+  theme: ZoneflowEditorTheme;
+  openEditor: () => void;
+  closeEditor: () => void;
+};
+
 export type ZoneEditorRenderProps = {
   zoneId: ZoneId;
   zone: Zone;

@@ -246,6 +246,7 @@ function Viewer() {
 - `renderZoneEditor`
 - `renderPathEditor`
 - `renderZoneOverlays` (편집 모드 존 오버레이 — 과거 `renderZoneEditButton` 대체)
+- `renderPathOverlays` (편집 모드 패스 오버레이 — `renderZoneOverlays` 의 패스판, 클릭되는 편집 버튼용)
 - `resolvePathLabelResize`
 - `resolveZoneResize`
 - `onPathLabelDoubleClick`
@@ -622,18 +623,20 @@ const renderZone: ResolveZoneRenderComponent = (zone, { density }) =>
 
 전체 동작 예제는 `apps/custom-zone` 을 참고하세요.
 
-## 존 오버레이 (renderZoneOverlay / renderZoneOverlays)
+## 존/패스 오버레이 (renderZoneOverlay(s) / renderPathOverlay(s))
 
-존 본문을 **교체하지 않고 그 위에 덮어 그리는** 레이어입니다. 배지·아이콘·작은 컨트롤처럼 본문과 무관한 장식/버튼을 얹을 때 씁니다. 두 종류가 있습니다.
+존·패스 본문을 **교체하지 않고 그 위에 덮어 그리는** 레이어입니다. 배지·아이콘·작은 컨트롤처럼 본문과 무관한 장식/버튼을 얹을 때 씁니다. 존·패스 각각 **렌더 레벨**과 **편집 레벨** 두 종류가 있습니다(대칭).
 
-- `renderZoneOverlay(zone, context) => Component | null | undefined` — **렌더 레벨** 오버레이. `UniverseCanvas` / `UniverseEditorCanvas` 의 prop 이며 **뷰/편집 양쪽 모드**에서 항상 동작합니다. (per-instance 배지·장식 같은 표현 계층 요소)
-- `editorConfig.renderZoneOverlays(props) => ReactNode` — **편집 모드 전용** 오버레이. 과거 라이브러리가 강제로 그리던 편집 버튼(`renderZoneEditButton`)을 대체합니다. 존마다 본문 위를 덮는 레이어를 주고, 편집 버튼/배지/컨트롤을 소비자가 직접 그립니다.
+- `renderZoneOverlay(zone, context)` / `renderPathOverlay(path, context) => Component | null | undefined` — **렌더 레벨** 오버레이. `UniverseCanvas` / `UniverseEditorCanvas` 의 prop 이며 **뷰/편집 양쪽 모드**에서 항상 동작합니다. (per-instance 배지·장식 같은 표현 계층 요소)
+- `editorConfig.renderZoneOverlays(props)` / `editorConfig.renderPathOverlays(props) => ReactNode` — **편집 모드 전용** 오버레이. 본문 위를 덮는 레이어를 주고, 편집 버튼/배지/컨트롤을 소비자가 직접 그립니다. (`renderZoneOverlays` 는 과거 `renderZoneEditButton` 을 대체)
 
-`renderZoneOverlays` 가 받는 `props` (`ZoneOverlayRenderProps`):
+> ⚠️ **클릭이 필요한 요소(편집 버튼 등)는 반드시 편집 레벨(`render*Overlays`)에 두세요.** 편집 모드에선 에디터 오버레이가 렌더러 층 **위**에 깔리므로, 렌더 레벨(`render*Overlay`)에 그린 버튼은 에디터 오버레이에 가려 **클릭이 가로채여 동작하지 않습니다.** 렌더 레벨은 비대화형 표시(배지·마커)용입니다.
 
-- `zone` / `zoneId` / `model` / `layoutModel` / `rect` — 대상 존과 화면 박스
+`renderZoneOverlays` / `renderPathOverlays` 가 받는 `props` (`ZoneOverlayRenderProps` / `PathOverlayRenderProps`):
+
+- 대상과 화면 박스 — 존: `zone` / `zoneId`, 패스: `path` / `pathId` / `sourceZoneId`, 공통: `model` / `layoutModel` / `rect`
 - `isSelected` / `isHovered` / `isEditing` / `isDragging` — 상태 플래그 (언제 무엇을 그릴지 결정)
-- `openEditor()` / `closeEditor()` — `renderZoneEditor` 패널 열고/닫기
+- `openEditor()` / `closeEditor()` — `renderZoneEditor` / `renderPathEditor` 패널 열고/닫기
 - `theme` — 에디터 테마
 
 ```tsx
@@ -660,6 +663,8 @@ const renderZone: ResolveZoneRenderComponent = (zone, { density }) =>
 ```
 
 오버레이 컨테이너는 `pointer-events: none` 이라 빈 영역 클릭은 존(드래그)으로 통과합니다. 버튼에는 `pointerEvents: "auto"` 를 주면 되고, 그 클릭이 드래그를 시작하지 않도록 라이브러리가 컨테이너에서 막아줍니다.
+
+패스도 동일합니다 — `renderPathOverlays` 는 같은 `props`(`path` / `sourceZoneId` + `openEditor()` 등)를 받고, `openEditor()` 는 `renderPathEditor`(또는 `onPathLabelClick` 등 소비자 설정)를 엽니다. 이 레포 playground 의 패스 라벨 ✏️ 버튼이 이 방식입니다.
 
 ## 개별 색상 / 모양 (per-instance color & shape)
 

@@ -90,6 +90,7 @@ import {
 } from "@zoneflow/editor-dom";
 import type {
   PathEditorRenderProps,
+  PathOverlayRenderProps,
   ResolvePathLabelResize,
   ResolveZoneResize,
   ZoneEditorRenderProps,
@@ -320,6 +321,13 @@ export type ZoneMoveEditorConfig = {
    * 무엇을 어떻게 그릴지는 전적으로 소비자 몫이다. {@link ZoneOverlayRenderProps}.
    */
   renderZoneOverlays?: (props: ZoneOverlayRenderProps) => ReactNode;
+  /**
+   * 패스 라벨 위에 덮어 그릴 오버레이(수정 버튼·배지 등)를 소비자가 직접 그린다.
+   * 존의 `renderZoneOverlays` 와 대칭 — 에디터 레이어(맨 위)에 렌더되므로 여기에 그린
+   * 버튼만 편집 모드에서 클릭된다. (렌더러 층 `renderPathOverlay` 는 에디터 오버레이에
+   * 가려 클릭 불가하므로, 상호작용 요소는 이쪽에 둔다.) {@link PathOverlayRenderProps}.
+   */
+  renderPathOverlays?: (props: PathOverlayRenderProps) => ReactNode;
   /**
    * 패스 라벨의 output(retarget) 앵커 핸들 내부 비주얼을 커스터마이즈한다. 라이브러리는
    * 핸들 위치·드래그(패스 재연결)를 그대로 소유하고, `→` 자리에 들어갈 내부 콘텐츠만
@@ -4436,6 +4444,44 @@ export function ZoneMoveEditorOverlay(props: {
                   },
                 })
               : null;
+          const pathOverlays =
+            target.kind === "path" && pathVisual && editor.renderPathOverlays
+              ? editor.renderPathOverlays({
+                  pathId: target.pathId,
+                  sourceZoneId: pathVisual.sourceZoneId,
+                  path: pathVisual.path,
+                  model,
+                  layoutModel,
+                  rect: target.rect,
+                  isSelected: visualState === "selected",
+                  isHovered: visualState === "hover",
+                  isEditing: editingPathState?.pathId === target.pathId,
+                  isDragging,
+                  theme: resolvedEditorTheme,
+                  openEditor: () => {
+                    const payload = resolvePathLabelEventPayload({
+                      model,
+                      pathId: target.pathId,
+                      clientX: 0,
+                      clientY: 0,
+                    });
+                    if (payload) {
+                      openPathEditor(
+                        payload,
+                        target.key,
+                        editor.onPathLabelDoubleClick ?? editor.onPathLabelClick
+                      );
+                    } else {
+                      setSelectedTargetKey(target.key);
+                    }
+                  },
+                  closeEditor: () => {
+                    setEditingPathState((current) =>
+                      current?.pathId === target.pathId ? null : current
+                    );
+                  },
+                })
+              : null;
 
           return (
             <div
@@ -5032,6 +5078,25 @@ export function ZoneMoveEditorOverlay(props: {
                   }}
                 >
                   {zoneOverlays}
+                </div>
+              ) : null}
+              {pathOverlays !== null ? (
+                // 패스판 — zoneOverlays 와 동일하게 컨테이너는 pointer-events:none,
+                // 소비자가 pointerEvents:"auto" 를 준 버튼만 상호작용. 전파만 막는다.
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    pointerEvents: "none",
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  {pathOverlays}
                 </div>
               ) : null}
               {shouldShowPathEditTrigger && pathLabelLocalRect ? (
