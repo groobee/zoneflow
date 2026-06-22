@@ -52,11 +52,11 @@ const DEFAULT_ANCHOR_ATTACH_DEPTH = 10;
 // Square hit area for vertex-mode anchors (circle/diamond/…), centered on the
 // shape's left/right vertex to match the vertex dot drawn by the renderer.
 const VERTEX_ANCHOR_HIT_SIZE = 28;
-const DEFAULT_PATH_OUTPUT_HANDLE_WIDTH = 18;
-const DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT = 22;
-const DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT = 40;
+// 출력 앵커 핸들은 정사각형(= 완전한 원). 라벨 높이에 비례시키지 않고 고정 크기를 써서
+// 존 연결 앵커(vertex 모드 dot, drawEngine 의 14px)와 비슷한 크기로 맞춘다. 단, 작은
+// 라벨에선 안에 들어가도록 줄인다.
+const DEFAULT_PATH_OUTPUT_HANDLE_SIZE = 16;
 const DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y = 4;
-const DEFAULT_PATH_OUTPUT_HANDLE_OVERHANG = 9;
 
 function roundCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
@@ -254,32 +254,25 @@ export function resolvePathOutputAnchorScreenRect(params: {
     x: pathVisual.rect.x + pathVisual.rect.width,
     y: pathVisual.rect.y + pathVisual.rect.height / 2,
   };
-  const height = clamp(
-    pathVisual.rect.height * 0.72,
-    DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT,
-    Math.min(
-      DEFAULT_PATH_OUTPUT_HANDLE_MAX_HEIGHT,
-      Math.max(
-        DEFAULT_PATH_OUTPUT_HANDLE_MIN_HEIGHT,
-        pathVisual.rect.height - DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y * 2
-      )
-    )
+  // 완전한 원이 되도록 정사각형 핸들(borderRadius:999 + w===h). 고정 크기를 써서 존 연결
+  // 앵커와 비슷한 크기로 맞추되, 라벨이 작으면 안에 들어가게 줄인다. outlet 점을 중심에 둔다.
+  const size = Math.min(
+    DEFAULT_PATH_OUTPUT_HANDLE_SIZE,
+    pathVisual.rect.height - DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y * 2
   );
   const minY = pathVisual.rect.y + DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y;
   const maxY =
     pathVisual.rect.y +
     pathVisual.rect.height -
     DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y -
-    height;
+    size;
 
   return projectWorldRectToScreenRect(
     {
-      x:
-        outlet.x -
-        (DEFAULT_PATH_OUTPUT_HANDLE_WIDTH - DEFAULT_PATH_OUTPUT_HANDLE_OVERHANG),
-      y: clamp(outlet.y - height / 2, minY, maxY),
-      width: DEFAULT_PATH_OUTPUT_HANDLE_WIDTH,
-      height,
+      x: outlet.x - size / 2,
+      y: clamp(outlet.y - size / 2, minY, maxY),
+      width: size,
+      height: size,
     },
     camera
   );
