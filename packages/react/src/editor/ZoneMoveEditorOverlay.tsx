@@ -23,6 +23,7 @@ import {
   distributePathsByMode,
   distributeZonesByMode,
   getMoveEditorTargets,
+  confineZonesWithinParents,
   moveEditorTargetByScreenDelta,
   resolveGroupZoneDragOrigin,
   resolveMoveEditorDragOrigin,
@@ -299,6 +300,18 @@ export type ZoneMoveEditorConfig = {
     enabled?: boolean;
     threshold?: number;
   };
+  /**
+   * 컨테이너에 속한 자식 존을 드래그할 때 부모 컨테이너 박스 밖으로 나가지 못하게
+   * 위치를 가둔다(자식 rect 가 부모 안에 머물도록 클램프). 루트 존, 부모/자식 크기를
+   * 모르는 경우는 영향 없음.
+   *
+   * 재배치(reparent)는 공간 기반이라 — 드롭 위치가 곧 새 부모가 된다 — `reparentZone`
+   * 권한이 꺼져 있으면 "부모를 못 바꾼다"의 자연스러운 완성이 "부모 박스를 못 벗어난다"
+   * 이다. 그래서 **미지정 시 기본값은 `!permissions.reparentZone`**: 재배치를 잠그면
+   * 자동으로 가둔다. `true`/`false` 로 명시하면 그 값으로 오버라이드한다(예: 자체
+   * 렌더러로 자동 확장되는 컨테이너라 선언된 layout 박스 밖 배치를 허용하고 싶을 때 `false`).
+   */
+  confineChildZonesToParent?: boolean;
   onModelChange?: (nextModel: UniverseModel) => void;
   onLayoutModelChange: (nextLayoutModel: UniverseLayoutModel) => void;
   /**
@@ -1496,6 +1509,7 @@ export function ZoneMoveEditorOverlay(props: {
     includeRoot: editor?.includeRoot,
     gridSnap: editor?.gridSnap,
     objectSnap: editor?.objectSnap,
+    confineChildZonesToParent: editor?.confineChildZonesToParent,
     onModelChange: editor?.onModelChange,
     onLayoutModelChange: editor?.onLayoutModelChange,
     onTransactionStart: editor?.onTransactionStart,
@@ -1521,6 +1535,7 @@ export function ZoneMoveEditorOverlay(props: {
       includeRoot: editor?.includeRoot,
       gridSnap: editor?.gridSnap,
       objectSnap: editor?.objectSnap,
+      confineChildZonesToParent: editor?.confineChildZonesToParent,
       onModelChange: editor?.onModelChange,
       onLayoutModelChange: editor?.onLayoutModelChange,
       onTransactionStart: editor?.onTransactionStart,
@@ -2310,7 +2325,7 @@ export function ZoneMoveEditorOverlay(props: {
           document.body.style.userSelect = "none";
         }
 
-        const nextLayoutModel = moveEditorTargetByScreenDelta({
+        let nextLayoutModel = moveEditorTargetByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: drag.origin,
@@ -2319,6 +2334,27 @@ export function ZoneMoveEditorOverlay(props: {
           gridSnap: latestRef.current.gridSnap,
           objectSnap: latestRef.current.objectSnap,
         });
+
+        // 자식 존을 부모 컨테이너 밖으로 못 나가게 가두기. 드래그 중 매 이동마다 클램프한다.
+        // 미지정 시 기본값은 !reparentZone — 재배치(공간 기반)를 잠그면 자동으로 가둔다.
+        const confineChildZones =
+          latestRef.current.confineChildZonesToParent ??
+          !latestRef.current.permissions.reparentZone;
+        if (confineChildZones) {
+          const movedZoneIds =
+            drag.origin.kind === "zone"
+              ? [drag.origin.zoneId]
+              : drag.origin.kind === "zone-group"
+                ? (Object.keys(drag.origin.originsByZoneId) as ZoneId[])
+                : [];
+          if (movedZoneIds.length > 0) {
+            nextLayoutModel = confineZonesWithinParents({
+              model: latestRef.current.model,
+              layoutModel: nextLayoutModel,
+              zoneIds: movedZoneIds,
+            });
+          }
+        }
 
         if (drag.origin.kind === "zone" || drag.origin.kind === "path") {
           const snappedGuides = resolveMoveEditorObjectSnapGuides({

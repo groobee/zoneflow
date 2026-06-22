@@ -253,6 +253,7 @@ function Viewer() {
 - `onZoneSelectionChange`
 - `onPathSelectionChange`
 - `canConnectPath`
+- `confineChildZonesToParent` (자식 존을 부모 컨테이너 박스 밖으로 못 나가게 가두기 — 기본값 `!reparentZone`)
 
 예:
 
@@ -501,6 +502,32 @@ import { createZoneFromDropTemplate } from "@zoneflow/react";
 - `lockWidth` / `lockHeight` — 축별 잠금. 미지정 시 존의 `fixedWidth` / `fixedHeight` 모델 필드를 따릅니다.
 - `minWidth` / `maxWidth` / `minHeight` / `maxHeight` — 존 박스 크기 제약(world units). min 미지정 시 존의 `minWidth` / `minHeight`(없으면 라이브러리 기본 최소치), max 미지정 시 상한 없음.
 - `null` / `undefined` / 콜백 미지정 — 기본 동작(모델 필드 + `resizeZone` 권한).
+
+### 자식 존 컨테이너 가두기 (confineChildZonesToParent)
+
+컨테이너에 속한 자식 존을 드래그할 때 **부모 컨테이너 박스 밖으로 나가지 못하게** 위치를 가둡니다. 자식 존의 레이아웃 좌표는 부모 기준 상대값이므로, 드래그 중 자식의 위치를 `[0, 부모폭 − 자식폭] × [0, 부모높이 − 자식높이]` 범위로 클램프합니다.
+
+**기본값은 `!permissions.reparentZone` 입니다.** 재배치(reparent)는 공간 기반이라 — 드롭한 위치가 곧 새 부모가 됩니다 — `reparentZone` 권한을 끄면 "부모를 못 바꾼다"의 자연스러운 완성이 "부모 박스를 못 벗어난다"입니다. 그래서 **재배치를 잠그면 자식 존은 자동으로 컨테이너 안에 갇힙니다**(별도 설정 불필요). `editorPermissionPresets.layoutOnly` 는 `reparentZone: false` 이므로 그대로 적용됩니다.
+
+`true` / `false` 로 명시하면 그 값으로 오버라이드합니다:
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    // reparentZone:false 면 이미 자동으로 가둠 — 보통은 지정할 필요 없음.
+    // 자체 렌더러로 자동 확장되는 컨테이너처럼, 선언된 layout 박스 밖 배치를
+    // 허용하고 싶을 때만 명시적으로 풀어준다.
+    confineChildZonesToParent: false,
+  }}
+/>
+```
+
+- `true` — 부모를 가진 자식 존은 드래그 중 부모 박스 안으로 위치가 클램프됩니다. 루트 존, 부모/자신의 크기가 없는 존은 영향받지 않습니다.
+- `false` — 재배치 권한과 무관하게 자유 이동(컨테이너 이탈 허용).
+- 미지정 — `!permissions.reparentZone`(재배치를 잠그면 가둠, 켜져 있으면 자유 이동).
+
+> 클램프 기준은 **선언된 layout 박스(width/height)** 입니다. 고정 크기 컨테이너는 정확하지만, 자식에 맞춰 자동 확장되는 커스텀 컨테이너라면 시각 박스와 어긋날 수 있으니 그때는 `false` 로 풀어주세요.
 
 ## 슬롯 확장 (커스텀 UI 요소 추가)
 

@@ -418,6 +418,50 @@ export function moveEditorTargetByScreenDelta(params: {
   });
 }
 
+/**
+ * 주어진 존들이 각자의 부모 컨테이너 박스 밖으로 나가지 않게 위치를 클램프한다.
+ * 자식 layout (x,y) 는 부모 좌상단 기준 상대좌표이므로, 부모/자식 크기를 알면
+ * 월드 변환 없이 `[0, pw-cw] × [0, ph-ch]` 로 가둘 수 있다. 부모가 없거나(루트)
+ * 부모·자식 크기를 모르면 해당 존은 건너뛴다. (드래그 중 호출되는 순수 함수)
+ */
+export function confineZonesWithinParents(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+}): UniverseLayoutModel {
+  const { model, zoneIds } = params;
+  let layoutModel = params.layoutModel;
+
+  for (const zoneId of zoneIds) {
+    const parentZoneId = model.zonesById[zoneId]?.parentZoneId;
+    if (!parentZoneId) continue;
+
+    const child = getZoneLayout(layoutModel, zoneId);
+    const parent = getZoneLayout(layoutModel, parentZoneId);
+    if (
+      !child ||
+      !parent ||
+      parent.width == null ||
+      parent.height == null ||
+      child.width == null ||
+      child.height == null
+    ) {
+      continue;
+    }
+
+    const maxX = Math.max(0, parent.width - child.width);
+    const maxY = Math.max(0, parent.height - child.height);
+    const x = Math.min(Math.max(child.x, 0), maxX);
+    const y = Math.min(Math.max(child.y, 0), maxY);
+
+    if (x !== child.x || y !== child.y) {
+      layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
+    }
+  }
+
+  return layoutModel;
+}
+
 export function resolveMoveEditorObjectSnapGuides(params: {
   camera: CameraState;
   origin: MoveEditorDragOrigin;
