@@ -116,6 +116,12 @@ export default function App() {
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [overlayHudVisible, setOverlayHudVisible] = useState(true);
   const [floatingEnabled, setFloatingEnabled] = useState(false);
+  // 셀 스냅(모듈러 그리드) — 상단 툴바에서 제어. 트랙 패턴은 그리드 칸 수(짝수=셀·홀수=거터).
+  const [cellSnapOn, setCellSnapOn] = useState(false);
+  const [cellPattern, setCellPattern] = useState<{
+    cols: number[];
+    rows: number[];
+  }>({ cols: [16, 5], rows: [14, 3] });
   const [editPermissionMode, setEditPermissionMode] =
     useState<EditPermissionMode>("full");
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
@@ -294,6 +300,10 @@ export default function App() {
         }
         densityPreset={densityPreset}
         setDensityPreset={setDensityPreset}
+        cellSnapOn={cellSnapOn}
+        onToggleCellSnap={() => setCellSnapOn((v) => !v)}
+        cellPattern={cellPattern}
+        onCellPatternChange={setCellPattern}
       />
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
@@ -312,6 +322,8 @@ export default function App() {
         onCloseCleanupPreview={() => setCleanupPreviewOpen(false)}
         onZoneSelectionChange={setSelectedZoneIds}
         onPathSelectionChange={setSelectedPathIds}
+        cellSnapOn={cellSnapOn}
+        cellPattern={cellPattern}
       />
 
       <RightPanel

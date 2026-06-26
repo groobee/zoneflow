@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   DefaultEditorToolbar,
   type UniverseEditorController,
 } from "@zoneflow/react";
+
+/** "16, 5" → [16, 5]. 콤마로 나눠 유한 양수만 취한다(빈 입력/문자는 버림). */
+function parseCellPattern(raw: string): number[] {
+  return raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
 import {
   buttonStyle,
   selectStyle,
@@ -45,6 +53,10 @@ type Props = {
   onLocalScaleStep: (delta: number) => void;
   densityPreset: "default" | "dense" | "sparse";
   setDensityPreset: (value: "default" | "dense" | "sparse") => void;
+  cellSnapOn: boolean;
+  onToggleCellSnap: () => void;
+  cellPattern: { cols: number[]; rows: number[] };
+  onCellPatternChange: (next: { cols: number[]; rows: number[] }) => void;
 };
 
 export function Topbar({
@@ -73,7 +85,15 @@ export function Topbar({
   onLocalScaleStep,
   densityPreset,
   setDensityPreset,
+  cellSnapOn,
+  onToggleCellSnap,
+  cellPattern,
+  onCellPatternChange,
 }: Props) {
+  // 트랙 패턴 입력 버퍼 — 배열↔문자열 변환 때문에 입력 중 콤마가 사라지지 않도록
+  // 로컬 문자열 상태를 두고, 파싱이 비지 않을 때만 상위로 전달한다.
+  const [colsText, setColsText] = useState(cellPattern.cols.join(", "));
+  const [rowsText, setRowsText] = useState(cellPattern.rows.join(", "));
   const themedTopbarStyle: React.CSSProperties = {
     ...topbarStyle,
     background: themePreset.topbar.background,
@@ -284,6 +304,77 @@ export function Topbar({
             <option value="dense">기준: 촘촘(디테일 빨리)</option>
             <option value="sparse">기준: 듬성(디테일 늦게)</option>
           </select>
+          <button
+            type="button"
+            style={{
+              ...themedControlStyle,
+              ...(cellSnapOn
+                ? { background: "#7c3aed", color: "#f5f3ff", fontWeight: 700 }
+                : null),
+            }}
+            onClick={onToggleCellSnap}
+            title="셀 스냅 — 존 중앙을 모듈러 그리드 셀 중앙에 맞춤(트랙 패턴, 짝수=셀·홀수=거터, 그리드 칸 수)"
+          >
+            셀 스냅 {cellSnapOn ? "On" : "Off"}
+          </button>
+          {cellSnapOn ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                color: themePreset.topbar.controlText,
+              }}
+            >
+              셀 패턴(칸)
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                가로
+                <input
+                  type="text"
+                  value={colsText}
+                  placeholder="16, 5"
+                  title="가로 트랙 패턴(그리드 칸 수, 콤마 구분). 짝수=셀·홀수=거터. 예: 16, 5"
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setColsText(raw);
+                    const cols = parseCellPattern(raw);
+                    if (cols.length)
+                      onCellPatternChange({ cols, rows: cellPattern.rows });
+                  }}
+                  style={{ ...themedSelectStyle, width: 72, padding: "2px 4px" }}
+                />
+              </label>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                세로
+                <input
+                  type="text"
+                  value={rowsText}
+                  placeholder="14, 3"
+                  title="세로 트랙 패턴(그리드 칸 수, 콤마 구분). 짝수=셀·홀수=거터. 예: 14, 3"
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setRowsText(raw);
+                    const rows = parseCellPattern(raw);
+                    if (rows.length)
+                      onCellPatternChange({ cols: cellPattern.cols, rows });
+                  }}
+                  style={{ ...themedSelectStyle, width: 72, padding: "2px 4px" }}
+                />
+              </label>
+              <span style={{ opacity: 0.6 }}>
+                ={" "}
+                {cellPattern.cols
+                  .map((n) => n * editor.gridSnapSize)
+                  .join("·")}{" "}
+                /{" "}
+                {cellPattern.rows
+                  .map((n) => n * editor.gridSnapSize)
+                  .join("·")}{" "}
+                px
+              </span>
+            </span>
+          ) : null}
           <button
             type="button"
             style={themedControlStyle}

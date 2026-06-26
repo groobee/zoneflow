@@ -215,6 +215,9 @@ type Props = {
   /** 캔버스 선택 변경 → 상위(App)로 전달해 인스펙터에 표시. */
   onZoneSelectionChange?: (zoneIds: ZoneId[]) => void;
   onPathSelectionChange?: (pathIds: PathId[]) => void;
+  /** 셀 스냅(상단 툴바에서 제어) — on/off + 트랙 패턴(그리드 칸 수, 짝수=셀·홀수=거터). */
+  cellSnapOn: boolean;
+  cellPattern: { cols: number[]; rows: number[] };
 };
 
 export function CanvasHost({
@@ -232,12 +235,20 @@ export function CanvasHost({
   onCloseCleanupPreview,
   onZoneSelectionChange,
   onPathSelectionChange,
+  cellSnapOn,
+  cellPattern,
 }: Props) {
   // density 기준을 바꾸려면 renderer theme 의 density 만 partial 로 덮어쓰면 됨.
   const rendererTheme: ZoneflowThemeInput = densityOverride
     ? { ...themePreset.rendererTheme, density: densityOverride }
     : themePreset.rendererTheme;
   const ref = useRef<HTMLDivElement | null>(null);
+  // 셀 스냅 — on/off·트랙 패턴(그리드 칸 수)은 상위(App, 상단 툴바)에서 props 로 받는다.
+  // 실제 px = 각 트랙 칸 수 × editor.gridSnapSize → 기본 그리드에 정확히 맞춤.
+  const cellPx = {
+    columns: cellPattern.cols.map((n) => n * editor.gridSnapSize),
+    rows: cellPattern.rows.map((n) => n * editor.gridSnapSize),
+  };
   const { zoneComponents, pathComponents } = useMemo(() => {
     const preset = getThemePresetComponents(themePreset.id);
     return {
@@ -386,6 +397,14 @@ export function CanvasHost({
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
         background={Background}
+        grid={
+          cellSnapOn
+            ? {
+                // 기본: 가는 그리드=점선 / 셀(스냅)선=실선(라이브러리 기본값). 여기선 셀선 색만 주입.
+                modular: { ...cellPx, cell: { color: "rgba(71, 85, 105, 0.6)" } },
+              }
+            : undefined
+        }
         resolveZoneShape={resolveZoneShape}
         resolveZoneColor={cleanupResolvers?.resolveZoneColor ?? resolveZoneColor}
         resolveZoneStyle={cleanupResolvers?.resolveZoneStyle ?? resolveZoneStyle}
@@ -406,6 +425,11 @@ export function CanvasHost({
           // layoutOnly 프리셋은 reparentZone:false → 자식 존이 컨테이너 밖으로 자동으로
           // 못 나간다(confineChildZonesToParent 기본값 = !reparentZone). 별도 배선 불필요.
           permissions: editorPermissionPresets[editPermissionMode],
+          // 셀 스냅 — 존 중앙을 모듈러 그리드 셀 중앙에 맞춘다(배경 grid.modular 와 같은 값).
+          cellSnap: {
+            enabled: cellSnapOn,
+            ...cellPx,
+          },
           overlayControls: {
             enabled: overlayHudVisible,
           },
