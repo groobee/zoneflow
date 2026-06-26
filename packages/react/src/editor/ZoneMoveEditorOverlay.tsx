@@ -24,6 +24,8 @@ import {
   distributeZonesByMode,
   getMoveEditorTargets,
   confineZonesWithinParents,
+  snapZonesToCells,
+  snapPathsToCells,
   moveEditorTargetByScreenDelta,
   resolveGroupZoneDragOrigin,
   resolveMoveEditorDragOrigin,
@@ -45,6 +47,7 @@ import {
   type CanConnectPathParams,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
+  type CellSnapOptions,
   type PathResizeOrigin,
   type ZOrderMode,
   type ZoneResizeOrigin,
@@ -301,6 +304,12 @@ export type ZoneMoveEditorConfig = {
     enabled?: boolean;
     threshold?: number;
   };
+  /**
+   * "셀 스냅(Cell Snap)" 모드. 활성화 시, 드래그한 존의 **중앙**을 모듈러 그리드의 셀 중앙에
+   * 맞춘다(중앙↔중앙). 셀/거터 크기는 소비자가 지정 — 보통 그리드 스냅과 배타로 쓴다.
+   * 배경에 같은 셀 격자를 그리려면 렌더러 `gridOptions.modular` 에 동일 값을 준다.
+   */
+  cellSnap?: CellSnapOptions;
   /**
    * 컨테이너에 속한 자식 존을 드래그할 때 부모 컨테이너 박스 밖으로 나가지 못하게
    * 위치를 가둔다(자식 rect 가 부모 안에 머물도록 클램프). 루트 존, 부모/자식 크기를
@@ -1517,6 +1526,7 @@ export function ZoneMoveEditorOverlay(props: {
     includeRoot: editor?.includeRoot,
     gridSnap: editor?.gridSnap,
     objectSnap: editor?.objectSnap,
+    cellSnap: editor?.cellSnap,
     confineChildZonesToParent: editor?.confineChildZonesToParent,
     onModelChange: editor?.onModelChange,
     onLayoutModelChange: editor?.onLayoutModelChange,
@@ -1543,6 +1553,7 @@ export function ZoneMoveEditorOverlay(props: {
       includeRoot: editor?.includeRoot,
       gridSnap: editor?.gridSnap,
       objectSnap: editor?.objectSnap,
+      cellSnap: editor?.cellSnap,
       confineChildZonesToParent: editor?.confineChildZonesToParent,
       onModelChange: editor?.onModelChange,
       onLayoutModelChange: editor?.onLayoutModelChange,
@@ -2343,25 +2354,51 @@ export function ZoneMoveEditorOverlay(props: {
           objectSnap: latestRef.current.objectSnap,
         });
 
-        // 자식 존을 부모 컨테이너 밖으로 못 나가게 가두기. 드래그 중 매 이동마다 클램프한다.
-        // 미지정 시 기본값은 !reparentZone — 재배치(공간 기반)를 잠그면 자동으로 가둔다.
+        // 드래그 중 존 위치 후처리: 셀 스냅(셀 중앙↔존 중앙) → 컨테이너 가두기 순.
+        const movedZoneIds =
+          drag.origin.kind === "zone"
+            ? [drag.origin.zoneId]
+            : drag.origin.kind === "zone-group"
+              ? (Object.keys(drag.origin.originsByZoneId) as ZoneId[])
+              : [];
+
+        // 셀 스냅 — 존 중앙을 가장 가까운 모듈러 그리드 셀 중앙에 맞춘다.
+        const cellSnap = latestRef.current.cellSnap;
+        if (cellSnap?.enabled && movedZoneIds.length > 0) {
+          nextLayoutModel = snapZonesToCells({
+            layoutModel: nextLayoutModel,
+            zoneIds: movedZoneIds,
+            cells: cellSnap,
+          });
+        }
+
+        // 셀 스냅 — 패스 라벨 중앙도 동일 규칙으로 셀 중앙에 맞춘다.
+        if (cellSnap?.enabled) {
+          const movedPathOrigins =
+            drag.origin.kind === "path"
+              ? { [drag.origin.pathId]: drag.origin.origin }
+              : drag.origin.kind === "path-group"
+                ? drag.origin.originsByPathId
+                : null;
+          if (movedPathOrigins) {
+            nextLayoutModel = snapPathsToCells({
+              layoutModel: nextLayoutModel,
+              origins: movedPathOrigins,
+              cells: cellSnap,
+            });
+          }
+        }
+
+        // 자식 존을 부모 컨테이너 밖으로 못 나가게 가두기. 미지정 시 기본값은 !reparentZone.
         const confineChildZones =
           latestRef.current.confineChildZonesToParent ??
           !latestRef.current.permissions.reparentZone;
-        if (confineChildZones) {
-          const movedZoneIds =
-            drag.origin.kind === "zone"
-              ? [drag.origin.zoneId]
-              : drag.origin.kind === "zone-group"
-                ? (Object.keys(drag.origin.originsByZoneId) as ZoneId[])
-                : [];
-          if (movedZoneIds.length > 0) {
-            nextLayoutModel = confineZonesWithinParents({
-              model: latestRef.current.model,
-              layoutModel: nextLayoutModel,
-              zoneIds: movedZoneIds,
-            });
-          }
+        if (confineChildZones && movedZoneIds.length > 0) {
+          nextLayoutModel = confineZonesWithinParents({
+            model: latestRef.current.model,
+            layoutModel: nextLayoutModel,
+            zoneIds: movedZoneIds,
+          });
         }
 
         if (drag.origin.kind === "zone" || drag.origin.kind === "path") {

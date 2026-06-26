@@ -37,6 +37,14 @@ export type PathMoveOriginSnapshot = {
   height: number;
   componentId: "body" | "label" | null;
   coordinateSpace: PathMoveCoordinateSpace;
+  /**
+   * 드래그 시작 시점의 패스 노드 **절대 월드 중앙**(렌더된 rect 기준). route-offset
+   * 좌표공간은 x/y 가 경로 기준 오프셋이라 월드 위치를 직접 모르므로, 셀 스냅이
+   * 월드 그리드에 맞추려면 이 시작 중앙 + 이후 오프셋 변화량으로 현재 중앙을 복원한다.
+   * 프레임 없이 origin 을 만들면 미상(undefined).
+   */
+  absCenterX?: number;
+  absCenterY?: number;
 };
 
 export type ObjectSnapGuides = {

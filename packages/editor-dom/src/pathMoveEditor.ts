@@ -47,6 +47,14 @@ export function resolvePathMoveOriginSnapshot(params: {
   const pathLayout = getPathLayout(layoutModel, pathId);
   const pathVisual = frame?.pipeline.graphLayout.pathsById[pathId];
 
+  // 렌더된 절대 rect 의 중앙 — 좌표공간과 무관하게 셀 스냅의 기준점.
+  const absCenterX = pathVisual?.rect
+    ? pathVisual.rect.x + pathVisual.rect.width / 2
+    : undefined;
+  const absCenterY = pathVisual?.rect
+    ? pathVisual.rect.y + pathVisual.rect.height / 2
+    : undefined;
+
   if (componentId) {
     const componentRect = pathLayout?.componentLayoutsById?.[componentId];
 
@@ -58,6 +66,8 @@ export function resolvePathMoveOriginSnapshot(params: {
         height: componentRect.height ?? pathVisual?.rect?.height ?? 0,
         componentId,
         coordinateSpace: "component-layout",
+        absCenterX,
+        absCenterY,
       };
     }
   }
@@ -71,6 +81,8 @@ export function resolvePathMoveOriginSnapshot(params: {
     height: pathVisual?.rect?.height ?? 0,
     componentId: null,
     coordinateSpace: "route-offset",
+    absCenterX,
+    absCenterY,
   };
 }
 

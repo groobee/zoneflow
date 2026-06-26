@@ -69,11 +69,227 @@ function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
 }
 
+/**
+ * 모듈러 그리드 한 선 종류의 stroke-dasharray 를 만든다. 명시적 dash 가 있으면 그대로,
+ * 없으면 style 프리셋으로: dashed 는 tileUnit 을 등분해 이음새 없는 점선, dotted 는 round
+ * 캡 점, solid 는 dash 없음(실선). `round` 는 dotted 일 때만 true.
+ */
+function resolveModularGridDash(
+  style: PathLineStyle | undefined,
+  explicit: number[] | undefined,
+  tileUnit: number
+): { dasharray: string | null; round: boolean } {
+  if (explicit && explicit.length > 0) {
+    return { dasharray: explicit.join(" "), round: false };
+  }
+  switch (style) {
+    case "dashed": {
+      const seg = Math.max(tileUnit / 8, 1);
+      return { dasharray: `${seg} ${seg}`, round: false };
+    }
+    case "dotted":
+      return { dasharray: `0.1 ${Math.max(tileUnit / 5, 2)}`, round: true };
+    default:
+      return { dasharray: null, round: false };
+  }
+}
+
+function makeModularGridLine(params: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  stroke: string;
+  width: number;
+  dash: { dasharray: string | null; round: boolean };
+}): SVGLineElement {
+  const { x1, y1, x2, y2, stroke, width, dash } = params;
+  const line = createSvgElement("line");
+  line.setAttribute("x1", String(x1));
+  line.setAttribute("y1", String(y1));
+  line.setAttribute("x2", String(x2));
+  line.setAttribute("y2", String(y2));
+  line.setAttribute("stroke", stroke);
+  line.setAttribute("stroke-width", String(width));
+  if (dash.dasharray) {
+    line.setAttribute("stroke-dasharray", dash.dasharray);
+    if (dash.round) line.setAttribute("stroke-linecap", "round");
+  } else {
+    line.setAttribute("shape-rendering", "crispEdges");
+  }
+  return line;
+}
+
+function makeModularFillRect(fill: string): SVGRectElement {
+  const rect = createSvgElement("rect");
+  rect.setAttribute("x", "0");
+  rect.setAttribute("y", "0");
+  rect.setAttribute("width", "100%");
+  rect.setAttribute("height", "100%");
+  rect.setAttribute("fill", fill);
+  return rect;
+}
+
+let modularGridSeq = 0;
+
+/**
+ * 모듈러 그리드(셀 스냅의 시각판)를 SVG `<pattern>` 으로 그린다. 가는 그리드(size)는 기본
+ * 점선, 셀 경계(반복 트랙 패턴 columns/rows)는 기본 실선이며, 둘 다 gridOptions.modular.grid /
+ * .cell 로 색·두께·종류를 외부 주입해 덮어쓸 수 있다. 카메라 팬은 pattern x/y 로, 줌은 트랙
+ * 크기 × zoom 으로 반영한다. 패턴이 비면 셀 경계는 생략하고 가는 그리드만 그린다.
+ */
+function createModularGridLayer(params: {
+  options: NonNullable<RendererDrawInput["gridOptions"]>;
+  camera: RendererDrawInput["camera"];
+}): SVGSVGElement | null {
+  const { options, camera } = params;
+  const m = options.modular;
+  if (!m) return null;
+  const zoom = camera.zoom;
+  const minor = Math.max(options.size ?? 16, 2) * zoom;
+  if (minor < 2) return null;
+
+  const colsScreen = (m.columns ?? []).filter((n) => n > 0).map((n) => n * zoom);
+  const rowsScreen = (m.rows ?? []).filter((n) => n > 0).map((n) => n * zoom);
+  const periodX = colsScreen.reduce((sum, n) => sum + n, 0);
+  const periodY = rowsScreen.reduce((sum, n) => sum + n, 0);
+  const hasCells = periodX >= 2 && periodY >= 2;
+
+  // 기본: 그리드 점선 / 셀선 실선. 색·두께·종류는 외부 주입(grid/cell)으로 덮어쓴다.
+  const fineColor = options.color ?? "rgba(148, 163, 184, 0.28)";
+  const fineWidth = m.grid?.width ?? 1;
+  const fineDash = resolveModularGridDash(
+    m.grid?.style ?? "dashed",
+    m.grid?.dash,
+    minor
+  );
+  const cellColor =
+    m.cell?.color ?? options.majorColor ?? "rgba(148, 163, 184, 0.55)";
+  const cellWidth = m.cell?.width ?? 2;
+  const cellDash = resolveModularGridDash(
+    m.cell?.style ?? "solid",
+    m.cell?.dash,
+    minor
+  );
+
+  const minorOffsetX = positiveModulo(camera.x, minor);
+  const minorOffsetY = positiveModulo(camera.y, minor);
+  const uid = (modularGridSeq = (modularGridSeq + 1) % 1_000_000);
+
+  const svg = createSvgElement("svg");
+  svg.style.position = "absolute";
+  svg.style.top = "0";
+  svg.style.left = "0";
+  svg.style.width = "100%";
+  svg.style.height = "100%";
+  svg.style.pointerEvents = "none";
+  if (options.backgroundColor) {
+    svg.style.backgroundColor = options.backgroundColor;
+  }
+
+  const defs = createSvgElement("defs");
+
+  const fineId = `zf-grid-fine-${uid}`;
+  const finePattern = createSvgElement("pattern");
+  finePattern.setAttribute("id", fineId);
+  finePattern.setAttribute("patternUnits", "userSpaceOnUse");
+  finePattern.setAttribute("width", String(minor));
+  finePattern.setAttribute("height", String(minor));
+  finePattern.setAttribute("x", String(minorOffsetX));
+  finePattern.setAttribute("y", String(minorOffsetY));
+  finePattern.appendChild(
+    makeModularGridLine({
+      x1: 0,
+      y1: 0,
+      x2: 0,
+      y2: minor,
+      stroke: fineColor,
+      width: fineWidth,
+      dash: fineDash,
+    })
+  );
+  finePattern.appendChild(
+    makeModularGridLine({
+      x1: 0,
+      y1: 0,
+      x2: minor,
+      y2: 0,
+      stroke: fineColor,
+      width: fineWidth,
+      dash: fineDash,
+    })
+  );
+  defs.appendChild(finePattern);
+
+  let cellId: string | null = null;
+  if (hasCells) {
+    cellId = `zf-grid-cell-${uid}`;
+    const cellOffsetX = positiveModulo(
+      camera.x - (m.originX ?? 0) * zoom,
+      periodX
+    );
+    const cellOffsetY = positiveModulo(
+      camera.y - (m.originY ?? 0) * zoom,
+      periodY
+    );
+    const cellPattern = createSvgElement("pattern");
+    cellPattern.setAttribute("id", cellId);
+    cellPattern.setAttribute("patternUnits", "userSpaceOnUse");
+    cellPattern.setAttribute("width", String(periodX));
+    cellPattern.setAttribute("height", String(periodY));
+    cellPattern.setAttribute("x", String(cellOffsetX));
+    cellPattern.setAttribute("y", String(cellOffsetY));
+    let x = 0;
+    for (const w of colsScreen) {
+      cellPattern.appendChild(
+        makeModularGridLine({
+          x1: x,
+          y1: 0,
+          x2: x,
+          y2: periodY,
+          stroke: cellColor,
+          width: cellWidth,
+          dash: cellDash,
+        })
+      );
+      x += w;
+    }
+    let y = 0;
+    for (const h of rowsScreen) {
+      cellPattern.appendChild(
+        makeModularGridLine({
+          x1: 0,
+          y1: y,
+          x2: periodX,
+          y2: y,
+          stroke: cellColor,
+          width: cellWidth,
+          dash: cellDash,
+        })
+      );
+      y += h;
+    }
+    defs.appendChild(cellPattern);
+  }
+
+  svg.appendChild(defs);
+  svg.appendChild(makeModularFillRect(`url(#${fineId})`));
+  if (cellId) svg.appendChild(makeModularFillRect(`url(#${cellId})`));
+  return svg;
+}
+
 function createGridLayer(params: {
   options: NonNullable<RendererDrawInput["gridOptions"]>;
   camera: RendererDrawInput["camera"];
-}): HTMLElement | null {
+}): HTMLElement | SVGSVGElement | null {
   const { options, camera } = params;
+
+  // 모듈러 그리드 — 가는 그리드(기본 점선) + 반복 트랙 패턴(columns/rows) 경계의 셀선(기본
+  // 실선). cellSnap 과 같은 패턴을 받아 시각/스냅을 일치시킨다. 점선/실선 표현을 위해 SVG.
+  if (options.modular) {
+    return createModularGridLayer({ options, camera });
+  }
+
   const worldSize = Math.max(options.size ?? 16, 2);
   const majorEvery = Math.max(options.majorEvery ?? 4, 2);
   const minorSize = worldSize * camera.zoom;

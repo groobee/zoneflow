@@ -449,6 +449,21 @@ export type BackgroundRendererContext = {
   theme: ZoneflowTheme;
 };
 
+/**
+ * 모듈러 그리드에서 한 종류의 선(가는 그리드 / 셀 경계)을 어떻게 그릴지 — 소비자가
+ * 주입하는 스타일. `style` 은 `solid|dashed|dotted` 프리셋이고, `dash` 로 직접
+ * stroke-dasharray(px)를 줄 수도 있다(주면 style 보다 우선). 색/두께도 덮어쓸 수 있다.
+ */
+export type ModularGridLineStyle = {
+  color?: string;
+  /** 선 두께(px, 화면 기준). */
+  width?: number;
+  /** 선 종류 프리셋. */
+  style?: PathLineStyle;
+  /** 명시적 stroke-dasharray(px). 주면 `style` 보다 우선. */
+  dash?: number[];
+};
+
 export type GridOptions = {
   enabled?: boolean;
   size?: number;
@@ -456,6 +471,31 @@ export type GridOptions = {
   majorEvery?: number;
   majorColor?: string;
   backgroundColor?: string;
+  /**
+   * "모듈러 그리드" — 기본 가는 그리드(size) 위에 **반복 트랙 패턴**의 경계마다 굵은 선을
+   * 덧그린다(모눈종이에 트랙 경계마다 굵은 선). 축별 트랙 패턴은 origin 부터 무한 반복하며,
+   * 편집기 `cellSnap` 과 같은 의미로 짝수 인덱스 트랙이 셀·홀수가 거터다. `cellSnap` 과 같은
+   * columns/rows 를 주면 스냅과 시각이 일치한다(셀 스냅의 시각판). 가는 선은 size/color 를 그대로 쓴다.
+   */
+  modular?: {
+    /**
+     * 가로/세로 트랙 패턴(px), 반복. 트랙 경계마다 굵은 선. 예: `[256, 80]` → 256·80 이
+     * 번갈아 반복(짝수=셀, 홀수=거터). `[256]` → 거터 없는 균일 셀.
+     */
+    columns: number[];
+    rows: number[];
+    originX?: number;
+    originY?: number;
+    /**
+     * 가는 그리드 선 스타일. **기본값 점선(dashed)**. 외부에서 색/두께/종류를 주입해 덮어쓸 수 있다.
+     */
+    grid?: ModularGridLineStyle;
+    /**
+     * 셀(스냅) 경계 선 스타일. **기본값 실선(solid)**. 외부에서 주입해 덮어쓸 수 있다.
+     * 색 미지정 시 majorColor 로 폴백.
+     */
+    cell?: ModularGridLineStyle;
+  };
 };
 
 export type BackgroundRenderer = (

@@ -1,4 +1,5 @@
 import {
+  getPathLayout,
   getZoneDepth,
   getZoneLayout,
   updateZoneLayout,
@@ -25,6 +26,7 @@ import {
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
   type MoveEditorTargetOptions,
+  type PathMoveOriginSnapshot,
   type ZoneAlignMode,
   type ZoneDistributeMode,
   type ZoneResizeOrigin,
@@ -456,6 +458,172 @@ export function confineZonesWithinParents(params: {
 
     if (x !== child.x || y !== child.y) {
       layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
+    }
+  }
+
+  return layoutModel;
+}
+
+/**
+ * "셀 스냅(Cell Snap)" 옵션. 캔버스를 **반복되는 트랙 패턴**의 모듈러 그리드로 보고
+ * (모눈종이에 트랙 경계마다 굵은 선), 콘텐츠를 그 셀에 맞춰 배치하기 위한 설정. 축별
+ * 트랙 패턴은 origin 부터 무한 반복하며, **짝수 인덱스 트랙(0,2,…)이 "셀", 홀수(1,3,…)가
+ * "거터"** 다 — 존은 셀 중앙에만 스냅하고 거터는 비워둔다. 트랙 크기는 소비자가 지정한다
+ * (보통 그리드 칸 수 × gridSnapSize).
+ */
+export type CellSnapOptions = {
+  enabled?: boolean;
+  /**
+   * 가로/세로 트랙 패턴(world units), 반복. 짝수 인덱스=셀, 홀수=거터.
+   * 예: `[256, 80]` → 256짜리 셀과 80짜리 거터가 번갈아 반복. `[256]` → 거터 없는 균일 셀.
+   */
+  columns: number[];
+  rows: number[];
+  /** 트랙 패턴 시작 좌표(world units). 기본 0. */
+  originX?: number;
+  originY?: number;
+};
+
+/**
+ * 좌표를 트랙 패턴에서 가장 가까운 "셀(짝수 트랙) 중앙"에 스냅한다. 패턴은 origin 부터
+ * 무한 반복하며 짝수 인덱스 트랙이 셀·홀수가 거터다. 패턴 합이 0이거나 셀이 하나도 없으면
+ * 원좌표를 그대로 돌려준다.
+ */
+function snapToNearestCellCenterInPattern(
+  center: number,
+  pattern: number[],
+  origin: number
+): number {
+  const period = pattern.reduce((sum, n) => sum + (n > 0 ? n : 0), 0);
+  if (!(period > 0)) return center;
+
+  // 한 주기 안에서의 셀(짝수 트랙) 중앙 오프셋들.
+  const cellCenters: number[] = [];
+  let pos = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    const size = pattern[i] > 0 ? pattern[i] : 0;
+    if (i % 2 === 0 && size > 0) cellCenters.push(pos + size / 2);
+    pos += size;
+  }
+  if (cellCenters.length === 0) return center;
+
+  // center 를 origin 기준 가장 가까운 주기로 줄여, 이웃 주기까지 후보를 비교.
+  const base = Math.floor((center - origin) / period) * period;
+  let best = center;
+  let bestDist = Infinity;
+  for (const cellCenter of cellCenters) {
+    for (const k of [base - period, base, base + period]) {
+      const candidate = origin + k + cellCenter;
+      const dist = Math.abs(candidate - center);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * 주어진 존들의 **중앙**을 가장 가까운 셀 중앙에 맞춘다(중앙↔중앙 스냅, 셀 스냅 모드의
+ * 기본 동작). 트랙 패턴의 짝수 트랙(셀)에만 들어가고 홀수(거터)는 건너뛴다. 존 크기는
+ * 그대로 두고 위치만 옮긴다 — 셀보다 작으면 셀 안에 가운데 정렬되고, 크면 셀 중앙 기준으로
+ * 걸쳐진다. 크기 미상 존은 건너뛴다.
+ */
+export function snapZonesToCells(params: {
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+  cells: CellSnapOptions;
+}): UniverseLayoutModel {
+  const { zoneIds, cells } = params;
+  let layoutModel = params.layoutModel;
+  const { columns, rows, originX = 0, originY = 0 } = cells;
+  if (!columns?.length || !rows?.length) return layoutModel;
+
+  for (const zoneId of zoneIds) {
+    const layout = getZoneLayout(layoutModel, zoneId);
+    if (!layout || layout.width == null || layout.height == null) continue;
+
+    const centerX = layout.x + layout.width / 2;
+    const centerY = layout.y + layout.height / 2;
+    const x =
+      snapToNearestCellCenterInPattern(centerX, columns, originX) -
+      layout.width / 2;
+    const y =
+      snapToNearestCellCenterInPattern(centerY, rows, originY) -
+      layout.height / 2;
+
+    if (x !== layout.x || y !== layout.y) {
+      layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
+    }
+  }
+
+  return layoutModel;
+}
+
+/**
+ * 패스 라벨(노드)들의 **절대 월드 중앙**을 가장 가까운 셀 중앙에 맞춘다(존 셀 스냅의
+ * 패스판). 드래그 origin 스냅샷에 담긴 시작 중앙(`absCenterX/Y`)과 이동 후 위치 변화량으로
+ * 현재 절대 중앙을 복원해 스냅하므로, route-offset(경로 기준 오프셋)·component-layout(절대)
+ * 두 좌표공간 모두에서 월드 그리드에 정렬된다. 시작 중앙 미상(프레임 없이 시작)이면 건너뛴다.
+ */
+export function snapPathsToCells(params: {
+  layoutModel: UniverseLayoutModel;
+  /** 드래그 중인 패스들의 시작 origin 스냅샷(절대 중앙 포함). */
+  origins: Record<PathId, PathMoveOriginSnapshot>;
+  cells: CellSnapOptions;
+}): UniverseLayoutModel {
+  const { origins, cells } = params;
+  let layoutModel = params.layoutModel;
+  const { columns, rows, originX = 0, originY = 0 } = cells;
+  if (!columns?.length || !rows?.length) return layoutModel;
+
+  for (const [pathId, origin] of Object.entries(origins) as Array<
+    [PathId, PathMoveOriginSnapshot]
+  >) {
+    if (origin.absCenterX == null || origin.absCenterY == null) continue;
+    const layout = getPathLayout(layoutModel, pathId);
+    if (!layout) continue;
+
+    // 이동 후 현재 위치를 origin 좌표공간에서 읽는다.
+    let curPosX: number;
+    let curPosY: number;
+    if (origin.coordinateSpace === "route-offset") {
+      curPosX = layout.routeOffset?.x ?? 0;
+      curPosY = layout.routeOffset?.y ?? 0;
+    } else {
+      const component =
+        layout.componentLayoutsById?.[origin.componentId ?? "body"];
+      curPosX = component?.x ?? origin.x;
+      curPosY = component?.y ?? origin.y;
+    }
+
+    // 시작 중앙 + (현재 위치 − 시작 위치) = 현재 절대 중앙.
+    const curCenterX = origin.absCenterX + (curPosX - origin.x);
+    const curCenterY = origin.absCenterY + (curPosY - origin.y);
+    const targetCenterX = snapToNearestCellCenterInPattern(
+      curCenterX,
+      columns,
+      originX
+    );
+    const targetCenterY = snapToNearestCellCenterInPattern(
+      curCenterY,
+      rows,
+      originY
+    );
+
+    // 목표 절대 중앙이 되도록 origin 좌표공간 위치를 역산.
+    const nextPosX = origin.x + (targetCenterX - origin.absCenterX);
+    const nextPosY = origin.y + (targetCenterY - origin.absCenterY);
+
+    if (nextPosX !== curPosX || nextPosY !== curPosY) {
+      layoutModel = applyPathMovePosition({
+        layoutModel,
+        pathId,
+        origin,
+        x: nextPosX,
+        y: nextPosY,
+      });
     }
   }
 
