@@ -400,8 +400,9 @@ export function CanvasHost({
         grid={
           cellSnapOn
             ? {
-                // 기본: 가는 그리드=점선 / 셀(스냅)선=실선(라이브러리 기본값). 여기선 셀선 색만 주입.
-                modular: { ...cellPx, cell: { color: "rgba(71, 85, 105, 0.6)" } },
+                // 기본: 가는 그리드=점선 / 셀(스냅)선=실선(라이브러리 기본값). 셀선은 그리드와
+                // 같은 중성 회색 계열로 옅게 — 실선/약간 진한 정도로만 구분(특정 색이 튀지 않게).
+                modular: { ...cellPx, cell: { color: "rgba(148, 163, 184, 0.45)" } },
               }
             : undefined
         }
