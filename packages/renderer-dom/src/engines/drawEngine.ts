@@ -102,8 +102,30 @@ function makeModularGridLine(params: {
   stroke: string;
   width: number;
   dash: { dasharray: string | null; round: boolean };
-}): SVGLineElement {
+}): SVGElement {
   const { x1, y1, x2, y2, stroke, width, dash } = params;
+
+  // 실선은 stroke 대신 채움 rect 로 그린다 — 패턴 타일 경계 선과 내부 선의 폭이 갈려
+  // "두 종류 굵기"로 보이는 스트로크 시접/중심정렬 문제를 피하고 균일 폭을 보장한다.
+  // 점선·도트는 stroke-dasharray 가 필요하므로 line 으로.
+  if (!dash.dasharray) {
+    const rect = createSvgElement("rect");
+    if (x1 === x2) {
+      rect.setAttribute("x", String(x1 - width / 2));
+      rect.setAttribute("y", String(Math.min(y1, y2)));
+      rect.setAttribute("width", String(width));
+      rect.setAttribute("height", String(Math.abs(y2 - y1)));
+    } else {
+      rect.setAttribute("x", String(Math.min(x1, x2)));
+      rect.setAttribute("y", String(y1 - width / 2));
+      rect.setAttribute("width", String(Math.abs(x2 - x1)));
+      rect.setAttribute("height", String(width));
+    }
+    rect.setAttribute("fill", stroke);
+    rect.setAttribute("shape-rendering", "crispEdges");
+    return rect;
+  }
+
   const line = createSvgElement("line");
   line.setAttribute("x1", String(x1));
   line.setAttribute("y1", String(y1));
@@ -111,12 +133,8 @@ function makeModularGridLine(params: {
   line.setAttribute("y2", String(y2));
   line.setAttribute("stroke", stroke);
   line.setAttribute("stroke-width", String(width));
-  if (dash.dasharray) {
-    line.setAttribute("stroke-dasharray", dash.dasharray);
-    if (dash.round) line.setAttribute("stroke-linecap", "round");
-  } else {
-    line.setAttribute("shape-rendering", "crispEdges");
-  }
+  line.setAttribute("stroke-dasharray", dash.dasharray);
+  if (dash.round) line.setAttribute("stroke-linecap", "round");
   return line;
 }
 
@@ -165,7 +183,8 @@ function createModularGridLayer(params: {
   );
   const cellColor =
     m.cell?.color ?? options.majorColor ?? "rgba(148, 163, 184, 0.55)";
-  const cellWidth = m.cell?.width ?? 2;
+  // 셀 경계는 점선 그리드 대비 "실선"으로 구분되므로 굵기는 그리드와 같은 1px 가 기본.
+  const cellWidth = m.cell?.width ?? 1;
   const cellDash = resolveModularGridDash(
     m.cell?.style ?? "solid",
     m.cell?.dash,
@@ -197,6 +216,8 @@ function createModularGridLayer(params: {
   finePattern.setAttribute("height", String(minor));
   finePattern.setAttribute("x", String(minorOffsetX));
   finePattern.setAttribute("y", String(minorOffsetY));
+  // 타일 가장자리(local 0)의 선이 절반으로 잘려 "두 종류 굵기"로 보이는 것을 막는다.
+  finePattern.setAttribute("overflow", "visible");
   finePattern.appendChild(
     makeModularGridLine({
       x1: 0,
@@ -239,6 +260,8 @@ function createModularGridLayer(params: {
     cellPattern.setAttribute("height", String(periodY));
     cellPattern.setAttribute("x", String(cellOffsetX));
     cellPattern.setAttribute("y", String(cellOffsetY));
+    // 셀 경계선이 타일 가장자리에서 잘리지 않도록(가장자리/내부 선 폭 통일).
+    cellPattern.setAttribute("overflow", "visible");
     let x = 0;
     for (const w of colsScreen) {
       cellPattern.appendChild(
