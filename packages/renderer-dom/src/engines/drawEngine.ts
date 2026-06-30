@@ -511,6 +511,15 @@ function getEdgeDashPattern(lineStyle: PathLineStyle | undefined): string | null
   }
 }
 
+// 패스 연결선을 출발→도착 직선으로(곡선 우회 없이). lineShape: "straight" 용.
+function getStraightPathD(params: {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+}) {
+  const { source, target } = params;
+  return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
+}
+
 function getBezierCurvePathD(params: {
   source: { x: number; y: number };
   target: { x: number; y: number };
@@ -812,10 +821,10 @@ function drawEdges(params: {
               kind: edge.kind,
               theme: input.theme,
             }));
-      const pathD = getBezierCurvePathD({
-        source: edge.source,
-        target: edge.target,
-      });
+      const pathD =
+        pathStyle?.lineShape === "straight"
+          ? getStraightPathD({ source: edge.source, target: edge.target })
+          : getBezierCurvePathD({ source: edge.source, target: edge.target });
       const opacity = getOpacity(visibility.emphasis);
       const baseWidth = edge.kind === "path-to-zone" ? 2.25 : 1.85;
 

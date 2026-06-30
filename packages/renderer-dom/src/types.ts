@@ -239,6 +239,13 @@ export type ResolvePathLineColor = (path: Path) => string | null | undefined;
  */
 export type PathLineStyle = "solid" | "dashed" | "dotted";
 
+/**
+ * Connector line geometry: `"curved"` (default) is a bezier that bends and
+ * routes around when endpoints are close/overlapping; `"straight"` is a direct
+ * source→target segment.
+ */
+export type PathLineShape = "curved" | "straight";
+
 export type PathStyleOverride = {
   /**
    * Blink the path's node (label slots included) and its connector lines.
@@ -257,12 +264,17 @@ export type PathStyleOverride = {
    * connector line is affected.
    */
   lineStyle?: PathLineStyle;
+  /**
+   * Connector line geometry — `"curved"` (default) or `"straight"`. Affects
+   * only the drawn connector path; anchor points and hit-testing are unchanged.
+   */
+  lineShape?: PathLineShape;
 };
 
 /**
  * Resolver invoked once per path to decide its style overrides. Return
- * `undefined`/`null` for the default presentation. Purely presentational —
- * geometry and hit-testing are unaffected.
+ * `undefined`/`null` for the default presentation. Presentational only —
+ * affects the connector's look/geometry, not node hit-testing.
  */
 export type ResolvePathStyle = (
   path: Path
