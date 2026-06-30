@@ -57,6 +57,8 @@ type Props = {
   onToggleCellSnap: () => void;
   cellPattern: { cols: number[]; rows: number[] };
   onCellPatternChange: (next: { cols: number[]; rows: number[] }) => void;
+  straightPaths: boolean;
+  onToggleStraightPaths: () => void;
 };
 
 export function Topbar({
@@ -89,6 +91,8 @@ export function Topbar({
   onToggleCellSnap,
   cellPattern,
   onCellPatternChange,
+  straightPaths,
+  onToggleStraightPaths,
 }: Props) {
   // 트랙 패턴 입력 버퍼 — 배열↔문자열 변환 때문에 입력 중 콤마가 사라지지 않도록
   // 로컬 문자열 상태를 두고, 파싱이 비지 않을 때만 상위로 전달한다.
@@ -375,6 +379,19 @@ export function Topbar({
               </span>
             </span>
           ) : null}
+          <button
+            type="button"
+            style={{
+              ...themedControlStyle,
+              ...(straightPaths
+                ? { background: "#0891b2", color: "#ecfeff", fontWeight: 700 }
+                : null),
+            }}
+            onClick={onToggleStraightPaths}
+            title='패스 연결선을 직선으로 (resolvePathStyle 의 lineShape:"straight" 주입)'
+          >
+            직선 패스 {straightPaths ? "On" : "Off"}
+          </button>
           <button
             type="button"
             style={themedControlStyle}
