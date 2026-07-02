@@ -420,6 +420,33 @@ layoutModel.zoneLayoutsById["journey"].slotLayoutsByKey = {
 
 `resolveZoneSlotRegions(zone, layout)` 이 렌더러 드로우·에디터 드롭 판정·외부 드로어가 공유하는 단일 기하 소스라, 소비자가 `updateZoneLayout` 으로 `slotLayoutsByKey` 를 바꾸는 즉시 (예: `renderZoneOverlays` 로 직접 그린 리사이즈 핸들에서) 레인 시각과 드롭 판정이 함께 따라옵니다.
 
+**도킹 스냅 포인트** — 레인 안에서 존이 앉을 자리를 고정하고 싶으면 슬롯에 스냅 포인트를 선언합니다:
+
+```ts
+slotLayoutsByKey: {
+  parallel: {
+    width: 260,
+    // 슬롯 로컬 좌표 — 드래그 중인 존의 "중앙"이 여기에 스냅
+    snapPoints: [
+      { x: 130, y: 72 },
+      { x: 130, y: 176 },
+      { x: 130, y: 280 },
+    ],
+  },
+}
+```
+
+- 드래그 중 존 중앙이 레인 안에 들어오면 **가장 가까운 빈 포인트**로 중앙 스냅됩니다 (`snapZonesToSlotPoints`). 레인 안에서는 그리드/셀 스냅보다 우선.
+- **한 포인트에는 한 존만** — 다른 형제 존이 이미 앉은 포인트는 후보에서 제외되고, 그룹 드래그도 서로 다른 포인트에 순차 배정됩니다. 빈 포인트가 없으면 스냅 없이 자유 배치됩니다(슬롯 멤버십은 그대로).
+- 기본 레인 드로우가 포인트 자리에 점선 링 마커를 그립니다 — 존이 앉으면 가려지므로 "남은 링 = 빈 자리"로 읽힙니다.
+- 포인트 미선언 슬롯은 기존대로 자유 배치입니다.
+
+스냅 포인트 드로우도 레인과 같은 사다리로 교체합니다:
+
+- 색만: 테마 토큰 `surface.zone.slotSnapPoint` (미지정 시 `slotBorder` 폴백)
+- 포인트만 직접: `renderZone` 풀바디에서 `renderDefaultZoneBody({ ..., slotSnapPoints: false })` 로 기본 링만 끄고 `context.slotRegions[].snapPoints`(존 로컬)로 직접 그리기. 레인까지 직접 그리려면 `slotLanes: false`. 기본 드로우 재사용은 `renderZoneSlotLanes({ ..., showSnapPoints })`.
+- 엔진 전체: `drawEngine` 교체 시에도 `zoneVisual.slotRegions[].snapPoints`(월드)가 파이프라인에 있습니다.
+
 편집 동작 (`reparentZone` 권한 필요):
 
 - 자식 존을 드래그해 **레인 안에 드롭하면 `slotKey` 가 세팅되고, 밖에 드롭하면 해제됩니다** (`commitZoneSlotMembership`). 같은 컨테이너 안에서 레인 ↔ 일반 영역만 오가는 드래그도 커밋됩니다.

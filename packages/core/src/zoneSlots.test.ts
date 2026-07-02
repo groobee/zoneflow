@@ -316,6 +316,28 @@ describe("resolveZoneSlotRegions", () => {
     ).toEqual([]);
   });
 
+  it("translates slot-local snapPoints to container-local coordinates", () => {
+    const twoSlots = slotContainer({
+      childZoneIds: [],
+      slots: [PARALLEL_SLOT, { key: "onExit" }],
+    });
+    const regions = resolveZoneSlotRegions(twoSlots, {
+      width: 1000,
+      height: 400,
+      slotLayoutsByKey: {
+        parallel: { width: 200, snapPoints: [{ x: 100, y: 80 }] },
+        onExit: {
+          rect: { x: 600, y: 250, width: 300, height: 120 },
+          snapPoints: [{ x: 150, y: 60 }],
+        },
+      },
+    });
+    // 스택 레인: 원점 (0,0) → 그대로
+    expect(regions[0].snapPoints).toEqual([{ x: 100, y: 80 }]);
+    // 자유 rect: 원점 (600,250) 오프셋
+    expect(regions[1].snapPoints).toEqual([{ x: 750, y: 310 }]);
+  });
+
   it("resolveZoneSlotKeyAtPoint finds the lane containing a local point", () => {
     const layout = { width: 1000, height: 400 };
     expect(

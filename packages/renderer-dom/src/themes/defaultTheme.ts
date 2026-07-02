@@ -38,6 +38,7 @@ export const defaultTheme: ZoneflowTheme = {
       slotBackground: "rgba(37, 99, 235, 0.05)",
       slotBorder: "rgba(37, 99, 235, 0.30)",
       slotLabel: "rgba(37, 99, 235, 0.72)",
+      slotSnapPoint: "rgba(37, 99, 235, 0.38)",
     },
     path: {
       background:

@@ -26,6 +26,7 @@ import {
   getMoveEditorTargets,
   confineZonesWithinParents,
   snapZonesToCells,
+  snapZonesToSlotPoints,
   snapPathsToCells,
   moveEditorTargetByScreenDelta,
   resolveGroupZoneDragOrigin,
@@ -2410,6 +2411,17 @@ export function ZoneMoveEditorOverlay(props: {
           !latestRef.current.permissions.reparentZone;
         if (confineChildZones && movedZoneIds.length > 0) {
           nextLayoutModel = confineZonesWithinParents({
+            model: latestRef.current.model,
+            layoutModel: nextLayoutModel,
+            zoneIds: movedZoneIds,
+          });
+        }
+
+        // 도킹 슬롯 스냅 포인트 — 존 중앙이 스냅 포인트를 선언한 레인 안이면
+        // 가장 가까운 "빈" 포인트로 중앙 스냅(형제가 앉은 포인트는 제외).
+        // 레인 안에서는 슬롯이 그리드/셀 스냅보다 구체적인 의도이므로 마지막에 적용.
+        if (movedZoneIds.length > 0) {
+          nextLayoutModel = snapZonesToSlotPoints({
             model: latestRef.current.model,
             layoutModel: nextLayoutModel,
             zoneIds: movedZoneIds,

@@ -47,6 +47,8 @@ export type ZoneflowTheme = {
       slotBackground?: string;
       slotBorder?: string;
       slotLabel?: string;
+      /** Empty docking snap-point ring color. Falls back to `slotBorder`. */
+      slotSnapPoint?: string;
     };
     path: {
       background: string;

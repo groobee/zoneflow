@@ -53,6 +53,8 @@ export type VisibilityEmphasis = "strong" | "normal" | "dim" | "hidden";
 export type ZoneSlotRegionVisual = {
   key: string;
   rect: Rect;
+  /** Docking snap points in world coordinates (see ZoneSlotLayout.snapPoints). */
+  snapPoints?: Point[];
 };
 
 export type ZoneVisualNode = {
@@ -323,11 +325,11 @@ export type ZoneRendererContext = {
   textScale: TextScaleLevel;
   /**
    * Docking-slot lane regions in ZONE-LOCAL pixels (origin = the host's
-   * top-left corner), ready to position `absolute` children against. World
-   * coordinates are on `zoneVisual.slotRegions`. Empty for zones without
-   * declared slots.
+   * top-left corner), ready to position `absolute` children against —
+   * `snapPoints` included, same coordinate space. World coordinates are on
+   * `zoneVisual.slotRegions`. Empty for zones without declared slots.
    */
-  slotRegions: Array<{ key: string } & Rect>;
+  slotRegions: Array<{ key: string; snapPoints?: Point[] } & Rect>;
 };
 
 /**

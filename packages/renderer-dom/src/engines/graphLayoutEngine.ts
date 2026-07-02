@@ -216,6 +216,10 @@ function createZoneVisualNodes(params: {
           width: region.width,
           height: region.height,
         },
+        snapPoints: region.snapPoints?.map((point) => ({
+          x: rect.x + point.x,
+          y: rect.y + point.y,
+        })),
       })
     );
 

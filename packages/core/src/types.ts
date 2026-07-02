@@ -38,6 +38,15 @@ export type ZoneSlotLayout = {
    * top).
    */
   rect?: Layout;
+  /**
+   * Docking snap points in SLOT-LOCAL coordinates (relative to the lane's
+   * top-left, world units). While a child zone is dragged inside the lane its
+   * CENTER snaps to the nearest point not already occupied by a sibling —
+   * one zone per point, so docked zones never pile up on the same spot. No
+   * free point → no snap (free placement; membership is unaffected). Omit
+   * for free placement everywhere in the lane.
+   */
+  snapPoints?: Point[];
 };
 
 export type ZoneLayout = Layout & {

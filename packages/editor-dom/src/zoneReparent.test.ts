@@ -10,6 +10,7 @@ import {
   type ZoneSlotDef,
 } from "@zoneflow/core";
 import { commitZoneSlotMembership } from "./zoneReparent";
+import { snapZonesToSlotPoints } from "./zoneMoveEditor";
 
 const PARALLEL_SLOT: ZoneSlotDef = {
   key: "parallel",
@@ -176,5 +177,123 @@ describe("commitZoneSlotMembership", () => {
     });
     expect(noSlots.didChange).toBe(false);
     expect(noSlots.model.zonesById["child"].slotKey).toBeUndefined();
+  });
+});
+
+// 컨테이너 600×300, parallel 레인 폭 220, 스냅 포인트 2개 (110,75)/(110,225).
+function slotLayoutWithSnapPoints(children: Array<[string, number, number]>) {
+  let layoutModel = createUniverseLayoutModel({ universeId: "u1" });
+  layoutModel = updateZoneLayout(layoutModel, "c", {
+    ...createZoneLayout({ x: 0, y: 0, width: 600, height: 300 }),
+    slotLayoutsByKey: {
+      parallel: {
+        width: 220,
+        snapPoints: [
+          { x: 110, y: 75 },
+          { x: 110, y: 225 },
+        ],
+      },
+    },
+  });
+  for (const [id, x, y] of children) {
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      id,
+      createZoneLayout({ x, y, width: 160, height: 80 })
+    );
+  }
+  return layoutModel;
+}
+
+describe("snapZonesToSlotPoints", () => {
+  const container = (childIds: string[]) =>
+    zone("c", {
+      zoneType: "container",
+      slots: [PARALLEL_SLOT],
+      childZoneIds: childIds,
+    });
+
+  it("snaps the dragged zone's center to the nearest free point", () => {
+    const m = model([container(["child"]), zone("child", { parentZoneId: "c" })]);
+    // center (110, 100) → 가까운 포인트 (110, 75)
+    const layoutModel = snapZonesToSlotPoints({
+      model: m,
+      layoutModel: slotLayoutWithSnapPoints([["child", 30, 60]]),
+      zoneIds: ["child"],
+    });
+    const child = layoutModel.zoneLayoutsById["child"];
+    expect([child.x, child.y]).toEqual([30, 35]); // center (110, 75)
+  });
+
+  it("skips points occupied by a sibling and takes the next free one", () => {
+    const m = model([
+      container(["child", "sibling"]),
+      zone("child", { parentZoneId: "c" }),
+      zone("sibling", { parentZoneId: "c", slotKey: "parallel" }),
+    ]);
+    // sibling center = (110, 75) → 첫 포인트 점유. child center (110,100)는
+    // (110,75)가 더 가깝지만 점유돼 있으므로 (110,225)로.
+    const layoutModel = snapZonesToSlotPoints({
+      model: m,
+      layoutModel: slotLayoutWithSnapPoints([
+        ["child", 30, 60],
+        ["sibling", 30, 35],
+      ]),
+      zoneIds: ["child"],
+    });
+    const child = layoutModel.zoneLayoutsById["child"];
+    expect([child.x, child.y]).toEqual([30, 185]); // center (110, 225)
+  });
+
+  it("leaves the zone free when every point is occupied", () => {
+    const m = model([
+      container(["child", "s1", "s2"]),
+      zone("child", { parentZoneId: "c" }),
+      zone("s1", { parentZoneId: "c", slotKey: "parallel" }),
+      zone("s2", { parentZoneId: "c", slotKey: "parallel" }),
+    ]);
+    const layoutModel = snapZonesToSlotPoints({
+      model: m,
+      layoutModel: slotLayoutWithSnapPoints([
+        ["child", 30, 60],
+        ["s1", 30, 35],
+        ["s2", 30, 185],
+      ]),
+      zoneIds: ["child"],
+    });
+    const child = layoutModel.zoneLayoutsById["child"];
+    expect([child.x, child.y]).toEqual([30, 60]); // 변경 없음
+  });
+
+  it("assigns distinct points to a group drag", () => {
+    const m = model([
+      container(["a", "b"]),
+      zone("a", { parentZoneId: "c" }),
+      zone("b", { parentZoneId: "c" }),
+    ]);
+    // 둘 다 첫 포인트가 최근접이지만 순차 배정으로 서로 다른 포인트에 앉는다.
+    const layoutModel = snapZonesToSlotPoints({
+      model: m,
+      layoutModel: slotLayoutWithSnapPoints([
+        ["a", 30, 40],
+        ["b", 30, 70],
+      ]),
+      zoneIds: ["a", "b"],
+    });
+    const a = layoutModel.zoneLayoutsById["a"];
+    const b = layoutModel.zoneLayoutsById["b"];
+    expect([a.x, a.y]).toEqual([30, 35]); // (110, 75)
+    expect([b.x, b.y]).toEqual([30, 185]); // (110, 225)
+  });
+
+  it("ignores zones whose center is outside every snap lane", () => {
+    const m = model([container(["child"]), zone("child", { parentZoneId: "c" })]);
+    const layoutModel = snapZonesToSlotPoints({
+      model: m,
+      layoutModel: slotLayoutWithSnapPoints([["child", 400, 60]]), // center x 480 > 220
+      zoneIds: ["child"],
+    });
+    const child = layoutModel.zoneLayoutsById["child"];
+    expect([child.x, child.y]).toEqual([400, 60]);
   });
 });

@@ -140,6 +140,12 @@ export type ResolvedZoneSlotRegion = {
   y: number;
   width: number;
   height: number;
+  /**
+   * Docking snap points translated to CONTAINER-local coordinates (the
+   * slot-local `ZoneSlotLayout.snapPoints` offset by the lane's origin).
+   * Absent when the slot declares none.
+   */
+  snapPoints?: Point[];
 };
 
 /**
@@ -187,6 +193,19 @@ export function resolveZoneSlotRegions(
   const stackScale =
     stackedTotal > maxTotal && stackedTotal > 0 ? maxTotal / stackedTotal : 1;
 
+  const translateSnapPoints = (
+    key: string,
+    originX: number,
+    originY: number
+  ): Point[] | undefined => {
+    const points = slotLayoutOf(key)?.snapPoints;
+    if (!points?.length) return undefined;
+    return points.map((point) => ({
+      x: originX + point.x,
+      y: originY + point.y,
+    }));
+  };
+
   const regions: ResolvedZoneSlotRegion[] = [];
   let cursorX = 0;
   for (const slot of slots) {
@@ -208,6 +227,7 @@ export function resolveZoneSlotRegions(
           0,
           Math.min(rect.height ?? layout?.height ?? 0, containerH - y)
         ),
+        snapPoints: translateSnapPoints(slot.key, x, y),
       });
       continue;
     }
@@ -219,6 +239,7 @@ export function resolveZoneSlotRegions(
       y: 0,
       width,
       height: layout?.height ?? 0,
+      snapPoints: translateSnapPoints(slot.key, cursorX, 0),
     });
     cursorX += width;
   }
@@ -701,6 +722,12 @@ export function applyLocalScale(
                           : slot.rect.height,
                     }
                   : slot.rect,
+                snapPoints: slot.snapPoints
+                  ? slot.snapPoints.map((point) => ({
+                      x: point.x * scale,
+                      y: point.y * scale,
+                    }))
+                  : slot.snapPoints,
               },
             ])
           )

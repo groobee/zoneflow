@@ -1290,6 +1290,10 @@ export const domDrawEngine: DrawEngine = {
         y: region.rect.y - zoneVisual.rect.y,
         width: region.rect.width,
         height: region.rect.height,
+        snapPoints: region.snapPoints?.map((point) => ({
+          x: point.x - zoneVisual.rect.x,
+          y: point.y - zoneVisual.rect.y,
+        })),
       }));
 
       // Full-body renderer escape hatch: when the consumer provides one for

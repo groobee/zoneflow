@@ -195,8 +195,13 @@ export function renderZoneSlotLanes(params: {
   owner: HTMLElement;
   zoneVisual: ZoneVisualNode;
   input: RendererDrawInput;
+  /**
+   * false 면 기본 스냅 포인트 링을 그리지 않는다 — 레인은 기본값을 쓰되
+   * 포인트만 `context.slotRegions[].snapPoints` 로 직접 그리는 조합용.
+   */
+  showSnapPoints?: boolean;
 }) {
-  const { owner, zoneVisual, input } = params;
+  const { owner, zoneVisual, input, showSnapPoints = true } = params;
   const theme = input.theme;
   const regions = zoneVisual.slotRegions ?? [];
   if (regions.length === 0) return;
@@ -227,6 +232,27 @@ export function renderZoneSlotLanes(params: {
       boxSizing: "border-box",
       pointerEvents: "none",
     });
+
+    // 도킹 스냅 포인트 — 빈 자리를 시각적으로 안내하는 점 마커. 존이 위에
+    // 앉으면 자연히 가려지므로 "남아 있는 점 = 빈 자리"로 읽힌다.
+    if (showSnapPoints) {
+      const snapPointColor = theme.surface.zone.slotSnapPoint ?? laneBorder;
+      for (const point of region.snapPoints ?? []) {
+        const dot = document.createElement("div");
+        applyStyles(dot, {
+          position: "absolute",
+          left: `${point.x - region.rect.x - 3}px`,
+          top: `${point.y - region.rect.y - 3}px`,
+          width: "6px",
+          height: "6px",
+          borderRadius: "999px",
+          border: `1.5px dashed ${snapPointColor}`,
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        });
+        lane.appendChild(dot);
+      }
+    }
 
     if (localRect.width >= 72 && localRect.height >= 64) {
       const slotDef = slotDefsByKey.get(region.key);
@@ -269,6 +295,14 @@ export type DefaultZoneBodyInput = {
   zoneResolveContext: ZoneResolveContext;
   input: RendererDrawInput;
   mounts: RenderMountRegistry;
+  /**
+   * 슬롯 레인/스냅 포인트 기본 드로우 제어 — 기본 카드는 그대로 쓰면서 레인
+   * (또는 포인트)만 직접 그리는 조합용. 미지정 시 모두 그린다.
+   * - `slotLanes: false` — 레인+포인트 전부 생략 (직접 그리기)
+   * - `slotSnapPoints: false` — 레인은 그리되 포인트 링만 생략
+   */
+  slotLanes?: boolean;
+  slotSnapPoints?: boolean;
 };
 
 /**
@@ -294,6 +328,8 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
     zoneResolveContext,
     input,
     mounts,
+    slotLanes = true,
+    slotSnapPoints = true,
   } = params;
   const theme = input.theme;
 
@@ -335,7 +371,14 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
     });
 
     if (zoneDensity !== "farest") {
-      renderZoneSlotLanes({ owner: zoneFillEl, zoneVisual, input });
+      if (slotLanes) {
+        renderZoneSlotLanes({
+          owner: zoneFillEl,
+          zoneVisual,
+          input,
+          showSnapPoints: slotSnapPoints,
+        });
+      }
     }
   } else {
     applyStyles(host, {
@@ -363,7 +406,14 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
     host.appendChild(zoneChromeEl);
 
     if (zoneDensity !== "farest") {
-      renderZoneSlotLanes({ owner: host, zoneVisual, input });
+      if (slotLanes) {
+        renderZoneSlotLanes({
+          owner: host,
+          zoneVisual,
+          input,
+          showSnapPoints: slotSnapPoints,
+        });
+      }
     }
   }
 

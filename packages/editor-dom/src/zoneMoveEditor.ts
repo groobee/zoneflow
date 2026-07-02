@@ -2,8 +2,11 @@ import {
   getPathLayout,
   getZoneDepth,
   getZoneLayout,
+  resolveZoneSlotRegions,
   updateZoneLayout,
+  zoneDeclaresSlots,
   type PathId,
+  type Point,
   type UniverseLayoutModel,
   type UniverseModel,
   type ZoneId,
@@ -458,6 +461,115 @@ export function confineZonesWithinParents(params: {
     const y = Math.min(Math.max(child.y, 0), maxY);
 
     if (x !== child.x || y !== child.y) {
+      layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
+    }
+  }
+
+  return layoutModel;
+}
+
+/** 스냅 포인트 점유 판정 반경(world units) — 스냅된 존은 포인트 위에 정확히
+ * 앉지만, roundCoordinate(소수 2자리) 오차를 흡수할 여유를 둔다. */
+const SLOT_SNAP_OCCUPANCY_EPSILON = 1;
+
+/**
+ * 도킹 슬롯의 스냅 포인트로 존 **중앙**을 맞춘다(드래그 중 호출되는 순수 함수,
+ * `snapZonesToCells` 의 슬롯판). 존 중앙이 스냅 포인트를 선언한 레인 안에 있을
+ * 때만 동작하며, **한 포인트는 한 존만** — 다른 형제 존이 이미 앉아 있는
+ * 포인트는 후보에서 제외하고 가장 가까운 빈 포인트로 스냅한다. 그룹 드래그도
+ * 순차 배정으로 같은 포인트를 나눠 갖지 않는다. 빈 포인트가 없으면 위치를
+ * 건드리지 않는다(자유 배치 — 슬롯 멤버십에는 영향 없음).
+ */
+export function snapZonesToSlotPoints(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+}): UniverseLayoutModel {
+  const { model, zoneIds } = params;
+  let layoutModel = params.layoutModel;
+  const draggedZoneIds = new Set(zoneIds);
+  // 이번 호출에서 배정한 포인트도 점유로 취급 — 그룹 드래그 중복 방지.
+  const claimedPoints: Point[] = [];
+
+  const isNear = (a: Point, b: Point) =>
+    Math.abs(a.x - b.x) <= SLOT_SNAP_OCCUPANCY_EPSILON &&
+    Math.abs(a.y - b.y) <= SLOT_SNAP_OCCUPANCY_EPSILON;
+
+  for (const zoneId of zoneIds) {
+    const zone = model.zonesById[zoneId];
+    const parent = zone?.parentZoneId
+      ? model.zonesById[zone.parentZoneId]
+      : undefined;
+    if (!zone || !parent || !zoneDeclaresSlots(parent)) continue;
+
+    const parentLayout = getZoneLayout(layoutModel, parent.id);
+    const childLayout = getZoneLayout(layoutModel, zoneId);
+    if (
+      !parentLayout ||
+      !childLayout ||
+      childLayout.width == null ||
+      childLayout.height == null
+    ) {
+      continue;
+    }
+
+    const center = {
+      x: childLayout.x + childLayout.width / 2,
+      y: childLayout.y + childLayout.height / 2,
+    };
+
+    // 존 중앙을 품는 레인(겹치면 나중 선언 = 위에 그려진 쪽) 중 스냅 포인트가
+    // 있는 것을 찾는다.
+    const regions = resolveZoneSlotRegions(parent, parentLayout);
+    let snapPoints: Point[] | undefined;
+    for (let i = regions.length - 1; i >= 0; i--) {
+      const region = regions[i];
+      if (
+        center.x >= region.x &&
+        center.x <= region.x + region.width &&
+        center.y >= region.y &&
+        center.y <= region.y + region.height
+      ) {
+        snapPoints = region.snapPoints;
+        break;
+      }
+    }
+    if (!snapPoints?.length) continue;
+
+    // 점유 포인트 수집: 드래그 중이 아닌 형제 존들의 중앙 + 이번에 배정한 포인트.
+    const occupiedCenters: Point[] = [...claimedPoints];
+    for (const siblingId of parent.childZoneIds) {
+      if (siblingId === zoneId || draggedZoneIds.has(siblingId)) continue;
+      const siblingLayout = getZoneLayout(layoutModel, siblingId);
+      if (
+        !siblingLayout ||
+        siblingLayout.width == null ||
+        siblingLayout.height == null
+      ) {
+        continue;
+      }
+      occupiedCenters.push({
+        x: siblingLayout.x + siblingLayout.width / 2,
+        y: siblingLayout.y + siblingLayout.height / 2,
+      });
+    }
+
+    let best: Point | undefined;
+    let bestDist = Infinity;
+    for (const point of snapPoints) {
+      if (occupiedCenters.some((occupied) => isNear(point, occupied))) continue;
+      const dist = Math.hypot(point.x - center.x, point.y - center.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = point;
+      }
+    }
+    if (!best) continue;
+
+    claimedPoints.push(best);
+    const x = roundCoordinate(best.x - childLayout.width / 2);
+    const y = roundCoordinate(best.y - childLayout.height / 2);
+    if (x !== childLayout.x || y !== childLayout.y) {
       layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
     }
   }
