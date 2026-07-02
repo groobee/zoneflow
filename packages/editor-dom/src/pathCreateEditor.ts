@@ -434,9 +434,17 @@ export function createPathFromOutputAnchorDrag(params: {
   const pathId = createPathId();
   const nextPathIndex = sourceZone.pathIds.length;
   const sourceOutlet = sourceVisual.anchors.outlet.point;
-  const targetInlet = targetVisual?.anchors.inlet?.point;
-  const desiredCenter = targetInlet
-    ? midpoint(sourceOutlet, targetInlet)
+  // 조상 컨테이너(exit) 타깃은 연결점이 인렛(왼쪽 바깥 면)이 아니라 아웃렛
+  // 안쪽 면이다 — 엣지 라우팅과 같은 규칙. 라벨도 소스 아웃렛과 그 연결점
+  // 사이(컨테이너 안)에 놓는다.
+  const targetIsAncestor =
+    resolvedTargetZoneId != null &&
+    isDescendantZone(model, resolvedTargetZoneId, sourceZoneId);
+  const targetConnectPoint = targetIsAncestor
+    ? targetVisual?.anchors.outlet?.point
+    : targetVisual?.anchors.inlet?.point;
+  const desiredCenter = targetConnectPoint
+    ? midpoint(sourceOutlet, targetConnectPoint)
     : dropWorldPoint;
   const desiredRect = {
     x: snapCoordinate(desiredCenter.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),

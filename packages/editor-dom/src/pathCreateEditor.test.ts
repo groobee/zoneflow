@@ -1,0 +1,129 @@
+import { describe, expect, it } from "vitest";
+import type { UniverseModel, Zone } from "@zoneflow/core";
+import type { RendererFrame } from "@zoneflow/renderer-dom";
+import { createPathFromOutputAnchorDrag } from "./pathCreateEditor";
+
+const NODE_W = 120;
+const NODE_H = 32;
+const NODE_OFFSET_X = 32;
+
+function zone(id: string, over: Partial<Zone> = {}): Zone {
+  return {
+    id,
+    parentZoneId: null,
+    name: id,
+    zoneType: "action",
+    childZoneIds: [],
+    pathIds: [],
+    pathsById: {},
+    ...over,
+  };
+}
+
+// 컨테이너 c: 월드 (100, 50) 600×300. 자식 child: 월드 (140, 90) 160×80.
+// 외부 존 outside: 월드 (900, 100) 160×80.
+const model: UniverseModel = {
+  version: "1",
+  universeId: "u1",
+  rootZoneIds: ["c", "outside"],
+  zonesById: {
+    c: zone("c", { zoneType: "container", childZoneIds: ["child"] }),
+    child: zone("child", { parentZoneId: "c" }),
+    outside: zone("outside"),
+  },
+};
+
+const layoutModel = {
+  version: "1",
+  universeId: "u1",
+  zoneLayoutsById: {},
+  pathLayoutsById: {},
+};
+
+// createPathFromOutputAnchorDrag 는 frame.pipeline.graphLayout.zonesById 의
+// 앵커(월드 좌표)만 읽는다 — 그 최소 형태만 mock 한다.
+const frame = {
+  pipeline: {
+    graphLayout: {
+      zonesById: {
+        c: {
+          zoneId: "c",
+          zone: model.zonesById["c"],
+          rect: { x: 100, y: 50, width: 600, height: 300 },
+          anchors: {
+            inlet: { point: { x: 100, y: 200 } },
+            outlet: { point: { x: 700, y: 200 } },
+          },
+        },
+        child: {
+          zoneId: "child",
+          zone: model.zonesById["child"],
+          rect: { x: 140, y: 90, width: 160, height: 80 },
+          anchors: {
+            inlet: { point: { x: 140, y: 130 } },
+            outlet: { point: { x: 300, y: 130 } },
+          },
+        },
+        outside: {
+          zoneId: "outside",
+          zone: model.zonesById["outside"],
+          rect: { x: 900, y: 100, width: 160, height: 80 },
+          anchors: {
+            inlet: { point: { x: 900, y: 140 } },
+            outlet: { point: { x: 1060, y: 140 } },
+          },
+        },
+      },
+    },
+  },
+} as unknown as RendererFrame;
+
+/** routeOffset → 라벨 노드 중앙 복원 (graphLayoutEngine.resolvePathNodeRect 규칙). */
+function nodeCenterFromRouteOffset(
+  sourceOutlet: { x: number; y: number },
+  routeOffset: { x: number; y: number }
+) {
+  return {
+    x: sourceOutlet.x + NODE_OFFSET_X + routeOffset.x + NODE_W / 2,
+    y: sourceOutlet.y - NODE_H / 2 + routeOffset.y + NODE_H / 2,
+  };
+}
+
+describe("createPathFromOutputAnchorDrag — 라벨 위치", () => {
+  it("자식 → 조상 컨테이너(exit) 연결은 소스 아웃렛과 컨테이너 아웃렛 사이에 라벨을 놓는다", () => {
+    const result = createPathFromOutputAnchorDrag({
+      model,
+      layoutModel,
+      frame,
+      sourceZoneId: "child",
+      dropWorldPoint: { x: 695, y: 200 },
+      targetZoneId: "c",
+    })!;
+    expect(result).toBeTruthy();
+
+    const routeOffset = result.layoutModel.pathLayoutsById[result.pathId]!.routeOffset!;
+    const center = nodeCenterFromRouteOffset({ x: 300, y: 130 }, routeOffset);
+    // midpoint(자식 아웃렛 (300,130), 컨테이너 아웃렛 (700,200)) = (500, 165)
+    expect(center).toEqual({ x: 500, y: 165 });
+    // 라벨 전체가 자식 오른쪽 끝과 컨테이너 오른쪽 끝 사이(컨테이너 안)
+    expect(center.x - NODE_W / 2).toBeGreaterThan(300);
+    expect(center.x + NODE_W / 2).toBeLessThan(700);
+  });
+
+  it("일반 연결은 기존대로 소스 아웃렛과 타깃 인렛 사이에 라벨을 놓는다", () => {
+    const result = createPathFromOutputAnchorDrag({
+      model,
+      layoutModel,
+      frame,
+      sourceZoneId: "c",
+      dropWorldPoint: { x: 905, y: 140 },
+      targetZoneId: "outside",
+    })!;
+    expect(result).toBeTruthy();
+
+    const routeOffset = result.layoutModel.pathLayoutsById[result.pathId]!.routeOffset!;
+    const center = nodeCenterFromRouteOffset({ x: 700, y: 200 }, routeOffset);
+    // midpoint(컨테이너 아웃렛 (700,200), outside 인렛 (900,140)) = (800, 170)
+    expect(center).toEqual({ x: 800, y: 170 });
+  });
+});
