@@ -1,6 +1,7 @@
 import {
   addPath,
   createPathId,
+  isDescendantZone,
   isZoneInputEnabled,
   isZoneOutputEnabled,
   setPathTarget,
@@ -211,6 +212,14 @@ export function resolveInputAnchorTargetZoneId(params: {
   excludeZoneIds?: ZoneId[];
   canConnect?: (targetZoneId: ZoneId) => boolean;
   resolveZoneShape?: ResolveZoneShape;
+  /**
+   * 패스가 출발하는 존. 지정하면 그 존의 **조상 컨테이너**도 target 후보가
+   * 된다 — 단 히트 영역이 인렛이 아니라 **아웃렛(탈출 합류, exit)** 쪽이다.
+   * 자식 → 조상 연결은 컨테이너 안 흐름이 밖으로 나가는 합류를 뜻하므로
+   * (graphLayoutEngine 이 엣지 끝점을 아웃렛 안쪽 면으로 라우팅) 드롭 위치도
+   * 그 그림과 일치시킨다.
+   */
+  sourceZoneId?: ZoneId;
 }): ZoneId | null {
   const {
     model,
@@ -220,6 +229,7 @@ export function resolveInputAnchorTargetZoneId(params: {
     excludeZoneIds,
     canConnect,
     resolveZoneShape,
+    sourceZoneId,
   } = params;
   const excluded = new Set(excludeZoneIds ?? []);
   let bestZoneId: ZoneId | null = null;
@@ -228,7 +238,13 @@ export function resolveInputAnchorTargetZoneId(params: {
   for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
     if (excluded.has(zoneVisual.zoneId)) continue;
     if (!model.zonesById[zoneVisual.zoneId]) continue;
+
+    const isAncestorOfSource = sourceZoneId
+      ? isDescendantZone(model, zoneVisual.zoneId, sourceZoneId)
+      : false;
+
     if (
+      !isAncestorOfSource &&
       !isZoneInputEnabled(
         zoneVisual.zone,
         getParentZone(model, zoneVisual.zone)
@@ -245,7 +261,7 @@ export function resolveInputAnchorTargetZoneId(params: {
       frame,
       camera,
       zoneId: zoneVisual.zoneId,
-      kind: "inlet",
+      kind: isAncestorOfSource ? "outlet" : "inlet",
       resolveZoneShape,
     });
     if (!rect || !containsPoint(rect, point)) continue;

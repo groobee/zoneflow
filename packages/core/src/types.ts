@@ -101,6 +101,13 @@ export type ZoneSlotDef = {
   label?: string;
   /** Capability effects applied to docked children. */
   effects?: ZoneSlotEffects;
+  /**
+   * When true the default renderer draws a dotted connector from the
+   * container's inlet to this lane — the visual for "entering the container
+   * activates this slot". Pure decoration of the docking semantics; no model
+   * behavior changes.
+   */
+  entry?: boolean;
 };
 
 export type PathRule = {

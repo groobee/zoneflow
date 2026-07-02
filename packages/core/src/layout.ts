@@ -193,16 +193,20 @@ export function resolveZoneSlotRegions(
   const stackScale =
     stackedTotal > maxTotal && stackedTotal > 0 ? maxTotal / stackedTotal : 1;
 
+  // 스냅 포인트는 "선언된 레인 크기" 기준의 슬롯 로컬 좌표 — 레인이 클램프로
+  // 축소되면 포인트도 같은 비율로 축소해 항상 레인 안에 머물게 한다.
   const translateSnapPoints = (
     key: string,
     originX: number,
-    originY: number
+    originY: number,
+    scaleX: number,
+    scaleY: number
   ): Point[] | undefined => {
     const points = slotLayoutOf(key)?.snapPoints;
     if (!points?.length) return undefined;
     return points.map((point) => ({
-      x: originX + point.x,
-      y: originY + point.y,
+      x: originX + point.x * scaleX,
+      y: originY + point.y * scaleY,
     }));
   };
 
@@ -215,19 +219,23 @@ export function resolveZoneSlotRegions(
       const containerH = layout?.height ?? Number.POSITIVE_INFINITY;
       const x = Math.min(Math.max(rect.x, 0), containerW);
       const y = Math.min(Math.max(rect.y, 0), containerH);
+      const declaredWidth = rect.width ?? DEFAULT_ZONE_SLOT_WIDTH;
+      const declaredHeight = rect.height ?? layout?.height ?? 0;
+      const width = Math.max(0, Math.min(declaredWidth, containerW - x));
+      const height = Math.max(0, Math.min(declaredHeight, containerH - y));
       regions.push({
         key: slot.key,
         x,
         y,
-        width: Math.max(
-          0,
-          Math.min(rect.width ?? DEFAULT_ZONE_SLOT_WIDTH, containerW - x)
+        width,
+        height,
+        snapPoints: translateSnapPoints(
+          slot.key,
+          x,
+          y,
+          declaredWidth > 0 ? width / declaredWidth : 1,
+          declaredHeight > 0 ? height / declaredHeight : 1
         ),
-        height: Math.max(
-          0,
-          Math.min(rect.height ?? layout?.height ?? 0, containerH - y)
-        ),
-        snapPoints: translateSnapPoints(slot.key, x, y),
       });
       continue;
     }
@@ -239,7 +247,7 @@ export function resolveZoneSlotRegions(
       y: 0,
       width,
       height: layout?.height ?? 0,
-      snapPoints: translateSnapPoints(slot.key, cursorX, 0),
+      snapPoints: translateSnapPoints(slot.key, cursorX, 0, stackScale, 1),
     });
     cursorX += width;
   }

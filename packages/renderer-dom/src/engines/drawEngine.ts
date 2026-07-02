@@ -19,6 +19,7 @@ import { normalizeZoneShape, type ZoneAnchorRenderMode } from "../zoneShape";
 import {
   getEffectiveZoneSlot,
   getZoneDepth,
+  isDescendantZone,
   isZoneInputEnabled,
   isZoneOutputEnabled,
 } from "@zoneflow/core";
@@ -897,8 +898,10 @@ function drawZoneAnchors(params: {
   zone: ZoneVisualNode;
   input: RendererDrawInput;
   mode?: ZoneAnchorRenderMode;
+  /** true 면 아웃렛 안쪽 면에 "탈출 합류(exit)" 마커를 그린다. */
+  hasInternalExit?: boolean;
 }) {
-  const { owner, zone, input, mode = "edge" } = params;
+  const { owner, zone, input, mode = "edge", hasInternalExit = false } = params;
   const density =
     input.pipeline.density.zoneDensityById[zone.zoneId] ?? "far";
   const zoneColor =
@@ -924,6 +927,37 @@ function drawZoneAnchors(params: {
     kind === "inlet"
       ? isZoneInputEnabled(zone.zone, parentZone)
       : isZoneOutputEnabled(zone.zone);
+
+  // 내부 탈출 합류 마커 — 자식(후손) 존의 패스가 이 컨테이너를 target 으로
+  // 삼으면, 그 엣지들은 아웃렛 "안쪽 면"에서 만난다(graphLayoutEngine 라우팅).
+  // 만나는 지점에 작은 exit 원을 그려 합류점을 읽게 한다.
+  if (hasInternalExit) {
+    const markerSize = 16;
+    const marker = document.createElement("div");
+    marker.textContent = "→";
+    applyStyles(marker, {
+      position: "absolute",
+      top: "50%",
+      right: "0",
+      width: `${markerSize}px`,
+      height: `${markerSize}px`,
+      transform: "translate(-30%, -50%)",
+      borderRadius: "999px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: input.theme.surface.anchor.background,
+      border: `1px solid ${zoneBorderColor}`,
+      color: anchorAccentColor,
+      fontSize: "9px",
+      fontWeight: 700,
+      lineHeight: "1",
+      boxSizing: "border-box",
+      boxShadow: input.theme.surface.anchor.shadow,
+      pointerEvents: "none",
+    });
+    owner.appendChild(marker);
+  }
 
   // childInput 이 막힌 슬롯에 도킹된 존은 인렛 앵커가 사라지는 자리(좌측 엣지
   // 중앙)에 슬롯 라벨 첫 글자 마커를 그린다 — "패스로 진입하지 않는 존"임을
@@ -1216,6 +1250,21 @@ export const domDrawEngine: DrawEngine = {
       input,
     });
 
+    // 후손 존의 패스가 target 으로 삼는 조상 컨테이너들 — 아웃렛 안쪽 면에
+    // 탈출 합류(exit) 마커를 그릴 대상. 프레임당 한 번만 수집한다.
+    const internalExitZoneIds = new Set<string>();
+    for (const sourceZone of Object.values(input.model.zonesById)) {
+      for (const path of Object.values(sourceZone.pathsById)) {
+        if (
+          path.target &&
+          path.target.universeId === input.model.universeId &&
+          isDescendantZone(input.model, path.target.zoneId, sourceZone.id)
+        ) {
+          internalExitZoneIds.add(path.target.zoneId);
+        }
+      }
+    }
+
     for (const zoneVisual of sortZonesForRender({
       input,
       zonesById: pipeline.graphLayout.zonesById,
@@ -1416,6 +1465,7 @@ export const domDrawEngine: DrawEngine = {
         zone: zoneVisual,
         input,
         mode: shape.anchors,
+        hasInternalExit: internalExitZoneIds.has(zoneVisual.zoneId),
       });
 
       zoneLayer.appendChild(zoneEl);

@@ -215,6 +215,56 @@ export function renderZoneSlotLanes(params: {
   const laneLabelColor =
     theme.surface.zone.slotLabel ?? "rgba(37, 99, 235, 0.72)";
 
+  // entry 슬롯 — 컨테이너 인렛에서 레인 왼쪽 중앙으로 점선 커넥터를 그려
+  // "진입 = 이 슬롯 활성화"를 표현한다. 레인이 왼쪽 엣지에 붙어 있으면
+  // (거리 < 8) 생략.
+  const inletLocal = {
+    x: zoneVisual.anchors.inlet.point.x - zoneVisual.rect.x,
+    y: zoneVisual.anchors.inlet.point.y - zoneVisual.rect.y,
+  };
+  const entryTargets = regions
+    .filter((region) => slotDefsByKey.get(region.key)?.entry)
+    .map((region) => {
+      const localRect = toLocalRect(zoneVisual.rect, region.rect);
+      return {
+        x: localRect.x,
+        y: localRect.y + localRect.height / 2,
+      };
+    })
+    .filter((target) => Math.hypot(target.x - inletLocal.x, target.y - inletLocal.y) >= 8);
+
+  if (entryTargets.length > 0) {
+    const connectorSvg = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg"
+    );
+    applyStyles(connectorSvg, {
+      position: "absolute",
+      left: "0",
+      top: "0",
+      width: "100%",
+      height: "100%",
+      overflow: "visible",
+      pointerEvents: "none",
+    });
+    for (const target of entryTargets) {
+      const line = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line"
+      );
+      line.setAttribute("x1", String(inletLocal.x));
+      line.setAttribute("y1", String(inletLocal.y));
+      line.setAttribute("x2", String(target.x));
+      line.setAttribute("y2", String(target.y));
+      line.setAttribute("stroke", laneLabelColor);
+      line.setAttribute("stroke-width", "1.5");
+      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("stroke-dasharray", "2 6");
+      connectorSvg.appendChild(line);
+    }
+    owner.appendChild(connectorSvg);
+  }
+
   for (const region of regions) {
     const localRect = toLocalRect(zoneVisual.rect, region.rect);
     if (localRect.width <= 0) continue;

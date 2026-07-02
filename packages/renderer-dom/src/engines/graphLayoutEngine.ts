@@ -1,4 +1,5 @@
 import {
+  isDescendantZone,
   resolveZoneSlotRegions,
   type AnchorLayout,
   type PathId,
@@ -324,11 +325,23 @@ function createEdgeVisuals(params: {
         pathVisual.outlet ??
         (pathVisual.rect ? centerOfRect(pathVisual.rect) : zoneOutlet);
 
+      // 자식 → 조상 컨테이너 연결은 "탈출 합류": 조상의 인렛(왼쪽 바깥 면)이
+      // 아니라 **아웃렛의 안쪽 면**에서 만난다 — 컨테이너 안에서 흐름이 모여
+      // 밖으로 나가는 그림. 그 외에는 기존대로 타깃 인렛.
+      const targetIsAncestor =
+        pathVisual.targetZoneId != null &&
+        isDescendantZone(model, pathVisual.targetZoneId, zone.id);
+
       const targetInlet = targetZoneVisual
-        ? (
-          targetZoneVisual.anchors.inlet?.point ??
-          centerOfRect(targetZoneVisual.rect)
-        )
+        ? targetIsAncestor
+          ? (
+            targetZoneVisual.anchors.outlet?.point ??
+            centerOfRect(targetZoneVisual.rect)
+          )
+          : (
+            targetZoneVisual.anchors.inlet?.point ??
+            centerOfRect(targetZoneVisual.rect)
+          )
         : pathOutlet;
 
       result[pathId] = [

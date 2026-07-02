@@ -578,6 +578,74 @@ export function snapZonesToSlotPoints(params: {
 }
 
 /**
+ * 컨테이너 리사이즈 후 스냅 포인트 추종 — 존은 컨테이너가 아니라 **자기 스냅
+ * 포인트를 따라간다**. 리사이즈 전 크기의 레인 기하로 "어느 존이 어느 슬롯의
+ * 몇 번째 포인트에 앉아 있었나"를 복원한 뒤, 리사이즈 후 기하에서 같은
+ * 슬롯·같은 인덱스 포인트의 새 위치로 존을 옮긴다 (70% 클램프·free-rect 경계
+ * 클램프로 포인트가 움직인 경우에만 실제 이동이 발생). 포인트가 사라졌으면
+ * 그대로 둔다 — 이후 멤버십 재평가(commitZoneSlotMembership)가 정리한다.
+ */
+export function followSlotSnapPointsAfterResize(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneId: ZoneId;
+  previousSize: { width?: number; height?: number };
+}): UniverseLayoutModel {
+  const { model, zoneId, previousSize } = params;
+  let layoutModel = params.layoutModel;
+
+  const zone = model.zonesById[zoneId];
+  const currentLayout = getZoneLayout(layoutModel, zoneId);
+  if (!zone || !currentLayout || !zoneDeclaresSlots(zone)) return layoutModel;
+
+  const prevRegions = resolveZoneSlotRegions(zone, {
+    width: previousSize.width,
+    height: previousSize.height,
+    slotLayoutsByKey: currentLayout.slotLayoutsByKey,
+  });
+  const nextRegions = resolveZoneSlotRegions(zone, currentLayout);
+  const nextRegionsByKey = new Map(nextRegions.map((r) => [r.key, r]));
+
+  for (const childId of zone.childZoneIds) {
+    const childLayout = getZoneLayout(layoutModel, childId);
+    if (!childLayout || childLayout.width == null || childLayout.height == null) {
+      continue;
+    }
+    const center = {
+      x: childLayout.x + childLayout.width / 2,
+      y: childLayout.y + childLayout.height / 2,
+    };
+
+    // 리사이즈 전 기하에서 이 존이 앉아 있던 포인트(슬롯 key + 인덱스)를 찾는다.
+    let seated: { key: string; index: number } | undefined;
+    for (let i = prevRegions.length - 1; i >= 0 && !seated; i--) {
+      const points = prevRegions[i].snapPoints ?? [];
+      for (let p = 0; p < points.length; p++) {
+        if (
+          Math.abs(points[p].x - center.x) <= SLOT_SNAP_OCCUPANCY_EPSILON &&
+          Math.abs(points[p].y - center.y) <= SLOT_SNAP_OCCUPANCY_EPSILON
+        ) {
+          seated = { key: prevRegions[i].key, index: p };
+          break;
+        }
+      }
+    }
+    if (!seated) continue;
+
+    const nextPoint = nextRegionsByKey.get(seated.key)?.snapPoints?.[seated.index];
+    if (!nextPoint) continue;
+
+    const x = roundCoordinate(nextPoint.x - childLayout.width / 2);
+    const y = roundCoordinate(nextPoint.y - childLayout.height / 2);
+    if (x !== childLayout.x || y !== childLayout.y) {
+      layoutModel = updateZoneLayout(layoutModel, childId, { x, y });
+    }
+  }
+
+  return layoutModel;
+}
+
+/**
  * "셀 스냅(Cell Snap)" 옵션. 캔버스를 **반복되는 트랙 패턴**의 모듈러 그리드로 보고
  * (모눈종이에 트랙 경계마다 굵은 선), 콘텐츠를 그 셀에 맞춰 배치하기 위한 설정. 축별
  * 트랙 패턴은 origin 부터 무한 반복하며, **짝수 인덱스 트랙(0,2,…)이 "셀", 홀수(1,3,…)가

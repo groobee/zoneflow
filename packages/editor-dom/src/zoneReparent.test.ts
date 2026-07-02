@@ -10,7 +10,10 @@ import {
   type ZoneSlotDef,
 } from "@zoneflow/core";
 import { commitZoneSlotMembership } from "./zoneReparent";
-import { snapZonesToSlotPoints } from "./zoneMoveEditor";
+import {
+  followSlotSnapPointsAfterResize,
+  snapZonesToSlotPoints,
+} from "./zoneMoveEditor";
 
 const PARALLEL_SLOT: ZoneSlotDef = {
   key: "parallel",
@@ -295,5 +298,78 @@ describe("snapZonesToSlotPoints", () => {
     });
     const child = layoutModel.zoneLayoutsById["child"];
     expect([child.x, child.y]).toEqual([400, 60]);
+  });
+});
+
+describe("followSlotSnapPointsAfterResize", () => {
+  it("moves seated zones to their point's new position when lanes rescale", () => {
+    // 리사이즈 전 600 폭: 스택 클램프 없음(220 ≤ 420). 포인트 (110, 75).
+    // 리사이즈 후 300 폭: 70% 클램프 → 레인 220→210, 포인트 x 110→105.
+    const m = model([
+      zone("c", {
+        zoneType: "container",
+        slots: [PARALLEL_SLOT],
+        childZoneIds: ["child"],
+      }),
+      zone("child", { parentZoneId: "c", slotKey: "parallel" }),
+    ]);
+
+    let layoutModel = createUniverseLayoutModel({ universeId: "u1" });
+    layoutModel = updateZoneLayout(layoutModel, "c", {
+      ...createZoneLayout({ x: 0, y: 0, width: 300, height: 300 }), // 리사이즈 후
+      slotLayoutsByKey: {
+        parallel: { width: 220, snapPoints: [{ x: 110, y: 75 }] },
+      },
+    });
+    // 리사이즈 전(600 폭) 포인트 (110,75)에 앉아 있던 존: center (110,75)
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      "child",
+      createZoneLayout({ x: 30, y: 35, width: 160, height: 80 })
+    );
+
+    const next = followSlotSnapPointsAfterResize({
+      model: m,
+      layoutModel,
+      zoneId: "c",
+      previousSize: { width: 600, height: 300 },
+    });
+
+    const child = next.zoneLayoutsById["child"];
+    // 클램프된 레인의 포인트: x = 110 * (210/220) = 105 → 존 x = 105-80 = 25
+    expect([child.x, child.y]).toEqual([25, 35]);
+  });
+
+  it("does not touch zones that were not seated on a point", () => {
+    const m = model([
+      zone("c", {
+        zoneType: "container",
+        slots: [PARALLEL_SLOT],
+        childZoneIds: ["free"],
+      }),
+      zone("free", { parentZoneId: "c" }),
+    ]);
+    let layoutModel = createUniverseLayoutModel({ universeId: "u1" });
+    layoutModel = updateZoneLayout(layoutModel, "c", {
+      ...createZoneLayout({ x: 0, y: 0, width: 300, height: 300 }),
+      slotLayoutsByKey: {
+        parallel: { width: 220, snapPoints: [{ x: 110, y: 75 }] },
+      },
+    });
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      "free",
+      createZoneLayout({ x: 240, y: 100, width: 40, height: 40 }) // 포인트 밖
+    );
+
+    const next = followSlotSnapPointsAfterResize({
+      model: m,
+      layoutModel,
+      zoneId: "c",
+      previousSize: { width: 600, height: 300 },
+    });
+    expect(next.zoneLayoutsById["free"]).toEqual(
+      layoutModel.zoneLayoutsById["free"]
+    );
   });
 });

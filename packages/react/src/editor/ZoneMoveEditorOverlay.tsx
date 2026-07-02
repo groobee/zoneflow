@@ -4,6 +4,7 @@ import {
   pruneLayoutModel,
   removePath,
   removeZone,
+  zoneDeclaresSlots,
 } from "@zoneflow/core";
 import type {
   Path,
@@ -25,6 +26,7 @@ import {
   distributeZonesByMode,
   getMoveEditorTargets,
   confineZonesWithinParents,
+  followSlotSnapPointsAfterResize,
   snapZonesToCells,
   snapZonesToSlotPoints,
   snapPathsToCells,
@@ -2018,6 +2020,7 @@ export function ZoneMoveEditorOverlay(props: {
           point: pathCreate.currentScreenPoint,
           canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
           resolveZoneShape: latestRef.current.resolveZoneShape,
+          sourceZoneId: pathCreate.sourceZoneId,
         });
 
         const createdPath = createPathFromOutputAnchorDrag({
@@ -2076,6 +2079,7 @@ export function ZoneMoveEditorOverlay(props: {
             pathRetarget.pathId
           ),
           resolveZoneShape: latestRef.current.resolveZoneShape,
+          sourceZoneId: pathRetarget.sourceZoneId,
         });
 
         if (
@@ -2184,10 +2188,10 @@ export function ZoneMoveEditorOverlay(props: {
           latestRef.current.layoutModel.zoneLayoutsById[resize.origin.zoneId];
         const toWidth = finalLayout?.width ?? resize.origin.originWidth;
         const toHeight = finalLayout?.height ?? resize.origin.originHeight;
-        if (
+        const didResize =
           toWidth !== resize.origin.originWidth ||
-          toHeight !== resize.origin.originHeight
-        ) {
+          toHeight !== resize.origin.originHeight;
+        if (didResize) {
           latestRef.current.onZoneResize?.({
             zoneId: resize.origin.zoneId,
             from: {
@@ -2196,6 +2200,36 @@ export function ZoneMoveEditorOverlay(props: {
             },
             to: { width: toWidth, height: toHeight },
           });
+        }
+
+        // 슬롯 선언 컨테이너의 리사이즈 — 존은 자기 스냅 포인트를 따라간다.
+        // 포인트 추종 후 레인 기하 변화로 레인을 벗어난/새로 들어온 존의
+        // 멤버십도 재평가한다. commitTransaction 전이라 리사이즈와 한 history
+        // 스텝으로 묶인다.
+        const resizedZone =
+          latestRef.current.model.zonesById[resize.origin.zoneId];
+        if (didResize && resizedZone && zoneDeclaresSlots(resizedZone)) {
+          const followedLayoutModel = followSlotSnapPointsAfterResize({
+            model: latestRef.current.model,
+            layoutModel: latestRef.current.layoutModel,
+            zoneId: resize.origin.zoneId,
+            previousSize: {
+              width: resize.origin.originWidth,
+              height: resize.origin.originHeight,
+            },
+          });
+          if (followedLayoutModel !== latestRef.current.layoutModel) {
+            latestRef.current.onLayoutModelChange?.(followedLayoutModel);
+          }
+
+          const membership = commitZoneSlotMembership({
+            model: latestRef.current.model,
+            layoutModel: followedLayoutModel,
+            zoneIds: [...resizedZone.childZoneIds],
+          });
+          if (membership.didChange) {
+            latestRef.current.onModelChange?.(membership.model);
+          }
         }
       }
 
@@ -2500,6 +2534,7 @@ export function ZoneMoveEditorOverlay(props: {
               pathRetarget.pathId
             ),
             resolveZoneShape: latestRef.current.resolveZoneShape,
+            sourceZoneId: pathRetarget.sourceZoneId,
           })
         );
         return;
@@ -2540,6 +2575,7 @@ export function ZoneMoveEditorOverlay(props: {
           point: currentScreenPoint,
           canConnect: buildHoverCanConnect(pathCreate.sourceZoneId, "create"),
           resolveZoneShape: latestRef.current.resolveZoneShape,
+          sourceZoneId: pathCreate.sourceZoneId,
         })
       );
     };
