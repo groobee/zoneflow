@@ -170,7 +170,19 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       y: 120,
       width: 760,
       height: 420,
-      slotLayoutsByKey: { parallel: { width: 260 } },
+      slotLayoutsByKey: {
+        parallel: {
+          width: 260,
+          // 도킹 스냅 포인트(슬롯 로컬) — 존 중앙이 빈 포인트로 스냅되고,
+          // 한 포인트에 한 존만 앉는다. 마지막 하나는 빈 자리로 남겨둔 데모.
+          snapPoints: [
+            { x: 130, y: 72 },
+            { x: 130, y: 176 },
+            { x: 130, y: 280 },
+            { x: 130, y: 384 },
+          ],
+        },
+      },
       anchors: {
         inlet: { point: { x: 0, y: 210 } },
         outlet: { point: { x: 760, y: 210 } },
@@ -178,7 +190,7 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
     },
     pushAd: {
       x: 40,
-      y: 52,
+      y: 28,
       width: 180,
       height: 88,
       anchors: {
@@ -188,7 +200,7 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
     },
     emailNudge: {
       x: 40,
-      y: 168,
+      y: 132,
       width: 180,
       height: 88,
       anchors: {
@@ -198,7 +210,7 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
     },
     smsCoupon: {
       x: 40,
-      y: 284,
+      y: 236,
       width: 180,
       height: 88,
       anchors: {
