@@ -2,9 +2,11 @@ import type {
   Layout,
   PathId,
   PathLayout,
+  Point,
   UniverseId,
   UniverseLayoutModel,
   UniverseModel,
+  Zone,
   ZoneId,
   ZoneLayout,
 } from "./types";
@@ -123,6 +125,136 @@ export function createZoneLayout(input: {
   };
 }
 
+export const DEFAULT_ZONE_SLOT_WIDTH = 240;
+
+/** Fraction of the container width the slot lanes may occupy in total. */
+const MAX_SLOT_TOTAL_WIDTH_RATIO = 0.7;
+
+/**
+ * A docking slot's resolved lane region in the container's local coordinates
+ * (relative to the container's top-left corner, world units).
+ */
+export type ResolvedZoneSlotRegion = {
+  key: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Resolves a container's declared slots to concrete lane regions. Two
+ * placement modes per slot, chosen by its `slotLayoutsByKey` entry:
+ *
+ * - **Stacked (default)** — no `rect`: lanes stack from the zone's left edge
+ *   in declaration order, each using its `width` (or the library default),
+ *   proportionally scaled down when the stacked total would swallow more than
+ *   70% of the container.
+ * - **Free** — `rect` set: placed exactly there (container-local units),
+ *   clamped to the container bounds, excluded from the stack and its 70%
+ *   budget.
+ *
+ * This is the single geometry source shared by the renderer (lane drawing),
+ * the editor (drop-point judgement), and external drawers (exposed on the
+ * render pipeline) — so what is drawn is always what is hit-tested.
+ */
+export function resolveZoneSlotRegions(
+  zone: Pick<Zone, "zoneType" | "slots">,
+  layout:
+    | Pick<ZoneLayout, "width" | "height" | "slotLayoutsByKey">
+    | undefined
+): ResolvedZoneSlotRegion[] {
+  const slots = zone.zoneType === "container" ? zone.slots ?? [] : [];
+  if (slots.length === 0) return [];
+
+  const slotLayoutOf = (key: string) => layout?.slotLayoutsByKey?.[key];
+
+  // 스택 폭 예산(70%)은 스택 참여 슬롯끼리만 나눈다 — 자유 배치 슬롯은 제외.
+  const stackedWidths = new Map<string, number>();
+  for (const slot of slots) {
+    const slotLayout = slotLayoutOf(slot.key);
+    if (slotLayout?.rect) continue;
+    stackedWidths.set(
+      slot.key,
+      Math.max(0, slotLayout?.width ?? DEFAULT_ZONE_SLOT_WIDTH)
+    );
+  }
+  const stackedTotal = [...stackedWidths.values()].reduce((s, w) => s + w, 0);
+  const maxTotal =
+    layout?.width != null
+      ? layout.width * MAX_SLOT_TOTAL_WIDTH_RATIO
+      : Number.POSITIVE_INFINITY;
+  const stackScale =
+    stackedTotal > maxTotal && stackedTotal > 0 ? maxTotal / stackedTotal : 1;
+
+  const regions: ResolvedZoneSlotRegion[] = [];
+  let cursorX = 0;
+  for (const slot of slots) {
+    const rect = slotLayoutOf(slot.key)?.rect;
+    if (rect) {
+      const containerW = layout?.width ?? Number.POSITIVE_INFINITY;
+      const containerH = layout?.height ?? Number.POSITIVE_INFINITY;
+      const x = Math.min(Math.max(rect.x, 0), containerW);
+      const y = Math.min(Math.max(rect.y, 0), containerH);
+      regions.push({
+        key: slot.key,
+        x,
+        y,
+        width: Math.max(
+          0,
+          Math.min(rect.width ?? DEFAULT_ZONE_SLOT_WIDTH, containerW - x)
+        ),
+        height: Math.max(
+          0,
+          Math.min(rect.height ?? layout?.height ?? 0, containerH - y)
+        ),
+      });
+      continue;
+    }
+
+    const width = (stackedWidths.get(slot.key) ?? 0) * stackScale;
+    regions.push({
+      key: slot.key,
+      x: cursorX,
+      y: 0,
+      width,
+      height: layout?.height ?? 0,
+    });
+    cursorX += width;
+  }
+  return regions;
+}
+
+/**
+ * Key of the slot lane containing the given point (container-local
+ * coordinates), or undefined when the point is outside every lane. The drop
+ * counterpart of {@link resolveZoneSlotRegions}. Regions are tested in
+ * reverse declaration order so that when free rects overlap, the topmost
+ * (later-declared, drawn last) lane wins — hit-testing matches what the eye
+ * sees.
+ */
+export function resolveZoneSlotKeyAtPoint(
+  zone: Pick<Zone, "zoneType" | "slots">,
+  layout:
+    | Pick<ZoneLayout, "width" | "height" | "slotLayoutsByKey">
+    | undefined,
+  point: Point
+): string | undefined {
+  const regions = resolveZoneSlotRegions(zone, layout);
+  for (let i = regions.length - 1; i >= 0; i--) {
+    const region = regions[i];
+    if (
+      point.x >= region.x &&
+      point.x <= region.x + region.width &&
+      point.y >= region.y &&
+      point.y <= region.y + region.height
+    ) {
+      return region.key;
+    }
+  }
+  return undefined;
+}
+
 export function getZoneLayout(
   layoutModel: UniverseLayoutModel,
   zoneId: ZoneId
@@ -162,6 +294,7 @@ export function updateZoneLayout(
     width: patch.width ?? currentLayout?.width,
     height: patch.height ?? currentLayout?.height,
     zOrder: patch.zOrder ?? currentLayout?.zOrder,
+    slotLayoutsByKey: patch.slotLayoutsByKey ?? currentLayout?.slotLayoutsByKey,
     anchors: mergeAnchors(currentLayout?.anchors, patch.anchors),
   });
 }
@@ -547,6 +680,31 @@ export function applyLocalScale(
       y: layout.y * positionScale,
       width: layout.width != null ? layout.width * scale : layout.width,
       height: layout.height != null ? layout.height * scale : layout.height,
+      slotLayoutsByKey: layout.slotLayoutsByKey
+        ? Object.fromEntries(
+            Object.entries(layout.slotLayoutsByKey).map(([key, slot]) => [
+              key,
+              {
+                ...slot,
+                width: slot.width != null ? slot.width * scale : slot.width,
+                rect: slot.rect
+                  ? {
+                      x: slot.rect.x * scale,
+                      y: slot.rect.y * scale,
+                      width:
+                        slot.rect.width != null
+                          ? slot.rect.width * scale
+                          : slot.rect.width,
+                      height:
+                        slot.rect.height != null
+                          ? slot.rect.height * scale
+                          : slot.rect.height,
+                    }
+                  : slot.rect,
+              },
+            ])
+          )
+        : layout.slotLayoutsByKey,
       anchors: {
         inlet: scaleZoneAnchor(layout.anchors.inlet, scale),
         outlet: scaleZoneAnchor(layout.anchors.outlet, scale),

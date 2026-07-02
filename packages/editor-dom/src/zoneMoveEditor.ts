@@ -63,6 +63,7 @@ export {
 export {
   commitZoneGroupReparentAtCurrentPosition,
   commitZoneReparentAtCurrentPosition,
+  commitZoneSlotMembership,
   reparentZoneAtCurrentPosition,
   resolveZonePlacementAtWorldRect,
   resolveZoneReparentCandidate,

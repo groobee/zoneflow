@@ -35,6 +35,9 @@ export const defaultTheme: ZoneflowTheme = {
         "0 18px 34px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05)",
       containerAccent: "rgba(37, 99, 235, 0.12)",
       actionAccent: "rgba(245, 158, 11, 0.18)",
+      slotBackground: "rgba(37, 99, 235, 0.05)",
+      slotBorder: "rgba(37, 99, 235, 0.30)",
+      slotLabel: "rgba(37, 99, 235, 0.72)",
     },
     path: {
       background:

@@ -28,6 +28,8 @@ export type ZoneFieldChange =
       | "outputDisabled"
       | "fixedWidth"
       | "fixedHeight"
+      | "slots"
+      | "slotKey"
       | "action"
       | "meta"
     >
@@ -201,6 +203,22 @@ function diffZoneFields(before: Zone, after: Zone): ZoneFieldChange[] {
       field: "fixedHeight",
       before: before.fixedHeight,
       after: after.fixedHeight,
+    });
+  }
+  // Empty slot arrays count as absent, matching how readers treat them.
+  if (
+    !deepEqual(
+      (before.slots?.length ?? 0) > 0 ? before.slots : null,
+      (after.slots?.length ?? 0) > 0 ? after.slots : null
+    )
+  ) {
+    changes.push({ field: "slots", before: before.slots, after: after.slots });
+  }
+  if ((before.slotKey ?? null) !== (after.slotKey ?? null)) {
+    changes.push({
+      field: "slotKey",
+      before: before.slotKey,
+      after: after.slotKey,
     });
   }
   if (!deepEqual(before.action ?? null, after.action ?? null)) {

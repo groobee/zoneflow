@@ -1,4 +1,9 @@
-import type { UniverseModel } from "./types";
+import type { UniverseModel, Zone } from "./types";
+import { getEffectiveZoneSlot, zoneDeclaresSlots } from "./zoneCapabilities";
+
+function getParentZone(model: UniverseModel, zone: Zone): Zone | undefined {
+  return zone.parentZoneId ? model.zonesById[zone.parentZoneId] : undefined;
+}
 
 export function validateUniverseModel(model: UniverseModel): string[] {
   const errors: string[] = [];
@@ -14,6 +19,39 @@ export function validateUniverseModel(model: UniverseModel): string[] {
       errors.push(
         `Zone "${zone.id}" has invalid parentZoneId "${zone.parentZoneId}"`
       );
+    }
+
+    if ((zone.slots?.length ?? 0) > 0) {
+      if (zone.zoneType !== "container") {
+        errors.push(
+          `Zone "${zone.id}" declares slots but is not a container (zoneType "${zone.zoneType}")`
+        );
+      }
+
+      const seenSlotKeys = new Set<string>();
+      for (const slot of zone.slots ?? []) {
+        if (!slot.key) {
+          errors.push(`Zone "${zone.id}" has a slot with an empty key`);
+          continue;
+        }
+        if (seenSlotKeys.has(slot.key)) {
+          errors.push(`Zone "${zone.id}" has duplicate slot key "${slot.key}"`);
+        }
+        seenSlotKeys.add(slot.key);
+      }
+    }
+
+    if (zone.slotKey) {
+      const parent = getParentZone(model, zone);
+      if (!parent || !zoneDeclaresSlots(parent)) {
+        errors.push(
+          `Zone "${zone.id}" has slotKey "${zone.slotKey}" but its parent declares no slots`
+        );
+      } else if (!parent.slots?.some((slot) => slot.key === zone.slotKey)) {
+        errors.push(
+          `Zone "${zone.id}" has slotKey "${zone.slotKey}" not declared by parent "${parent.id}"`
+        );
+      }
     }
 
     for (const childId of zone.childZoneIds) {
@@ -49,9 +87,17 @@ export function validateUniverseModel(model: UniverseModel): string[] {
 
       if (path.target) {
         if (path.target.universeId === model.universeId) {
-          if (!model.zonesById[path.target.zoneId]) {
+          const targetZone = model.zonesById[path.target.zoneId];
+          if (!targetZone) {
             errors.push(
               `Path "${path.id}" in zone "${zone.id}" points to missing zone "${path.target.zoneId}"`
+            );
+          } else if (
+            getEffectiveZoneSlot(targetZone, getParentZone(model, targetZone))
+              ?.effects?.childInput === "disabled"
+          ) {
+            errors.push(
+              `Path "${path.id}" in zone "${zone.id}" targets zone "${targetZone.id}" docked in slot "${targetZone.slotKey}" whose childInput is disabled`
             );
           }
         }

@@ -1,11 +1,12 @@
-import type {
-  AnchorLayout,
-  PathId,
-  Point,
-  UniverseLayoutModel,
-  UniverseModel,
-  ZoneId,
-  AnchorRect,
+import {
+  resolveZoneSlotRegions,
+  type AnchorLayout,
+  type PathId,
+  type Point,
+  type UniverseLayoutModel,
+  type UniverseModel,
+  type ZoneId,
+  type AnchorRect,
 } from "@zoneflow/core";
 import type {
   EdgeVisual,
@@ -203,12 +204,28 @@ function createZoneVisualNodes(params: {
     const zoneLayout = layoutModel.zoneLayoutsById[typedZoneId];
     if (!zoneLayout) continue;
 
+    const rect = rectFromLayout(zoneLayout);
+    // 도킹 슬롯 레인을 월드 좌표로 함께 실어 보낸다 — 렌더러(기본 레인 드로우),
+    // 외부 드로어(renderZone/오버레이/커스텀 DrawEngine)가 같은 기하를 본다.
+    const slotRegions = resolveZoneSlotRegions(zone, zoneLayout).map(
+      (region) => ({
+        key: region.key,
+        rect: {
+          x: rect.x + region.x,
+          y: rect.y + region.y,
+          width: region.width,
+          height: region.height,
+        },
+      })
+    );
+
     result[typedZoneId] = {
       universeId: model.universeId,
       zoneId: typedZoneId,
       zone,
-      rect: rectFromLayout(zoneLayout),
+      rect,
       anchors: zoneLayout.anchors,
+      slotRegions: slotRegions.length > 0 ? slotRegions : undefined,
     };
   }
 

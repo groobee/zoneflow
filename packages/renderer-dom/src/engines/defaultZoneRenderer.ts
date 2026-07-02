@@ -182,6 +182,79 @@ function createZoneSlotHost(params: {
   });
 }
 
+/**
+ * 도킹 슬롯 레인의 기본 드로우 — 존 좌측에서 선언 순서대로 쌓이는 배경 레이어.
+ * 멤버십은 모델(`Zone.slotKey`)이, 기하는 파이프라인(`zoneVisual.slotRegions`,
+ * 에디터 히트테스트와 동일한 소스)이 결정하고 여기는 순수 표현 계층이다.
+ *
+ * export 되어 있으므로 풀바디 `renderZone` 렌더러가 자기 카드 위에 기본 레인만
+ * 재사용할 수도 있고, 반대로 기본 카드를 쓰면서 레인만 직접 그리고 싶으면 이
+ * 함수를 쓰지 않고 `context.slotRegions`(존 로컬 좌표)로 직접 그리면 된다.
+ */
+export function renderZoneSlotLanes(params: {
+  owner: HTMLElement;
+  zoneVisual: ZoneVisualNode;
+  input: RendererDrawInput;
+}) {
+  const { owner, zoneVisual, input } = params;
+  const theme = input.theme;
+  const regions = zoneVisual.slotRegions ?? [];
+  if (regions.length === 0) return;
+
+  const slotDefsByKey = new Map(
+    (zoneVisual.zone.slots ?? []).map((slot) => [slot.key, slot])
+  );
+  const laneBackground =
+    theme.surface.zone.slotBackground ?? "rgba(37, 99, 235, 0.05)";
+  const laneBorder = theme.surface.zone.slotBorder ?? "rgba(37, 99, 235, 0.30)";
+  const laneLabelColor =
+    theme.surface.zone.slotLabel ?? "rgba(37, 99, 235, 0.72)";
+
+  for (const region of regions) {
+    const localRect = toLocalRect(zoneVisual.rect, region.rect);
+    if (localRect.width <= 0) continue;
+
+    const lane = document.createElement("div");
+    lane.dataset.zoneflowZoneSlot = region.key;
+    applyStyles(lane, {
+      position: "absolute",
+      left: `${localRect.x}px`,
+      top: `${localRect.y}px`,
+      width: `${localRect.width}px`,
+      height: `${localRect.height}px`,
+      background: laneBackground,
+      borderRight: `1.5px dashed ${laneBorder}`,
+      boxSizing: "border-box",
+      pointerEvents: "none",
+    });
+
+    if (localRect.width >= 72 && localRect.height >= 64) {
+      const slotDef = slotDefsByKey.get(region.key);
+      const label = document.createElement("div");
+      label.textContent = slotDef?.label ?? region.key.toUpperCase();
+      applyStyles(label, {
+        position: "absolute",
+        left: "8px",
+        bottom: "6px",
+        color: laneLabelColor,
+        fontSize: "10px",
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        maxWidth: `${localRect.width - 16}px`,
+        textOverflow: "ellipsis",
+        fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+        pointerEvents: "none",
+      });
+      lane.appendChild(label);
+    }
+
+    owner.appendChild(lane);
+  }
+}
+
 export type DefaultZoneBodyInput = {
   /** 존 본문 host (zoneEl 안의 zoneBodyEl). 기본 렌더러가 이 안을 모두 채운다. */
   host: HTMLElement;
@@ -260,6 +333,10 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
       theme,
       header: shape.header,
     });
+
+    if (zoneDensity !== "farest") {
+      renderZoneSlotLanes({ owner: zoneFillEl, zoneVisual, input });
+    }
   } else {
     applyStyles(host, {
       position: "absolute",
@@ -284,6 +361,10 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
       header: shape.header,
     });
     host.appendChild(zoneChromeEl);
+
+    if (zoneDensity !== "farest") {
+      renderZoneSlotLanes({ owner: host, zoneVisual, input });
+    }
   }
 
   // Built-in slots (title/type/badge/body/footer) — the default renderer's own

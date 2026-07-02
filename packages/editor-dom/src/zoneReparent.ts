@@ -1,10 +1,15 @@
 import {
   canZoneContainChildren,
   collectSubtreeZoneIds,
+  detachPathsTargetingZone,
+  getEffectiveZoneSlot,
   getZoneDepth,
   getZoneLayout,
   moveZone,
+  resolveZoneSlotKeyAtPoint,
+  updateZone,
   updateZoneLayout,
+  zoneDeclaresSlots,
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
@@ -228,6 +233,61 @@ export function commitZoneReparentAtCurrentPosition(params: {
 
 export const reparentZoneAtCurrentPosition = commitZoneReparentAtCurrentPosition;
 
+/**
+ * 드롭 제스처 → 도킹 슬롯 멤버십 커밋. 부모가 슬롯을 선언한 컨테이너면 존
+ * 중앙이 어느 레인 안인지로 `slotKey` 를 세팅/해제하고, childInput 이 막히는
+ * 슬롯에 도킹되는 순간 그 존을 target 으로 하던 패스들은 target 을 `null` 로
+ * 강등한다(연결 불가 존 — 거부된 drop 과 같은 관례). 기하는 판정 입력일 뿐,
+ * 의미는 모델 필드가 갖는다 — reparent 의 "드롭한 위치가 곧 새 부모" 철학과
+ * 동일. reparent commit 뒤(같은 부모 안에서의 드래그 포함) 드래그가 끝날
+ * 때마다 호출한다.
+ */
+export function commitZoneSlotMembership(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+}): {
+  model: UniverseModel;
+  didChange: boolean;
+} {
+  const { layoutModel, zoneIds } = params;
+  let model = params.model;
+  let didChange = false;
+
+  for (const zoneId of zoneIds) {
+    const zone = model.zonesById[zoneId];
+    if (!zone) continue;
+
+    const parent = zone.parentZoneId
+      ? model.zonesById[zone.parentZoneId]
+      : undefined;
+
+    let nextSlotKey: string | undefined;
+    if (parent && zoneDeclaresSlots(parent)) {
+      const parentLayout = getZoneLayout(layoutModel, parent.id);
+      const childLayout = getZoneLayout(layoutModel, zoneId);
+      if (parentLayout && childLayout) {
+        nextSlotKey = resolveZoneSlotKeyAtPoint(parent, parentLayout, {
+          x: childLayout.x + (childLayout.width ?? 0) / 2,
+          y: childLayout.y + (childLayout.height ?? 0) / 2,
+        });
+      }
+    }
+
+    if ((nextSlotKey ?? null) === (zone.slotKey ?? null)) continue;
+
+    model = updateZone(model, zoneId, { slotKey: nextSlotKey });
+    const nextZone = model.zonesById[zoneId];
+    if (
+      getEffectiveZoneSlot(nextZone, parent)?.effects?.childInput === "disabled"
+    ) {
+      model = detachPathsTargetingZone(model, zoneId);
+    }
+    didChange = true;
+  }
+
+  return { model, didChange };
+}
 export function commitZoneGroupReparentAtCurrentPosition(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;

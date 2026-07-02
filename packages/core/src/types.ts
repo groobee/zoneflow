@@ -21,8 +21,34 @@ export type AnchorLayout = {
   point: Point;
   rect?: AnchorRect;
 };
+/** Per-slot lane geometry (world units). See {@link ZoneLayout.slotLayoutsByKey}. */
+export type ZoneSlotLayout = {
+  /**
+   * Lane width for the default left-edge stacking. Ignored when {@link rect}
+   * is set.
+   */
+  width?: number;
+  /**
+   * Free placement override, in container-local coordinates (relative to the
+   * container's top-left, world units). A slot with a rect leaves the
+   * left-edge stack entirely — place it anywhere, any size. Clamped to the
+   * container bounds at resolve time; `width`/`height` fall back to the
+   * library default width and the full container height. When free rects
+   * overlap, the later-declared slot wins hit-testing (it is also drawn on
+   * top).
+   */
+  rect?: Layout;
+};
+
 export type ZoneLayout = Layout & {
   zOrder?: number;
+  /**
+   * Lane geometry per slot key, presentation-only (membership lives on the
+   * model as `Zone.slotKey`). Slots declared by the zone stack from its left
+   * edge in declaration order; omitted entries use the library default width.
+   * Resolved via `resolveZoneSlotRegions`.
+   */
+  slotLayoutsByKey?: Record<string, ZoneSlotLayout>;
   anchors: {
     inlet: AnchorLayout;
     outlet: AnchorLayout;
@@ -38,6 +64,34 @@ export type PathLayout = {
 export type ZoneAction = {
   type: string;
   payload?: Record<string, unknown>;
+};
+
+/**
+ * Capability effects a slot applies to the child zones docked into it. These
+ * are structural (which engines allow what), not semantic — the meaning of the
+ * slot stays with the consuming service.
+ */
+export type ZoneSlotEffects = {
+  /**
+   * "disabled": docked children cannot be the target of any path — their
+   * input capability derives to false (inlet anchor hidden, excluded from
+   * connection drop targets, validation error on incoming paths).
+   */
+  childInput?: "disabled";
+};
+
+/**
+ * A docking slot declared by a container zone (see {@link Zone.slots}).
+ * Membership lives on the child ({@link Zone.slotKey}); lane geometry lives in
+ * the layout model ({@link ZoneLayout.slotLayoutsByKey}).
+ */
+export type ZoneSlotDef = {
+  /** Identifier referenced by children's {@link Zone.slotKey}. Unique per zone. */
+  key: string;
+  /** Display label for the default lane renderer. Defaults to the uppercased key. */
+  label?: string;
+  /** Capability effects applied to docked children. */
+  effects?: ZoneSlotEffects;
 };
 
 export type PathRule = {
@@ -85,6 +139,23 @@ export type Zone = {
   minWidth?: number;
   /** Smallest height the zone may shrink to, in world units. See {@link minWidth}. */
   minHeight?: number;
+  /**
+   * Container-only. Docking slots — declared lanes stacked from the
+   * container's left edge, in declaration order. A child zone docks into a
+   * slot by setting {@link slotKey}; the slot's {@link ZoneSlotDef.effects}
+   * then apply to that child. What a slot *means* (e.g. "children here run in
+   * parallel on container entry") is the consuming service's interpretation —
+   * the library only carries the structure and the declared capability
+   * effects. Declared explicitly (not derived from docked children) so an
+   * empty lane still renders as a drop target.
+   */
+  slots?: ZoneSlotDef[];
+  /**
+   * Child-only. Key of the parent container's slot this zone is docked into
+   * (see {@link slots}). Cleared automatically when the zone moves to a parent
+   * that does not declare the key.
+   */
+  slotKey?: string;
   childZoneIds: ZoneId[];
   action?: ZoneAction;
   pathIds: PathId[];

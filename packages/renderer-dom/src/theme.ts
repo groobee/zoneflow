@@ -39,6 +39,14 @@ export type ZoneflowTheme = {
       shadow: string;
       containerAccent: string;
       actionAccent: string;
+      /**
+       * Docking-slot lane tokens (containers declaring `Zone.slots`).
+       * Optional — themes that omit them fall back to the library defaults,
+       * so preset themes written before this feature keep type-checking.
+       */
+      slotBackground?: string;
+      slotBorder?: string;
+      slotLabel?: string;
     };
     path: {
       background: string;

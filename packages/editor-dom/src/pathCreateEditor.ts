@@ -43,6 +43,14 @@ function typedValues<TKey extends string, TValue>(
   return Object.values(record) as TValue[];
 }
 
+/** 슬롯 effects 파생을 위해 capability 검사에 부모 존을 함께 넘긴다. */
+function getParentZone(
+  model: UniverseModel,
+  zone: Pick<Zone, "parentZoneId">
+): Zone | undefined {
+  return zone.parentZoneId ? model.zonesById[zone.parentZoneId] : undefined;
+}
+
 const DEFAULT_PATH_NODE_WIDTH = 120;
 const DEFAULT_PATH_NODE_HEIGHT = 32;
 const DEFAULT_PATH_NODE_OFFSET_X = 32;
@@ -173,7 +181,12 @@ export function resolveZoneAnchorScreenRect(params: {
   const { frame, camera, zoneId, kind, resolveZoneShape } = params;
   const zoneVisual = frame.pipeline.graphLayout.zonesById[zoneId];
   if (!zoneVisual) return undefined;
-  if (kind === "inlet" && !isZoneInputEnabled(zoneVisual.zone)) return undefined;
+  const parentVisualZone = zoneVisual.zone.parentZoneId
+    ? frame.pipeline.graphLayout.zonesById[zoneVisual.zone.parentZoneId]?.zone
+    : undefined;
+  if (kind === "inlet" && !isZoneInputEnabled(zoneVisual.zone, parentVisualZone)) {
+    return undefined;
+  }
   if (kind === "outlet" && !isZoneOutputEnabled(zoneVisual.zone)) return undefined;
 
   const density = frame.pipeline.density.zoneDensityById[zoneId] ?? "far";
@@ -215,7 +228,14 @@ export function resolveInputAnchorTargetZoneId(params: {
   for (const zoneVisual of typedValues(frame.pipeline.graphLayout.zonesById)) {
     if (excluded.has(zoneVisual.zoneId)) continue;
     if (!model.zonesById[zoneVisual.zoneId]) continue;
-    if (!isZoneInputEnabled(zoneVisual.zone)) continue;
+    if (
+      !isZoneInputEnabled(
+        zoneVisual.zone,
+        getParentZone(model, zoneVisual.zone)
+      )
+    ) {
+      continue;
+    }
 
     const visibility =
       frame.pipeline.visibility.zoneVisibilityById[zoneVisual.zoneId];
@@ -306,7 +326,10 @@ export function retargetPathFromOutputAnchorDrag(params: {
   let resolvedTargetZoneId: ZoneId | null = targetZoneId ?? null;
   if (resolvedTargetZoneId) {
     const targetZone = model.zonesById[resolvedTargetZoneId];
-    if (!targetZone || !isZoneInputEnabled(targetZone)) {
+    if (
+      !targetZone ||
+      !isZoneInputEnabled(targetZone, getParentZone(model, targetZone))
+    ) {
       return undefined;
     }
     if (
@@ -368,7 +391,10 @@ export function createPathFromOutputAnchorDrag(params: {
   let resolvedTargetZoneId: ZoneId | null = targetZoneId ?? null;
   if (resolvedTargetZoneId) {
     const targetZone = model.zonesById[resolvedTargetZoneId];
-    if (!targetZone || !isZoneInputEnabled(targetZone)) {
+    if (
+      !targetZone ||
+      !isZoneInputEnabled(targetZone, getParentZone(model, targetZone))
+    ) {
       return undefined;
     }
     if (

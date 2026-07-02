@@ -548,8 +548,11 @@ function drawAnchors(
   Object.values(graphLayout.zonesById).forEach((zone: any) => {
     const inlet = zone.anchors?.inlet?.point;
     const outlet = zone.anchors?.outlet?.point;
+    const parentZone = zone.zone?.parentZoneId
+      ? graphLayout.zonesById[zone.zone.parentZoneId]?.zone
+      : undefined;
 
-    if (inlet && isZoneInputEnabled(zone.zone)) {
+    if (inlet && isZoneInputEnabled(zone.zone, parentZone)) {
       drawAnchor(root, inlet, "#2563eb", `${zone.zoneId}:in`, camera);
     }
     if (outlet && isZoneOutputEnabled(zone.zone)) {

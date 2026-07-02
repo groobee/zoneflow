@@ -3,6 +3,7 @@ import type {
   Zone,
   ZoneAction,
   ZoneId,
+  ZoneSlotDef,
   ZoneType,
   Path,
   PathId,
@@ -20,6 +21,8 @@ export type CreateZoneInput = {
   fixedHeight?: boolean;
   minWidth?: number;
   minHeight?: number;
+  slots?: ZoneSlotDef[];
+  slotKey?: string;
   action?: ZoneAction;
   meta?: Record<string, unknown>;
 };
@@ -48,6 +51,8 @@ export function createZone(
     fixedHeight,
     minWidth,
     minHeight,
+    slots,
+    slotKey,
     action,
     meta,
   } = input;
@@ -65,6 +70,8 @@ export function createZone(
     fixedHeight,
     minWidth,
     minHeight,
+    slots,
+    slotKey,
     childZoneIds: [],
     pathIds: [],
     pathsById: {},
@@ -175,13 +182,27 @@ export function moveZone(
     };
   }
 
+  // slotKey only makes sense while the parent declares that slot — leaving
+  // for a parent without it (or to root) drops the key so the model never
+  // goes invalid.
+  const nextParent = nextParentZoneId
+    ? nextModel.zonesById[nextParentZoneId]
+    : undefined;
+  const movedZone = nextModel.zonesById[zoneId];
+  const keepsSlotKey = Boolean(
+    movedZone.slotKey &&
+      nextParent?.zoneType === "container" &&
+      nextParent.slots?.some((slot) => slot.key === movedZone.slotKey)
+  );
+
   return {
     ...nextModel,
     zonesById: {
       ...nextModel.zonesById,
       [zoneId]: {
-        ...nextModel.zonesById[zoneId],
+        ...movedZone,
         parentZoneId: nextParentZoneId,
+        slotKey: keepsSlotKey ? movedZone.slotKey : undefined,
       },
     },
   };
@@ -379,6 +400,33 @@ export function setPathTarget(
   target: ZoneRef | null
 ): UniverseModel {
   return updatePath(model, zoneId, pathId, { target });
+}
+
+/**
+ * Demotes the target of every path pointing at `zoneId` to `null` (dangling).
+ * Used when a zone stops being connectable — e.g. it just docked into a slot
+ * whose childInput is disabled — mirroring how a rejected drop demotes a
+ * path's target.
+ */
+export function detachPathsTargetingZone(
+  model: UniverseModel,
+  zoneId: ZoneId
+): UniverseModel {
+  let nextModel = model;
+
+  for (const zone of Object.values(model.zonesById)) {
+    for (const path of Object.values(zone.pathsById)) {
+      if (
+        path.target &&
+        path.target.universeId === model.universeId &&
+        path.target.zoneId === zoneId
+      ) {
+        nextModel = updatePath(nextModel, zone.id, path.id, { target: null });
+      }
+    }
+  }
+
+  return nextModel;
 }
 
 export function reorderPaths(

@@ -375,6 +375,65 @@ import { updatePath } from "@zoneflow/core";
 
 비동기 modal 이 필요하면 콜백에서는 commit 만 두고, modal 이 닫힌 뒤 별도 `setModel` 로 후속 mutation 하는 패턴이 더 깔끔합니다 (단, undo 는 두 단계가 됩니다).
 
+### 도킹 슬롯 (Zone.slots / Zone.slotKey) — 다중 상태 컨테이너 표현
+
+컨테이너 존이 **도킹 슬롯**(좌측에서 선언 순서대로 쌓이는 레인)을 선언하면, 자식 존을 레인에 드롭해 도킹할 수 있습니다. 라이브러리는 슬롯의 **구조와 capability 효과**만 운반하고, 슬롯이 무슨 뜻인지(예: "이 레인의 존들은 컨테이너 진입 시 동시 시작")는 소비 서비스가 해석합니다 — "도메인 규칙은 주입 계층" 원칙 그대로입니다.
+
+```ts
+// 모델 — 멤버십은 모델 필드가 결정 (기하는 편집 제스처일 뿐)
+{
+  id: "journey",
+  zoneType: "container",
+  slots: [
+    {
+      key: "parallel",                       // 자식의 slotKey 가 참조
+      label: "∥ PARALLEL",                   // 기본 레인 라벨 (미지정 시 key 대문자)
+      effects: { childInput: "disabled" },   // 도킹된 자식의 구조적 효과
+    },
+  ],
+  childZoneIds: ["pushAd", "emailNudge", "waitRetarget"],
+}
+{
+  id: "pushAd",
+  parentZoneId: "journey",
+  slotKey: "parallel",       // 자식 전용: 어느 슬롯에 도킹됐는지
+}
+```
+
+`effects.childInput: "disabled"` 인 슬롯에 도킹된 자식은:
+
+- **인렛 앵커가 사라지고 어떤 패스의 target 도 될 수 없습니다** — `isZoneInputEnabled(zone, parent)` 가 false 로 파생되고, 렌더러(앵커)/에디터(drop 후보)/검증(에러)이 모두 이 capability 하나를 따릅니다. 인렛 자리에는 슬롯 라벨 첫 글자 마커가 그려집니다.
+- outlet 은 살아 있으므로 도킹 존에서 레인 밖 일반 자식으로 이어지는 패스는 가능합니다.
+- "탈출조건" 같은 개념은 별도 모델 없이 컨테이너의 일반 outgoing 패스 `rule` 로 표현합니다.
+
+레인 기하는 표현 계층이므로 레이아웃에 둡니다 (`ZoneLayout.slotLayoutsByKey`). 슬롯마다 배치 모드가 둘입니다:
+
+- **스택(기본)** — `{ width }` 만 지정: 좌측 엣지에서 선언 순서대로 쌓입니다 (기본 폭 240, 스택 합계가 컨테이너 폭의 70% 를 넘으면 비례 축소).
+- **자유 배치** — `{ rect: { x, y, width, height } }` 지정: 컨테이너 로컬 좌표 어디든, 어떤 크기든 배치합니다 (경계 클램프, 스택과 70% 예산에서 제외). 자유 rect 끼리 겹치면 **나중 선언이 위에 그려지고 히트테스트도 이깁니다**.
+
+```ts
+layoutModel.zoneLayoutsById["journey"].slotLayoutsByKey = {
+  parallel: { width: 300 },                              // 좌측 스택 레인, 폭만 조정
+  onExit: { rect: { x: 500, y: 300, width: 240, height: 110 } },  // 우하단 자유 배치
+};
+```
+
+`resolveZoneSlotRegions(zone, layout)` 이 렌더러 드로우·에디터 드롭 판정·외부 드로어가 공유하는 단일 기하 소스라, 소비자가 `updateZoneLayout` 으로 `slotLayoutsByKey` 를 바꾸는 즉시 (예: `renderZoneOverlays` 로 직접 그린 리사이즈 핸들에서) 레인 시각과 드롭 판정이 함께 따라옵니다.
+
+편집 동작 (`reparentZone` 권한 필요):
+
+- 자식 존을 드래그해 **레인 안에 드롭하면 `slotKey` 가 세팅되고, 밖에 드롭하면 해제됩니다** (`commitZoneSlotMembership`). 같은 컨테이너 안에서 레인 ↔ 일반 영역만 오가는 드래그도 커밋됩니다.
+- childInput 이 막히는 슬롯에 도킹되는 순간 그 존을 target 으로 하던 패스들은 target 이 `null` 로 강등됩니다 (거부된 drop 과 같은 관례, `detachPathsTargetingZone`).
+- `moveZone` 으로 해당 키를 선언하지 않는 부모로 이동하면 `slotKey` 는 자동 해제됩니다 — 모델이 invalid 상태가 되지 않습니다 (`validateUniverseModel` 이 규칙 위반을 잡아줍니다).
+
+**외부에서 직접 그리기** — 기본 레인 드로우는 라이브러리 기본값일 뿐입니다:
+
+- 색/톤만: 테마 토큰 `surface.zone.slotBackground / slotBorder / slotLabel`
+- 레인만 직접: `renderZone` 풀바디 렌더러의 `context.slotRegions` (존 로컬 좌표) 또는 `zoneVisual.slotRegions` (월드 좌표, 파이프라인 `graphLayout` 에도 노출) 로 재계산 없이 그대로 그립니다. 반대로 기본 레인을 재사용하려면 export 된 `renderZoneSlotLanes()` 를 호출하면 됩니다.
+- 엔진 전체: `drawEngine` 옵션으로 DrawEngine 자체를 교체할 때도 `slotRegions` 는 파이프라인에 있습니다.
+
+동작 예제는 playground 의 **Parallel slot sample** 을 참고하세요.
+
 ### 빈 공간 패스 드롭 → 존 생성
 
 **기존 path 의 output anchor (path label) 를 끌어** zone 위가 아닌 빈 캔버스에 놓을 때, 외부에서 즉석으로 새 zone 을 만들고 그 zone 에 path 를 자동 연결하도록 콜백을 등록할 수 있습니다. "존을 먼저 만들고 연결" 이 아니라 **"패스 라벨에서 바로 존을 만든다"** 흐름.

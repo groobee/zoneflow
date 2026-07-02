@@ -17,6 +17,7 @@ import type {
 import { resolveZoneAnchorRect } from "../anchors";
 import { normalizeZoneShape, type ZoneAnchorRenderMode } from "../zoneShape";
 import {
+  getEffectiveZoneSlot,
   getZoneDepth,
   isZoneInputEnabled,
   isZoneOutputEnabled,
@@ -915,10 +916,50 @@ function drawZoneAnchors(params: {
   const anchorGlowColor = zoneColor
     ? `color-mix(in srgb, ${zoneColor} 12%, transparent)`
     : anchorAccentColor.replace("0.96", "0.12");
+  const parentZone = zone.zone.parentZoneId
+    ? input.model.zonesById[zone.zone.parentZoneId]
+    : undefined;
+  const effectiveSlot = getEffectiveZoneSlot(zone.zone, parentZone);
   const shouldRenderAnchor = (kind: "inlet" | "outlet") =>
     kind === "inlet"
-      ? isZoneInputEnabled(zone.zone)
+      ? isZoneInputEnabled(zone.zone, parentZone)
       : isZoneOutputEnabled(zone.zone);
+
+  // childInput 이 막힌 슬롯에 도킹된 존은 인렛 앵커가 사라지는 자리(좌측 엣지
+  // 중앙)에 슬롯 라벨 첫 글자 마커를 그린다 — "패스로 진입하지 않는 존"임을
+  // 앵커 위치에서 바로 읽게 한다. 슬롯 레인과 같은 테마 토큰을 쓴다.
+  if (effectiveSlot?.effects?.childInput === "disabled") {
+    const markerSize = 16;
+    const marker = document.createElement("div");
+    marker.textContent =
+      Array.from(
+        (effectiveSlot.label ?? effectiveSlot.key).trim()
+      )[0]?.toUpperCase() ?? "•";
+    applyStyles(marker, {
+      position: "absolute",
+      top: "50%",
+      left: "0",
+      width: `${markerSize}px`,
+      height: `${markerSize}px`,
+      transform: "translate(-50%, -50%)",
+      borderRadius: "999px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: input.theme.surface.anchor.background,
+      border: `1px solid ${
+        input.theme.surface.zone.slotBorder ?? zoneBorderColor
+      }`,
+      color: input.theme.surface.zone.slotLabel ?? anchorAccentColor,
+      fontSize: "9px",
+      fontWeight: 700,
+      lineHeight: "1",
+      boxSizing: "border-box",
+      boxShadow: input.theme.surface.anchor.shadow,
+      pointerEvents: "none",
+    });
+    owner.appendChild(marker);
+  }
 
   // Vertex mode: a compact dot centered on the left/right edge midpoint,
   // sitting exactly on a round/diamond node's side. The interactive anchor
@@ -1241,6 +1282,16 @@ export const domDrawEngine: DrawEngine = {
           ? theme.surface.zone.actionAccent
           : theme.surface.zone.containerAccent;
 
+      // 도킹 슬롯 레인을 존 로컬 좌표로 변환해 외부 렌더러 컨텍스트에 노출 —
+      // 풀바디/오버레이 렌더러가 재계산 없이 그대로 그릴 수 있다.
+      const zoneSlotRegions = (zoneVisual.slotRegions ?? []).map((region) => ({
+        key: region.key,
+        x: region.rect.x - zoneVisual.rect.x,
+        y: region.rect.y - zoneVisual.rect.y,
+        width: region.rect.width,
+        height: region.rect.height,
+      }));
+
       // Full-body renderer escape hatch: when the consumer provides one for
       // this zone/level, it owns the entire body (border, background, content)
       // — skip the built-in chrome, slots and farest icon. Geometry, anchors,
@@ -1274,6 +1325,7 @@ export const domDrawEngine: DrawEngine = {
           theme,
           zoneColor,
           textScale: input.textScale,
+          slotRegions: zoneSlotRegions,
         };
         customZoneRenderer(zoneBodyEl, rendererContext);
         mounts.zoneRenderers.push({
@@ -1342,6 +1394,7 @@ export const domDrawEngine: DrawEngine = {
           theme,
           zoneColor,
           textScale: input.textScale,
+          slotRegions: zoneSlotRegions,
         };
         zoneOverlayRenderer(overlayEl, overlayContext);
         zoneEl.appendChild(overlayEl);

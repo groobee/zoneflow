@@ -20,6 +20,7 @@ import {
   createPathFromOutputAnchorDrag,
   commitZoneGroupReparentAtCurrentPosition,
   commitZoneReparentAtCurrentPosition,
+  commitZoneSlotMembership,
   distributePathsByMode,
   distributeZonesByMode,
   getMoveEditorTargets,
@@ -1971,12 +1972,16 @@ export function ZoneMoveEditorOverlay(props: {
         !pathResize &&
         latestRef.current.permissions.reparentZone
       ) {
+        const draggedZoneIds =
+          drag.origin.kind === "zone-group"
+            ? (Object.keys(drag.origin.originsByZoneId) as ZoneId[])
+            : [drag.target.zoneId];
         const reparented =
           drag.origin.kind === "zone-group"
             ? commitZoneGroupReparentAtCurrentPosition({
                 model: latestRef.current.model,
                 layoutModel: latestRef.current.layoutModel,
-                zoneIds: Object.keys(drag.origin.originsByZoneId) as ZoneId[],
+                zoneIds: draggedZoneIds,
               })
             : commitZoneReparentAtCurrentPosition({
                 model: latestRef.current.model,
@@ -1984,9 +1989,19 @@ export function ZoneMoveEditorOverlay(props: {
                 zoneId: drag.target.zoneId,
               });
 
+        // 도킹 슬롯 멤버십은 reparent 여부와 무관하게 드롭 위치로 갱신한다 —
+        // 같은 컨테이너 안에서 레인 ↔ 일반 영역만 오가는 드래그도 커밋 대상.
+        const slotMembership = commitZoneSlotMembership({
+          model: reparented.model,
+          layoutModel: reparented.layoutModel,
+          zoneIds: draggedZoneIds,
+        });
+
         if (reparented.didReparent) {
-          latestRef.current.onModelChange?.(reparented.model);
           latestRef.current.onLayoutModelChange?.(reparented.layoutModel);
+        }
+        if (reparented.didReparent || slotMembership.didChange) {
+          latestRef.current.onModelChange?.(slotMembership.model);
         }
       }
 

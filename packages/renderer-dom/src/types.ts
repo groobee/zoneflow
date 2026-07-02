@@ -49,6 +49,12 @@ export type PathVisualMode = "hidden" | "edge-only" | "chip" | "full";
 
 export type VisibilityEmphasis = "strong" | "normal" | "dim" | "hidden";
 
+/** A docking-slot lane region resolved to world coordinates. */
+export type ZoneSlotRegionVisual = {
+  key: string;
+  rect: Rect;
+};
+
 export type ZoneVisualNode = {
   universeId: UniverseId;
   zoneId: ZoneId;
@@ -58,6 +64,14 @@ export type ZoneVisualNode = {
     inlet: { point: Point; rect?: AnchorRect };
     outlet: { point: Point; rect?: AnchorRect };
   };
+  /**
+   * Docking-slot lane regions in world coordinates (containers declaring
+   * `Zone.slots` only). Computed by the graph-layout engine from the same
+   * geometry the editor hit-tests, so external drawers (renderZone /
+   * renderZoneOverlay / custom DrawEngine) can draw the lanes themselves
+   * without re-deriving positions.
+   */
+  slotRegions?: ZoneSlotRegionVisual[];
 };
 
 export type PathVisualNode = {
@@ -307,6 +321,13 @@ export type ZoneRendererContext = {
   theme: ZoneflowTheme;
   zoneColor?: string;
   textScale: TextScaleLevel;
+  /**
+   * Docking-slot lane regions in ZONE-LOCAL pixels (origin = the host's
+   * top-left corner), ready to position `absolute` children against. World
+   * coordinates are on `zoneVisual.slotRegions`. Empty for zones without
+   * declared slots.
+   */
+  slotRegions: Array<{ key: string } & Rect>;
 };
 
 /**
