@@ -1,4 +1,5 @@
 import {
+  collectSubtreeZoneIds,
   getPathLayout,
   getZoneDepth,
   getZoneLayout,
@@ -11,6 +12,12 @@ import {
   type UniverseModel,
   type ZoneId,
 } from "@zoneflow/core";
+import { resolveContainingParentZoneId } from "./zoneReparent";
+import {
+  ROOT_WORLD_ORIGIN,
+  resolveWorldZoneOrigin,
+  resolveWorldZoneRect,
+} from "./zoneGeometry";
 import type {
   CameraState,
   Rect,
@@ -474,11 +481,13 @@ const SLOT_SNAP_OCCUPANCY_EPSILON = 1;
 
 /**
  * 도킹 슬롯의 스냅 포인트로 존 **중앙**을 맞춘다(드래그 중 호출되는 순수 함수,
- * `snapZonesToCells` 의 슬롯판). 존 중앙이 스냅 포인트를 선언한 레인 안에 있을
- * 때만 동작하며, **한 포인트는 한 존만** — 다른 형제 존이 이미 앉아 있는
- * 포인트는 후보에서 제외하고 가장 가까운 빈 포인트로 스냅한다. 그룹 드래그도
- * 순차 배정으로 같은 포인트를 나눠 갖지 않는다. 빈 포인트가 없으면 위치를
- * 건드리지 않는다(자유 배치 — 슬롯 멤버십에는 영향 없음).
+ * `snapZonesToCells` 의 슬롯판). 스냅 기준은 현재 부모가 아니라 **그 자리에
+ * 드롭하면 부모가 될 컨테이너**(reparent 후보)다 — 컨테이너 바깥에 있던 존도
+ * 레인 위로 끌려오면 한 모션으로 진입하며 스냅된다. **한 포인트는 한 존만** —
+ * 미래 형제 존이 이미 앉아 있는 포인트는 후보에서 제외하고 가장 가까운 빈
+ * 포인트로 스냅하며, 그룹 드래그도 순차 배정으로 같은 포인트를 나눠 갖지
+ * 않는다. 빈 포인트가 없으면 위치를 건드리지 않는다(자유 배치 — 슬롯
+ * 멤버십에는 영향 없음).
  */
 export function snapZonesToSlotPoints(params: {
   model: UniverseModel;
@@ -488,24 +497,24 @@ export function snapZonesToSlotPoints(params: {
   const { model, zoneIds } = params;
   let layoutModel = params.layoutModel;
   const draggedZoneIds = new Set(zoneIds);
-  // 이번 호출에서 배정한 포인트도 점유로 취급 — 그룹 드래그 중복 방지.
-  const claimedPoints: Point[] = [];
+  // 이번 호출에서 배정한 포인트(월드 좌표)도 점유로 취급 — 그룹 드래그 중복 방지.
+  const claimedWorldPoints: Point[] = [];
 
   const isNear = (a: Point, b: Point) =>
     Math.abs(a.x - b.x) <= SLOT_SNAP_OCCUPANCY_EPSILON &&
     Math.abs(a.y - b.y) <= SLOT_SNAP_OCCUPANCY_EPSILON;
 
+  const worldCenterOf = (id: ZoneId, cache: Map<ZoneId, Point>) => {
+    const rect = resolveWorldZoneRect({ model, layoutModel, zoneId: id, cache });
+    if (!rect) return undefined;
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  };
+
   for (const zoneId of zoneIds) {
     const zone = model.zonesById[zoneId];
-    const parent = zone?.parentZoneId
-      ? model.zonesById[zone.parentZoneId]
-      : undefined;
-    if (!zone || !parent || !zoneDeclaresSlots(parent)) continue;
-
-    const parentLayout = getZoneLayout(layoutModel, parent.id);
     const childLayout = getZoneLayout(layoutModel, zoneId);
     if (
-      !parentLayout ||
+      !zone ||
       !childLayout ||
       childLayout.width == null ||
       childLayout.height == null
@@ -513,22 +522,46 @@ export function snapZonesToSlotPoints(params: {
       continue;
     }
 
-    const center = {
-      x: childLayout.x + childLayout.width / 2,
-      y: childLayout.y + childLayout.height / 2,
+    const cache = new Map<ZoneId, Point>();
+    const worldCenter = worldCenterOf(zoneId, cache);
+    if (!worldCenter) continue;
+
+    // 드롭 시 부모가 될 컨테이너 — reparent 판정과 같은 규칙(자기 서브트리 제외).
+    const candidateParentZoneId = resolveContainingParentZoneId({
+      model,
+      layoutModel,
+      centerPoint: worldCenter,
+      cache,
+      invalidZoneIds: new Set(collectSubtreeZoneIds(model, zoneId)),
+    });
+    const candidate = candidateParentZoneId
+      ? model.zonesById[candidateParentZoneId]
+      : undefined;
+    if (!candidate || !zoneDeclaresSlots(candidate)) continue;
+
+    const candidateLayout = getZoneLayout(layoutModel, candidate.id);
+    if (!candidateLayout) continue;
+    const candidateOrigin = resolveWorldZoneOrigin({
+      model,
+      layoutModel,
+      zoneId: candidate.id,
+    });
+    const localCenter = {
+      x: worldCenter.x - candidateOrigin.x,
+      y: worldCenter.y - candidateOrigin.y,
     };
 
     // 존 중앙을 품는 레인(겹치면 나중 선언 = 위에 그려진 쪽) 중 스냅 포인트가
     // 있는 것을 찾는다.
-    const regions = resolveZoneSlotRegions(parent, parentLayout);
+    const regions = resolveZoneSlotRegions(candidate, candidateLayout);
     let snapPoints: Point[] | undefined;
     for (let i = regions.length - 1; i >= 0; i--) {
       const region = regions[i];
       if (
-        center.x >= region.x &&
-        center.x <= region.x + region.width &&
-        center.y >= region.y &&
-        center.y <= region.y + region.height
+        localCenter.x >= region.x &&
+        localCenter.x <= region.x + region.width &&
+        localCenter.y >= region.y &&
+        localCenter.y <= region.y + region.height
       ) {
         snapPoints = region.snapPoints;
         break;
@@ -536,39 +569,49 @@ export function snapZonesToSlotPoints(params: {
     }
     if (!snapPoints?.length) continue;
 
-    // 점유 포인트 수집: 드래그 중이 아닌 형제 존들의 중앙 + 이번에 배정한 포인트.
-    const occupiedCenters: Point[] = [...claimedPoints];
-    for (const siblingId of parent.childZoneIds) {
+    // 점유 포인트 수집(월드 좌표): 드래그 중이 아닌 미래-형제 존들의 중앙 +
+    // 이번에 배정한 포인트.
+    const occupiedWorldCenters: Point[] = [...claimedWorldPoints];
+    for (const siblingId of candidate.childZoneIds) {
       if (siblingId === zoneId || draggedZoneIds.has(siblingId)) continue;
-      const siblingLayout = getZoneLayout(layoutModel, siblingId);
-      if (
-        !siblingLayout ||
-        siblingLayout.width == null ||
-        siblingLayout.height == null
-      ) {
-        continue;
-      }
-      occupiedCenters.push({
-        x: siblingLayout.x + siblingLayout.width / 2,
-        y: siblingLayout.y + siblingLayout.height / 2,
-      });
+      const siblingCenter = worldCenterOf(siblingId, cache);
+      if (siblingCenter) occupiedWorldCenters.push(siblingCenter);
     }
 
-    let best: Point | undefined;
+    let best: Point | undefined; // 월드 좌표
     let bestDist = Infinity;
     for (const point of snapPoints) {
-      if (occupiedCenters.some((occupied) => isNear(point, occupied))) continue;
-      const dist = Math.hypot(point.x - center.x, point.y - center.y);
+      const worldPoint = {
+        x: candidateOrigin.x + point.x,
+        y: candidateOrigin.y + point.y,
+      };
+      if (occupiedWorldCenters.some((occupied) => isNear(worldPoint, occupied))) {
+        continue;
+      }
+      const dist = Math.hypot(
+        worldPoint.x - worldCenter.x,
+        worldPoint.y - worldCenter.y
+      );
       if (dist < bestDist) {
         bestDist = dist;
-        best = point;
+        best = worldPoint;
       }
     }
     if (!best) continue;
 
-    claimedPoints.push(best);
-    const x = roundCoordinate(best.x - childLayout.width / 2);
-    const y = roundCoordinate(best.y - childLayout.height / 2);
+    claimedWorldPoints.push(best);
+    // 레이아웃 좌표는 "현재 부모" 기준 상대값 — 아직 reparent 전이어도 월드
+    // 위치가 포인트에 오도록 현재 부모 원점 기준으로 역산한다. 드롭 시
+    // reparent 가 월드 위치를 보존하며 좌표계를 새 부모로 옮긴다.
+    const currentParentOrigin = zone.parentZoneId
+      ? resolveWorldZoneOrigin({ model, layoutModel, zoneId: zone.parentZoneId })
+      : ROOT_WORLD_ORIGIN;
+    const x = roundCoordinate(
+      best.x - currentParentOrigin.x - childLayout.width / 2
+    );
+    const y = roundCoordinate(
+      best.y - currentParentOrigin.y - childLayout.height / 2
+    );
     if (x !== childLayout.x || y !== childLayout.y) {
       layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
     }

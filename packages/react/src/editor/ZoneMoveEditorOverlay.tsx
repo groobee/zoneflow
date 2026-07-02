@@ -1993,16 +1993,27 @@ export function ZoneMoveEditorOverlay(props: {
                 zoneId: drag.target.zoneId,
               });
 
-        // 도킹 슬롯 멤버십은 reparent 여부와 무관하게 드롭 위치로 갱신한다 —
-        // 같은 컨테이너 안에서 레인 ↔ 일반 영역만 오가는 드래그도 커밋 대상.
-        const slotMembership = commitZoneSlotMembership({
+        // 드롭 확정 스냅 — 바깥에서 들어온 존도 reparent 직후 좌표계로 한 번 더
+        // 스냅해, 마지막 pointermove 가 반영되기 전에 드롭돼도 포인트에 앉는다.
+        const slotSnappedLayoutModel = snapZonesToSlotPoints({
           model: reparented.model,
           layoutModel: reparented.layoutModel,
           zoneIds: draggedZoneIds,
         });
 
-        if (reparented.didReparent) {
-          latestRef.current.onLayoutModelChange?.(reparented.layoutModel);
+        // 도킹 슬롯 멤버십은 reparent 여부와 무관하게 드롭 위치로 갱신한다 —
+        // 같은 컨테이너 안에서 레인 ↔ 일반 영역만 오가는 드래그도 커밋 대상.
+        const slotMembership = commitZoneSlotMembership({
+          model: reparented.model,
+          layoutModel: slotSnappedLayoutModel,
+          zoneIds: draggedZoneIds,
+        });
+
+        if (
+          reparented.didReparent ||
+          slotSnappedLayoutModel !== latestRef.current.layoutModel
+        ) {
+          latestRef.current.onLayoutModelChange?.(slotSnappedLayoutModel);
         }
         if (reparented.didReparent || slotMembership.didChange) {
           latestRef.current.onModelChange?.(slotMembership.model);

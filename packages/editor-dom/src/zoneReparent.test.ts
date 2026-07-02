@@ -373,3 +373,71 @@ describe("followSlotSnapPointsAfterResize", () => {
     );
   });
 });
+
+describe("snapZonesToSlotPoints — 바깥 존의 원모션 진입 스냅", () => {
+  // 컨테이너가 월드 (100, 50) — 로컬/월드 좌표가 구분되는 배치.
+  function outsideZoneSetup(outsiderWorld: { x: number; y: number }) {
+    const m = model([
+      zone("c", {
+        zoneType: "container",
+        slots: [PARALLEL_SLOT],
+        childZoneIds: ["seated"],
+      }),
+      zone("seated", { parentZoneId: "c", slotKey: "parallel" }),
+      zone("outsider"), // 루트 존 — 아직 컨테이너 밖 소속
+    ]);
+    let layoutModel = createUniverseLayoutModel({ universeId: "u1" });
+    layoutModel = updateZoneLayout(layoutModel, "c", {
+      ...createZoneLayout({ x: 100, y: 50, width: 600, height: 300 }),
+      slotLayoutsByKey: {
+        parallel: {
+          width: 220,
+          snapPoints: [
+            { x: 110, y: 75 },
+            { x: 110, y: 225 },
+          ],
+        },
+      },
+    });
+    // seated: 첫 포인트(로컬 110,75)에 착석 — 로컬 (30,35)
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      "seated",
+      createZoneLayout({ x: 30, y: 35, width: 160, height: 80 })
+    );
+    // outsider: 루트 좌표 = 월드 좌표
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      "outsider",
+      createZoneLayout({ ...outsiderWorld, width: 160, height: 80 })
+    );
+    return { m, layoutModel };
+  }
+
+  it("드래그 중 레인 위로 오면 (아직 부모가 아니어도) 빈 포인트로 스냅한다", () => {
+    // outsider 중앙 월드 (210, 220) → 컨테이너 로컬 (110, 170) — 레인 안.
+    // 첫 포인트(월드 210,125)는 seated 가 점유 → 둘째 포인트(월드 210,275)로.
+    const { m, layoutModel } = outsideZoneSetup({ x: 130, y: 180 });
+    const next = snapZonesToSlotPoints({
+      model: m,
+      layoutModel,
+      zoneIds: ["outsider"],
+    });
+    const o = next.zoneLayoutsById["outsider"];
+    // 루트 기준 좌표 = 월드: 중앙 (210, 275) → (130, 235)
+    expect([o.x, o.y]).toEqual([130, 235]);
+  });
+
+  it("레인 밖(컨테이너 일반 영역)이면 스냅하지 않는다", () => {
+    // 중앙 월드 (500, 220) → 로컬 (400, 170) — 컨테이너 안이지만 레인 밖.
+    const { m, layoutModel } = outsideZoneSetup({ x: 420, y: 180 });
+    const next = snapZonesToSlotPoints({
+      model: m,
+      layoutModel,
+      zoneIds: ["outsider"],
+    });
+    expect(next.zoneLayoutsById["outsider"]).toEqual(
+      layoutModel.zoneLayoutsById["outsider"]
+    );
+  });
+});

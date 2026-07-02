@@ -28,7 +28,12 @@ import {
   resolveWorldZoneRect,
 } from "./zoneGeometry";
 
-function resolveContainingParentZoneId(params: {
+/**
+ * 주어진 월드 포인트를 품는 가장 깊은 컨테이너(= 그 자리에 드롭하면 부모가
+ * 될 존). reparent 판정과 슬롯 스냅(snapZonesToSlotPoints — 바깥 존이 레인
+ * 위로 끌려올 때 "드롭 시 부모" 기준으로 스냅)이 공유한다.
+ */
+export function resolveContainingParentZoneId(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   centerPoint: Point;
