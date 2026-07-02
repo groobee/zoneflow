@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   findPathSourceZoneId,
+  isDescendantZone,
   pruneLayoutModel,
   removePath,
   removeZone,
@@ -3189,7 +3190,15 @@ export function ZoneMoveEditorOverlay(props: {
           frame,
           camera,
           zoneId: pathCreateTargetZoneId,
-          kind: "inlet",
+          // 타깃이 소스의 조상 컨테이너면 연결점은 인렛이 아니라 "탈출 합류
+          // (exit)" — 아웃렛 안쪽 면이다. 하이라이트도 drop 판정과 같은 앵커에.
+          kind: isDescendantZone(
+            model,
+            pathCreateTargetZoneId,
+            creatingPath.sourceZoneId
+          )
+            ? "outlet"
+            : "inlet",
           resolveZoneShape,
         })
       : undefined;
@@ -3207,7 +3216,13 @@ export function ZoneMoveEditorOverlay(props: {
           frame,
           camera,
           zoneId: retargetPathTargetZoneId,
-          kind: "inlet",
+          kind: isDescendantZone(
+            model,
+            retargetPathTargetZoneId,
+            retargetingPath.sourceZoneId
+          )
+            ? "outlet"
+            : "inlet",
           resolveZoneShape,
         })
       : undefined;
