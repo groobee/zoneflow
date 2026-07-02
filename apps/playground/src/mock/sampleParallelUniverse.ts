@@ -51,6 +51,7 @@ export const sampleParallelUniverse: UniverseModel = {
           key: "parallel",
           label: "∥ PARALLEL",
           effects: { childInput: "disabled" },
+          entry: true,
         },
       ],
       childZoneIds: ["pushAd", "emailNudge", "smsCoupon", "retargetWait"],
@@ -131,8 +132,18 @@ export const sampleParallelUniverse: UniverseModel = {
         type: "wait",
         payload: { days: 7 },
       },
-      pathIds: [],
-      pathsById: {},
+      pathIds: ["path-retarget-exit"],
+      pathsById: {
+        // 자식 → 부모 컨테이너 = 내부 탈출 합류(exit) — 엣지가 컨테이너
+        // 아웃렛 안쪽 면에서 만난다.
+        "path-retarget-exit": {
+          id: "path-retarget-exit",
+          key: "done",
+          name: "완료",
+          target: { universeId: "parallel-flow", zoneId: "journey" },
+          rule: { type: "complete", payload: {} },
+        },
+      },
     },
     converted: {
       id: "converted",
@@ -172,14 +183,17 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       height: 420,
       slotLayoutsByKey: {
         parallel: {
-          width: 260,
+          // 좌측 엣지에서 띄운(inset) 자유 배치 — 인렛 → 레인 진입 점선이
+          // 그려진다 (entry: true). height 를 생략하면 레인이 컨테이너
+          // 높이를 추종한다 — 컨테이너를 상하로 리사이즈하면 자동 조절.
+          rect: { x: 40, y: 0, width: 260 },
           // 도킹 스냅 포인트(슬롯 로컬) — 존 중앙이 빈 포인트로 스냅되고,
           // 한 포인트에 한 존만 앉는다. 마지막 하나는 빈 자리로 남겨둔 데모.
           snapPoints: [
-            { x: 130, y: 72 },
+            { x: 130, y: 84 },
             { x: 130, y: 176 },
-            { x: 130, y: 280 },
-            { x: 130, y: 384 },
+            { x: 130, y: 268 },
+            { x: 130, y: 360 },
           ],
         },
       },
@@ -189,8 +203,8 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       },
     },
     pushAd: {
-      x: 40,
-      y: 28,
+      x: 80,
+      y: 40,
       width: 180,
       height: 88,
       anchors: {
@@ -199,7 +213,7 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       },
     },
     emailNudge: {
-      x: 40,
+      x: 80,
       y: 132,
       width: 180,
       height: 88,
@@ -209,8 +223,8 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       },
     },
     smsCoupon: {
-      x: 40,
-      y: 236,
+      x: 80,
+      y: 224,
       width: 180,
       height: 88,
       anchors: {
@@ -248,6 +262,9 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
     },
     "path-email-retarget": {
       routeOffset: { x: 10, y: -8 },
+    },
+    "path-retarget-exit": {
+      routeOffset: { x: 8, y: 10 },
     },
   },
 };
