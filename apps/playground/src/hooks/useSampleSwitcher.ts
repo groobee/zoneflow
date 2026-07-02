@@ -25,6 +25,10 @@ import {
   sampleDagUniverseLayout,
 } from "../mock/sampleDagUniverse";
 import {
+  sampleParallelUniverse,
+  sampleParallelUniverseLayout,
+} from "../mock/sampleParallelUniverse";
+import {
   dagCanConnectPath,
   noSelfLoopCanConnectPath,
 } from "../canConnectStrategies";
@@ -35,6 +39,7 @@ export type SampleType =
   | "large"
   | "no-self-loop"
   | "dag"
+  | "parallel"
   | "custom";
 
 type SampleSet = {
@@ -62,6 +67,10 @@ const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
   dag: {
     model: sampleDagUniverse,
     layoutModel: sampleDagUniverseLayout,
+  },
+  parallel: {
+    model: sampleParallelUniverse,
+    layoutModel: sampleParallelUniverseLayout,
   },
 };
 
