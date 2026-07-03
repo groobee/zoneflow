@@ -17,10 +17,6 @@ import {
   sampleTinyUniverseLayout,
 } from "../mock/sampleTinyUniverse";
 import {
-  sampleNoSelfLoopUniverse,
-  sampleNoSelfLoopUniverseLayout,
-} from "../mock/sampleNoSelfLoopUniverse";
-import {
   sampleDagUniverse,
   sampleDagUniverseLayout,
 } from "../mock/sampleDagUniverse";
@@ -28,16 +24,12 @@ import {
   sampleParallelUniverse,
   sampleParallelUniverseLayout,
 } from "../mock/sampleParallelUniverse";
-import {
-  dagCanConnectPath,
-  noSelfLoopCanConnectPath,
-} from "../canConnectStrategies";
+import { dagCanConnectPath } from "../canConnectStrategies";
 
 export type SampleType =
   | "tiny"
   | "small"
   | "large"
-  | "no-self-loop"
   | "dag"
   | "parallel"
   | "custom";
@@ -60,10 +52,6 @@ const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
     model: sampleLargeUniverse,
     layoutModel: sampleLargeUniverseLayout,
   },
-  "no-self-loop": {
-    model: sampleNoSelfLoopUniverse,
-    layoutModel: sampleNoSelfLoopUniverseLayout,
-  },
   dag: {
     model: sampleDagUniverse,
     layoutModel: sampleDagUniverseLayout,
@@ -75,7 +63,6 @@ const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
 };
 
 const SAMPLE_CAN_CONNECT: Partial<Record<SampleType, CanConnectPath>> = {
-  "no-self-loop": noSelfLoopCanConnectPath,
   dag: dagCanConnectPath,
 };
 

@@ -1,11 +1,6 @@
 import type { PathId, UniverseModel, ZoneId } from "@zoneflow/core";
 import type { CanConnectPath } from "@zoneflow/react";
 
-export const noSelfLoopCanConnectPath: CanConnectPath = ({
-  sourceZoneId,
-  targetZoneId,
-}) => sourceZoneId !== targetZoneId;
-
 function canReachZone(
   model: UniverseModel,
   fromZoneId: ZoneId,

@@ -153,7 +153,6 @@ export function Topbar({
             <option value="tiny">Tiny sample</option>
             <option value="small">Small sample</option>
             <option value="large">Large sample</option>
-            <option value="no-self-loop">No self-loop sample</option>
             <option value="dag">DAG sample</option>
             <option value="parallel">Parallel slot sample</option>
             {sampleType === "custom" ? (
