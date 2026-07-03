@@ -75,9 +75,11 @@ export {
   commitZoneReparentAtCurrentPosition,
   commitZoneSlotMembership,
   reparentZoneAtCurrentPosition,
+  resolveZoneDropPlacement,
   resolveZonePlacementAtWorldRect,
   resolveZoneReparentCandidate,
 } from "./zoneReparent";
+export type { CanDropZone, CanDropZoneParams } from "./zoneReparent";
 
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
 const DEFAULT_MIN_ZONE_WIDTH = 140;

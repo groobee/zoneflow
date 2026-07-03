@@ -13,6 +13,7 @@ import {
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
+  type Zone,
   type ZoneId,
 } from "@zoneflow/core";
 import type { Rect } from "@zoneflow/renderer-dom";
@@ -139,6 +140,81 @@ export function resolveZoneReparentCandidate(params: {
     currentParentZoneId: zone.parentZoneId,
     worldRect,
   };
+}
+
+export type CanDropZoneParams = {
+  zoneId: ZoneId;
+  zone: Zone;
+  /** 드롭 시 새 부모가 될 존 (`null` = 루트 캔버스). */
+  targetParentZoneId: ZoneId | null;
+  targetParentZone: Zone | null;
+  /** 드롭 시 앉게 될 도킹 슬롯 키 (레인 밖이거나 부모가 슬롯 미선언이면 `null`). */
+  slotKey: string | null;
+  /** 드래그 중인 존의 중앙 (월드 좌표) — 좌표 기반 금지 구역 판정용. */
+  worldPoint: Point;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+};
+
+/**
+ * 존 드롭 허용 여부를 외부(도메인)에서 판정하는 콜백. `canConnectPath` 와 대칭 —
+ * hover 단계에선 불가 마커 표시, drop 단계에선 원위치 복원(커밋/히스토리 없음)에
+ * 쓰인다. pointermove 마다 호출되므로 동기적이고 가벼워야 하며, throw 는 `false`
+ * 로 처리된다.
+ */
+export type CanDropZone = (params: CanDropZoneParams) => boolean;
+
+/**
+ * 드래그 중인 존의 현재 위치가 "지금 드롭되면 어디에 앉는가"를 계산한다 —
+ * 새 부모 후보(중앙 포함 최심 컨테이너, 자기 서브트리 제외), 그 부모 기준
+ * 도킹 슬롯 키, 존 중앙(월드). `canDropZone` 판정 입력의 단일 소스로,
+ * 에디터의 hover 마커와 drop 판정이 공유한다.
+ */
+export function resolveZoneDropPlacement(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneId: ZoneId;
+}): {
+  targetParentZoneId: ZoneId | null;
+  slotKey: string | null;
+  worldPoint: Point;
+} | null {
+  const { model, layoutModel, zoneId } = params;
+
+  const resolved = resolveZoneReparentCandidate({
+    model,
+    layoutModel,
+    zoneId,
+  });
+  if (!resolved.worldRect) return null;
+
+  const worldPoint = {
+    x: resolved.worldRect.x + resolved.worldRect.width / 2,
+    y: resolved.worldRect.y + resolved.worldRect.height / 2,
+  };
+
+  const targetParentZoneId = resolved.candidateParentZoneId;
+  let slotKey: string | null = null;
+  const targetParent = targetParentZoneId
+    ? model.zonesById[targetParentZoneId]
+    : undefined;
+  if (targetParent && zoneDeclaresSlots(targetParent)) {
+    const parentLayout = getZoneLayout(layoutModel, targetParent.id);
+    if (parentLayout) {
+      const parentOrigin = resolveWorldZoneOrigin({
+        model,
+        layoutModel,
+        zoneId: targetParent.id,
+      });
+      slotKey =
+        resolveZoneSlotKeyAtPoint(targetParent, parentLayout, {
+          x: worldPoint.x - parentOrigin.x,
+          y: worldPoint.y - parentOrigin.y,
+        }) ?? null;
+    }
+  }
+
+  return { targetParentZoneId, slotKey, worldPoint };
 }
 
 export function resolveZonePlacementAtWorldRect(params: {

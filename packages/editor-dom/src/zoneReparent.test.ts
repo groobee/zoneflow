@@ -9,7 +9,10 @@ import {
   type Zone,
   type ZoneSlotDef,
 } from "@zoneflow/core";
-import { commitZoneSlotMembership } from "./zoneReparent";
+import {
+  commitZoneSlotMembership,
+  resolveZoneDropPlacement,
+} from "./zoneReparent";
 import {
   followSlotSnapPointsAfterResize,
   snapZonesToSlotPoints,
@@ -439,5 +442,67 @@ describe("snapZonesToSlotPoints — 바깥 존의 원모션 진입 스냅", () =
     expect(next.zoneLayoutsById["outsider"]).toEqual(
       layoutModel.zoneLayoutsById["outsider"]
     );
+  });
+});
+
+describe("resolveZoneDropPlacement", () => {
+  it("resolves the containing container and lane slotKey at the current position", () => {
+    const before = model([slotContainer(), zone("child", { parentZoneId: "c" })]);
+
+    // child center x = 40 + 80 = 120 ≤ 220 → parallel 레인 안
+    const placement = resolveZoneDropPlacement({
+      model: before,
+      layoutModel: layoutWithChildAt(40),
+      zoneId: "child",
+    });
+
+    expect(placement).not.toBeNull();
+    expect(placement!.targetParentZoneId).toBe("c");
+    expect(placement!.slotKey).toBe("parallel");
+    expect(placement!.worldPoint).toEqual({ x: 120, y: 80 });
+  });
+
+  it("returns slotKey null when the center is outside every lane", () => {
+    const before = model([slotContainer(), zone("child", { parentZoneId: "c" })]);
+
+    // child center x = 300 + 80 = 380 > 220 → 레인 밖, 컨테이너 일반 영역
+    const placement = resolveZoneDropPlacement({
+      model: before,
+      layoutModel: layoutWithChildAt(300),
+      zoneId: "child",
+    });
+
+    expect(placement!.targetParentZoneId).toBe("c");
+    expect(placement!.slotKey).toBeNull();
+  });
+
+  it("returns a null parent for a zone floating on the root canvas", () => {
+    const before = model([slotContainer(), zone("free")]);
+    let layoutModel = layoutWithChildAt(40);
+    layoutModel = updateZoneLayout(
+      layoutModel,
+      "free",
+      createZoneLayout({ x: 1000, y: 500, width: 160, height: 80 })
+    );
+
+    const placement = resolveZoneDropPlacement({
+      model: before,
+      layoutModel,
+      zoneId: "free",
+    });
+
+    expect(placement!.targetParentZoneId).toBeNull();
+    expect(placement!.slotKey).toBeNull();
+  });
+
+  it("returns null when the zone has no layout", () => {
+    const before = model([zone("ghost")]);
+    const placement = resolveZoneDropPlacement({
+      model: before,
+      layoutModel: createUniverseLayoutModel({ universeId: "u1" }),
+      zoneId: "ghost",
+    });
+
+    expect(placement).toBeNull();
   });
 });

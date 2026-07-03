@@ -124,6 +124,8 @@ type OverlayTone = {
   marquee: OutlineTone;
   connectTarget: HighlightTone;
   dropTarget: HighlightTone;
+  /** 존 드롭 거부(canDropZone=false) 시 드래그 중인 존 위에 그리는 불가 표시. */
+  dropRejected: HighlightTone;
   guide: GuideTone;
   editButton: {
     idle: ButtonTone;
@@ -178,6 +180,7 @@ export type ZoneflowEditorThemeInput = {
     marquee: Partial<OutlineTone>;
     connectTarget: Partial<HighlightTone>;
     dropTarget: Partial<HighlightTone>;
+    dropRejected: Partial<HighlightTone>;
     guide: Partial<GuideTone>;
     editButton: Partial<{
       idle: Partial<ButtonTone>;
@@ -356,6 +359,14 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
       boxShadow: "0 0 0 1px rgba(134, 239, 172, 0.24) inset",
       badgeBackground: "#16a34a",
       badgeColor: "#f0fdf4",
+      badgeShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
+    },
+    dropRejected: {
+      border: "2px solid rgba(225, 29, 72, 0.92)",
+      background: "rgba(244, 63, 94, 0.08)",
+      boxShadow: "0 0 0 1px rgba(253, 164, 175, 0.24) inset",
+      badgeBackground: "#e11d48",
+      badgeColor: "#fff1f2",
       badgeShadow: "0 8px 18px rgba(15, 23, 42, 0.18)",
     },
     guide: {
@@ -587,6 +598,10 @@ export function resolveEditorTheme(
       dropTarget: {
         ...defaultEditorTheme.overlay.dropTarget,
         ...theme.overlay?.dropTarget,
+      },
+      dropRejected: {
+        ...defaultEditorTheme.overlay.dropRejected,
+        ...theme.overlay?.dropRejected,
       },
       guide: {
         ...defaultEditorTheme.overlay.guide,

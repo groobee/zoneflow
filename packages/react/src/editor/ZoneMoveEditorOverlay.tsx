@@ -44,12 +44,14 @@ import {
   retargetPathFromOutputAnchorDrag,
   resolveInputAnchorTargetZoneId,
   resolveGroupPathDragOrigin,
+  resolveZoneDropPlacement,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
   resolveZoneResizeOrigin,
   screenPointToWorldPoint,
   type CanConnectPath,
   type CanConnectPathParams,
+  type CanDropZone,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
   type CellSnapOptions,
@@ -97,6 +99,7 @@ import {
   type ZoneflowEditorThemeInput,
 } from "@zoneflow/editor-dom";
 import type {
+  DropRejectionRenderProps,
   PathEditorRenderProps,
   PathOverlayRenderProps,
   ResolvePathLabelResize,
@@ -427,6 +430,27 @@ export type ZoneMoveEditorConfig = {
    * pointermove 마다 호출되므로 동기적이고 가벼워야 함.
    */
   canConnectPath?: CanConnectPath;
+  /**
+   * 존 드래그의 드롭 허용 여부를 외부에서 검증하는 콜백. `canConnectPath` 의 존 이동판.
+   *
+   * - 미지정 시 기본 동작: 모든 드롭 허용 (기존 동작과 동일).
+   * - hover 단계: `false` 반환 시 드래그 중인 존 위에 불가 마커(기본 ✕)가 뜨고,
+   *   drop target 후보 하이라이트도 억제됨 — 사용자에게 즉시 시각 피드백.
+   * - drop 단계: `false` 반환 시 존이 **드래그 시작 위치로 복원**되고 아무 것도
+   *   커밋되지 않음 (히스토리에 스텝이 남지 않는 완전한 no-op).
+   * - 그룹 드래그: 하나라도 `false` 면 그룹 전체가 복원됨.
+   *
+   * 판정 입력으로 새 부모 후보(`targetParentZoneId`, `null` = 루트), 도킹 슬롯 키,
+   * 존 중앙(월드 좌표)을 받는다 — 좌표 기반 금지 구역도 판정 가능.
+   * pointermove 마다 호출되므로 동기적이고 가벼워야 하며, throw 는 `false` 로 처리.
+   */
+  canDropZone?: CanDropZone;
+  /**
+   * 드롭 거부 마커를 소비자가 직접 그린다. 드래그 중인 존의 화면 박스를 덮는
+   * 컨테이너(포인터 이벤트 없음) 안에 렌더되며, 미지정 시 기본 ✕ 배지 + 붉은
+   * 아웃라인(`theme.overlay.dropRejected`)이 그려진다. {@link DropRejectionRenderProps}
+   */
+  renderDropRejection?: (props: DropRejectionRenderProps) => ReactNode;
   onTransactionStart?: (transaction: EditorTransactionMeta) => void;
   onTransactionCommit?: (transaction: EditorTransactionMeta) => void;
   onTransactionCancel?: (transaction: EditorTransactionMeta) => void;
@@ -945,6 +969,71 @@ function intersectsRect(a: Rect, b: Rect): boolean {
     a.y < b.y + b.height &&
     a.y + a.height > b.y
   );
+}
+
+type RejectedZoneDrop = {
+  zoneId: ZoneId;
+  zone: Zone;
+  targetParentZoneId: ZoneId | null;
+  targetParentZone: Zone | null;
+  slotKey: string | null;
+};
+
+/**
+ * 드래그 중인 존들의 현재 위치에 대한 `canDropZone` 거부 목록. hover 마커(렌더)와
+ * drop 판정(stopDragging)이 같은 로직을 공유한다. 콜백이 throw 하면 해당 존은
+ * 거부로 처리한다 (`canConnectPath` 와 동일 관례).
+ */
+function evaluateRejectedZoneDrops(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  zoneIds: ZoneId[];
+  canDropZone: CanDropZone | undefined;
+}): RejectedZoneDrop[] {
+  const { model, layoutModel, zoneIds, canDropZone } = params;
+  if (!canDropZone) return [];
+
+  const rejected: RejectedZoneDrop[] = [];
+  for (const zoneId of zoneIds) {
+    const zone = model.zonesById[zoneId];
+    if (!zone) continue;
+
+    const placement = resolveZoneDropPlacement({ model, layoutModel, zoneId });
+    if (!placement) continue;
+
+    const targetParentZone = placement.targetParentZoneId
+      ? model.zonesById[placement.targetParentZoneId] ?? null
+      : null;
+
+    let allowed = true;
+    try {
+      allowed = canDropZone({
+        zoneId,
+        zone,
+        targetParentZoneId: placement.targetParentZoneId,
+        targetParentZone,
+        slotKey: placement.slotKey,
+        worldPoint: placement.worldPoint,
+        model,
+        layoutModel,
+      });
+    } catch (err) {
+      console.error("[zoneflow] canDropZone threw:", err);
+      allowed = false;
+    }
+
+    if (!allowed) {
+      rejected.push({
+        zoneId,
+        zone,
+        targetParentZoneId: placement.targetParentZoneId,
+        targetParentZone,
+        slotKey: placement.slotKey,
+      });
+    }
+  }
+
+  return rejected;
 }
 
 function renderZoneFallback(
@@ -1546,6 +1635,7 @@ export function ZoneMoveEditorOverlay(props: {
     onTransactionCommit: editor?.onTransactionCommit,
     onTransactionCancel: editor?.onTransactionCancel,
     canConnectPath: editor?.canConnectPath,
+    canDropZone: editor?.canDropZone,
     onPathCreated: editor?.onPathCreated,
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
     onZoneSelectionChange: editor?.onZoneSelectionChange,
@@ -1573,11 +1663,12 @@ export function ZoneMoveEditorOverlay(props: {
       onTransactionCommit: editor?.onTransactionCommit,
       onTransactionCancel: editor?.onTransactionCancel,
       canConnectPath: editor?.canConnectPath,
+      canDropZone: editor?.canDropZone,
       onPathCreated: editor?.onPathCreated,
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
       onZoneSelectionChange: editor?.onZoneSelectionChange,
       onPathSelectionChange: editor?.onPathSelectionChange,
-    onZoneResize: editor?.onZoneResize,
+      onZoneResize: editor?.onZoneResize,
       resolveZoneShape,
       onExclusionStateChange,
     };
@@ -1976,7 +2067,47 @@ export function ZoneMoveEditorOverlay(props: {
         };
       }
 
+      // 드롭 거부 판정 — canDropZone 이 드래그된 존 중 하나라도 거부하면 그룹
+      // 전체를 드래그 시작 좌표로 복원하고 아무 것도 커밋하지 않는다.
+      // reparent 권한과 무관하게 적용된다 (같은 부모 안 이동도 판정 대상).
+      let zoneDropRejected = false;
       if (
+        drag?.target.kind === "zone" &&
+        drag.hasMoved &&
+        !resize &&
+        !pathResize &&
+        latestRef.current.canDropZone
+      ) {
+        const draggedZoneIds =
+          drag.origin.kind === "zone-group"
+            ? (Object.keys(drag.origin.originsByZoneId) as ZoneId[])
+            : [drag.target.zoneId];
+        const rejected = evaluateRejectedZoneDrops({
+          model: latestRef.current.model,
+          layoutModel: latestRef.current.layoutModel,
+          zoneIds: draggedZoneIds,
+          canDropZone: latestRef.current.canDropZone,
+        });
+
+        if (rejected.length > 0) {
+          zoneDropRejected = true;
+          // 시작 좌표 그대로(delta 0, 스냅 없이) 명시 복원 — 트랜잭션을 안 쓰는
+          // 소비자도 위치가 돌아간다. 이어서 트랜잭션 취소로 히스토리도 무효화
+          // (useUniverseEditor 는 baseline 복원 — undo 스텝이 남지 않는다).
+          const revertedLayoutModel = moveEditorTargetByScreenDelta({
+            layoutModel: latestRef.current.layoutModel,
+            camera: latestRef.current.camera,
+            origin: drag.origin,
+            deltaX: 0,
+            deltaY: 0,
+          });
+          latestRef.current.onLayoutModelChange?.(revertedLayoutModel);
+          cancelTransaction();
+        }
+      }
+
+      if (
+        !zoneDropRejected &&
         drag?.target.kind === "zone" &&
         drag.hasMoved &&
         !resize &&
@@ -2778,8 +2909,41 @@ export function ZoneMoveEditorOverlay(props: {
     [selectedTargetKey, targets]
   );
 
+  // canDropZone 거부 목록 — hover 단계 시각 피드백(불가 마커 + drop target
+  // 하이라이트 억제). drop 시 판정은 stopDragging 이 같은 헬퍼로 다시 계산한다.
+  const rejectedZoneDrops = useMemo(() => {
+    if (isResizing || draggingTarget?.kind !== "zone" || !editor?.canDropZone) {
+      return [];
+    }
+
+    const zoneIdsToEvaluate =
+      draggingZoneGroupIds.length > 0
+        ? draggingZoneGroupIds
+        : [draggingTarget.zoneId];
+
+    return evaluateRejectedZoneDrops({
+      model,
+      layoutModel,
+      zoneIds: zoneIdsToEvaluate,
+      canDropZone: editor.canDropZone,
+    });
+  }, [
+    draggingTarget,
+    draggingZoneGroupIds,
+    isResizing,
+    layoutModel,
+    model,
+    editor?.canDropZone,
+  ]);
+
   const dropTargetZoneIds = useMemo(() => {
     if (isResizing || draggingTarget?.kind !== "zone") {
+      return [];
+    }
+
+    // 거부된 드롭은 그룹 전체가 원위치 복원 대상이므로 후보 하이라이트도 걸지
+    // 않는다 — "여기엔 못 놓음"과 "여기에 들어감"이 동시에 보이면 모순.
+    if (rejectedZoneDrops.length > 0) {
       return [];
     }
 
@@ -2805,7 +2969,14 @@ export function ZoneMoveEditorOverlay(props: {
     }
 
     return Array.from(nextZoneIds);
-  }, [draggingTarget, draggingZoneGroupIds, isResizing, layoutModel, model]);
+  }, [
+    draggingTarget,
+    draggingZoneGroupIds,
+    isResizing,
+    layoutModel,
+    model,
+    rejectedZoneDrops,
+  ]);
 
   const openZoneEditor = (zoneId: ZoneId, targetKey: string) => {
     if (editor?.onZoneEditClick) {
@@ -3191,6 +3362,16 @@ export function ZoneMoveEditorOverlay(props: {
         zoneId: ZoneId;
         rect: Rect;
       } => value !== null
+    );
+  // 드롭 거부(canDropZone=false) 마커 — 드래그 중인 존 자신의 화면 박스 위에 그린다.
+  const dropRejectionScreenItems = rejectedZoneDrops
+    .map((item) => {
+      const rect = frame.pipeline.graphLayout.zonesById[item.zoneId]?.rect;
+      if (!rect) return null;
+      return { ...item, rect: toScreenRect(rect, camera) };
+    })
+    .filter(
+      (value): value is RejectedZoneDrop & { rect: Rect } => value !== null
     );
   const pathCreateSourceAnchorRect =
     creatingPath
@@ -4407,6 +4588,75 @@ export function ZoneMoveEditorOverlay(props: {
             </div>
           </div>
         ))}
+
+        {dropRejectionScreenItems.map((item) =>
+          editor?.renderDropRejection ? (
+            // 소비자 마커 — 기본 스타일 없이 존 박스를 덮는 투명 컨테이너만 제공.
+            <div
+              key={`drop-rejected-${item.zoneId}`}
+              style={{
+                position: "absolute",
+                left: `${item.rect.x}px`,
+                top: `${item.rect.y}px`,
+                width: `${item.rect.width}px`,
+                height: `${item.rect.height}px`,
+                pointerEvents: "none",
+              }}
+            >
+              {editor.renderDropRejection({
+                zoneId: item.zoneId,
+                zone: item.zone,
+                targetParentZoneId: item.targetParentZoneId,
+                targetParentZone: item.targetParentZone,
+                slotKey: item.slotKey,
+                rect: item.rect,
+                theme: resolvedEditorTheme,
+              })}
+            </div>
+          ) : (
+            // 기본 마커 — 붉은 아웃라인 + 우상단 ✕ 배지 (theme.overlay.dropRejected)
+            <div
+              key={`drop-rejected-${item.zoneId}`}
+              style={{
+                position: "absolute",
+                left: `${item.rect.x}px`,
+                top: `${item.rect.y}px`,
+                width: `${item.rect.width}px`,
+                height: `${item.rect.height}px`,
+                borderRadius: 22,
+                border: resolvedEditorTheme.overlay.dropRejected.border,
+                background: resolvedEditorTheme.overlay.dropRejected.background,
+                boxShadow: resolvedEditorTheme.overlay.dropRejected.boxShadow,
+                pointerEvents: "none",
+              }}
+            >
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  right: -10,
+                  top: -10,
+                  width: 22,
+                  height: 22,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 999,
+                  background:
+                    resolvedEditorTheme.overlay.dropRejected.badgeBackground,
+                  color: resolvedEditorTheme.overlay.dropRejected.badgeColor,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  boxShadow:
+                    resolvedEditorTheme.overlay.dropRejected.badgeShadow,
+                }}
+              >
+                ✕
+              </div>
+            </div>
+          )
+        )}
 
         {targets.map((target) => {
           const isDragging = draggingTarget?.key === target.key;

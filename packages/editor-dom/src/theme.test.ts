@@ -120,3 +120,20 @@ describe("resolveEditorTheme — dialog follows the theme", () => {
     expect(resolved.overlay.toast.actionButton.background).toBe("#111");
   });
 });
+
+describe("resolveEditorTheme — dropRejected tone", () => {
+  it("provides library defaults when unspecified", () => {
+    const tone = resolveEditorTheme({}).overlay.dropRejected;
+    expect(tone.badgeBackground).toBe("#e11d48");
+    expect(tone.border).toContain("rgba(225, 29, 72");
+  });
+
+  it("merges partial overrides over the defaults", () => {
+    const tone = resolveEditorTheme({
+      overlay: { dropRejected: { badgeBackground: "#7f1d1d" } },
+    }).overlay.dropRejected;
+    expect(tone.badgeBackground).toBe("#7f1d1d");
+    // 나머지 토큰은 기본값 유지
+    expect(tone.badgeColor).toBe("#fff1f2");
+  });
+});

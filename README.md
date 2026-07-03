@@ -257,6 +257,7 @@ function Viewer() {
 - `onZoneSelectionChange`
 - `onPathSelectionChange`
 - `canConnectPath`
+- `canDropZone` / `renderDropRejection` (존 드롭 검증 + 불가 마커)
 - `confineChildZonesToParent` (자식 존을 부모 컨테이너 박스 밖으로 못 나가게 가두기 — 기본값 `!reparentZone`)
 
 예:
@@ -333,6 +334,57 @@ function Viewer() {
 - 콜백 미지정 시 모든 연결을 허용합니다 (기존 동작과 동일).
 
 `canConnectPath` 는 pointermove 마다 호출되므로 동기적이고 가벼워야 합니다. 콜백이 throw 하면 `false` 로 처리됩니다.
+
+### 존 드롭 검증 (canDropZone) — 이동 불가 영역
+
+존을 드래그해 **놓을 수 없는 영역**을 외부 도메인 룰로 정할 수 있습니다. `canConnectPath` 의 존 이동판입니다.
+
+```tsx
+<UniverseEditorCanvas
+  editor={editor}
+  editorConfig={{
+    canDropZone: ({ zone, targetParentZoneId, targetParentZone, slotKey, worldPoint }) => {
+      // 도킹 레인에는 컨테이너 존 금지
+      if (slotKey && zone.zoneType === "container") return false;
+
+      // 잠긴 컨테이너 안으로는 이동 금지
+      if (targetParentZone?.meta?.locked) return false;
+
+      return true; // 나머지는 허용
+    },
+  }}
+/>
+```
+
+동작:
+
+- **hover 단계** — `false` 반환 시 드래그 중인 존 위에 불가 마커(기본: 붉은 아웃라인 + 우상단 ✕ 배지)가 뜨고, drop target 후보 하이라이트도 억제됩니다.
+- **drop 단계** — `false` 반환 시 존이 **드래그 시작 위치로 복원**되고 아무 것도 커밋되지 않습니다. 히스토리에 스텝이 남지 않는 완전한 no-op 이라 undo 가 오염되지 않습니다.
+- **그룹 드래그** — 함께 끌던 존 중 하나라도 거부되면 그룹 전체가 복원됩니다.
+- 콜백 미지정 시 모든 드롭을 허용합니다 (기존 동작과 동일).
+
+콜백 파라미터: `zoneId` / `zone` (드래그 중인 존), `targetParentZoneId` / `targetParentZone` (드롭 시 새 부모, `null` = 루트 캔버스), `slotKey` (드롭 시 앉게 될 도킹 슬롯, 해당 없으면 `null`), `worldPoint` (존 중앙 월드 좌표 — 지도 위 금지 구역 같은 좌표 기반 판정용), `model` / `layoutModel`.
+
+`canConnectPath` 와 같은 규칙으로, pointermove 마다 호출되므로 동기적이고 가벼워야 하며 throw 는 `false` 로 처리됩니다. 참고로 `confineChildZonesToParent`(클램프 — 아예 못 나가게)와는 별개 메커니즘입니다: 이쪽은 "일단 끌 수는 있지만 놓으면 되돌아가는" 거부입니다.
+
+**불가 마커 커스터마이즈** — 다른 시각 요소와 같은 사다리입니다:
+
+- 색/톤만: `editorConfig.theme.overlay.dropRejected` (`border` / `background` / `badgeBackground` / `badgeColor` 등, `dropTarget` 과 같은 토큰 구성)
+- 마커 전체: `editorConfig.renderDropRejection` — 드래그 중인 존의 화면 박스를 덮는 컨테이너(포인터 이벤트 없음) 안에 임의 UI 를 그립니다. 지정 시 기본 아웃라인/배지는 그려지지 않습니다.
+
+```tsx
+editorConfig={{
+  renderDropRejection: ({ zone, targetParentZone, theme }) => (
+    <div style={{ position: "absolute", inset: 0, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  background: "rgba(244,63,94,0.12)", borderRadius: 22 }}>
+      🚫 {targetParentZone?.name ?? "여기"}에는 이동 불가
+    </div>
+  ),
+}}
+```
+
+동작 예는 playground 를 참고하세요 — 도킹 레인에 컨테이너 존을 끌어넣으면 ✕ 마커가 뜨고 원위치로 복원됩니다 (Parallel slot sample).
 
 ### 패스 생성 직후 옵션 설정 (onPathCreated)
 

@@ -77,6 +77,25 @@ export type PathOverlayRenderProps = {
   closeEditor: () => void;
 };
 
+/**
+ * `renderDropRejection` 에 넘어가는 컨텍스트 — 존 드래그가 `canDropZone` 에서
+ * 거부됐을 때(드롭 불가 영역 위) 드래그 중인 존의 화면 박스를 덮는 컨테이너
+ * (`pointer-events: none`) 안에 렌더된다. 미지정 시 기본 ✕ 배지 + 붉은
+ * 아웃라인(`theme.overlay.dropRejected`)이 그려진다.
+ */
+export type DropRejectionRenderProps = {
+  zoneId: ZoneId;
+  zone: Zone;
+  /** 드롭 시 새 부모가 될 존 (`null` = 루트 캔버스). */
+  targetParentZoneId: ZoneId | null;
+  targetParentZone: Zone | null;
+  /** 드롭 시 앉게 될 도킹 슬롯 키 (해당 없으면 `null`). */
+  slotKey: string | null;
+  /** 드래그 중인 존의 화면 좌표 박스. */
+  rect: Rect;
+  theme: ZoneflowEditorTheme;
+};
+
 export type ZoneEditorRenderProps = {
   zoneId: ZoneId;
   zone: Zone;
