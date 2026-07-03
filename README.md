@@ -857,10 +857,19 @@ DOM 직접 렌더링이 필요하면:
     zoneActionBorder: "#0f766e",
     pathEdge: "#475569",
     pathInboundEdge: "#0f766e",
+    typography: {
+      fontFamily: "'Inter', 'Pretendard', sans-serif",
+      zoneFontSize: { title: 14, titleLg: 16 }, // 나머지 크기는 기본값 유지
+    },
+    grid: {
+      line: "rgba(100, 116, 139, 0.16)",
+      majorLine: "rgba(100, 116, 139, 0.32)",
+    },
     surface: {
       zone: {
         background:
           "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.98) 100%)",
+        clipShadow: "drop-shadow(0 8px 14px rgba(15, 23, 42, 0.16))",
       },
       path: {
         background:
@@ -892,6 +901,14 @@ DOM 직접 렌더링이 필요하면:
   - editor overlay, HUD, preview, selection UI 테마
 - `DefaultEditorToolbar.theme`
   - 기본 툴바 테마
+
+모든 중첩 그룹(`surface` / `status` / `edgeFlow` / `density` / `typography`)은 **부분 지정**이 가능합니다 — 지정하지 않은 토큰은 기본 테마로 폴백합니다.
+
+- `typography` — **기본 렌더러**(존/패스 슬롯, 슬롯 레인 라벨, 에디터 드래그 프리뷰)의 `fontFamily` 와 슬롯별 폰트 크기(`zoneFontSize` — `title` 은 textScale 별 `titleSm/title/titleLg`, 그 외 `type/badge/body/footer/slotLabel`, `pathFontSize` — `label/rule/target/body`). 슬롯/풀바디 렌더러를 직접 주입한 경우 그 안의 폰트는 소비자 몫입니다.
+- `grid` — 캔버스 그리드 기본색(`line` / `majorLine`). `gridOptions.color / majorColor` 가 항상 우선이고, 이 토큰은 그 미지정 시의 폴백입니다 (그마저 없으면 라이브러리 기본색). 일반/모듈러 그리드가 같은 토큰을 공유합니다.
+- `surface.zone.clipShadow` — clip-path 존(diamond / hexagon / 커스텀 clip)의 drop-shadow filter. box-shadow 는 clip 에 잘려나가므로 이 토큰이 `surface.zone.shadow` 대신 쓰입니다.
+
+프리셋 적용 예는 `@zoneflow/themes` 의 `mono` 프리셋(모노스페이스 typography + 중성 grid + 플랫 clipShadow)을 참고하세요.
 
 ## 파일 저장 / 불러오기
 

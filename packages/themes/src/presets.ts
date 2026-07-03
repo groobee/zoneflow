@@ -1,5 +1,5 @@
 import type { ZoneflowEditorThemeInput } from "@zoneflow/editor-dom";
-import type { ZoneflowTheme } from "@zoneflow/renderer-dom";
+import type { ZoneflowThemeInput } from "@zoneflow/renderer-dom";
 
 export type ZoneflowThemePresetId =
   | "dark"
@@ -20,7 +20,7 @@ export type ZoneflowThemePreset = {
   id: ZoneflowThemePresetId;
   label: string;
   description: string;
-  rendererTheme: Partial<ZoneflowTheme>;
+  rendererTheme: ZoneflowThemeInput;
   editorTheme: ZoneflowEditorThemeInput;
   surfacePalette: {
     canvasBackground: string;
@@ -920,6 +920,9 @@ const monoPreset: ZoneflowThemePreset = {
           "0 16px 28px rgba(23, 23, 23, 0.08), 0 2px 6px rgba(23, 23, 23, 0.05)",
         containerAccent: "rgba(82, 82, 82, 0.10)",
         actionAccent: "rgba(23, 23, 23, 0.14)",
+        // 드래프팅 톤에 맞춰 clip-path 존(diamond/hexagon)의 그림자도 낮고 플랫하게.
+        clipShadow:
+          "drop-shadow(0 6px 10px rgba(23, 23, 23, 0.10)) drop-shadow(0 1px 3px rgba(23, 23, 23, 0.08))",
       },
       path: {
         background:
@@ -936,6 +939,15 @@ const monoPreset: ZoneflowThemePreset = {
         containerAccent: "#525252",
         actionAccent: "#111111",
       },
+    },
+    // 기본 렌더러 타이포그래피 — 모노 드래프팅 컨셉이라 monospace 스택 사용.
+    typography: {
+      fontFamily: "'IBM Plex Mono', 'SFMono-Regular', monospace",
+    },
+    // gridOptions 에서 색을 지정하지 않아도 이 테마의 중성 그리드 색으로 폴백.
+    grid: {
+      line: "rgba(115, 115, 115, 0.14)",
+      majorLine: "rgba(64, 64, 64, 0.26)",
     },
   },
   editorTheme: {

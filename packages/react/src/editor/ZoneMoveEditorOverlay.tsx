@@ -951,12 +951,18 @@ function renderZoneFallback(
   slot: ZoneComponentSlotName,
   context: ZoneComponentRendererContext
 ) {
+  const fontSize = context.theme.typography.zoneFontSize;
   switch (slot) {
     case "title":
       return (
         <div
           style={{
-            fontSize: 14,
+            fontSize:
+              context.textScale === "lg"
+                ? fontSize.titleLg
+                : context.textScale === "sm"
+                  ? fontSize.titleSm
+                  : fontSize.title,
             fontWeight: 700,
             color: context.theme.zoneTitle,
           }}
@@ -968,7 +974,7 @@ function renderZoneFallback(
       return (
         <div
           style={{
-            fontSize: 10,
+            fontSize: fontSize.type,
             fontWeight: 700,
             color: context.theme.zoneSubtext,
             letterSpacing: "0.08em",
@@ -989,7 +995,7 @@ function renderZoneFallback(
             borderRadius: 999,
             background: context.theme.zoneBadgeBg,
             color: context.theme.selection,
-            fontSize: 11,
+            fontSize: fontSize.badge,
             fontWeight: 700,
             boxSizing: "border-box",
           }}
@@ -1001,7 +1007,7 @@ function renderZoneFallback(
       return (
         <div
           style={{
-            fontSize: 11,
+            fontSize: fontSize.body,
             color: context.theme.zoneSubtext,
             lineHeight: 1.45,
           }}
@@ -1015,7 +1021,7 @@ function renderZoneFallback(
           style={{
             display: "flex",
             justifyContent: "space-between",
-            fontSize: 10,
+            fontSize: fontSize.footer,
             color: context.theme.zoneSubtext,
             fontWeight: 600,
           }}
@@ -1097,13 +1103,14 @@ function renderPathFallback(
   context: PathComponentRendererContext
 ) {
   const targetDisplay = resolvePathTargetDisplay(context);
+  const fontSize = context.theme.typography.pathFontSize;
 
   switch (slot) {
     case "label":
       return (
         <div
           style={{
-            fontSize: 12,
+            fontSize: fontSize.label,
             fontWeight: 700,
             color: context.theme.pathLabel,
             overflow: "hidden",
@@ -1118,7 +1125,7 @@ function renderPathFallback(
       return (
         <div
           style={{
-            fontSize: 10,
+            fontSize: fontSize.rule,
             fontWeight: 700,
             color: context.theme.pathInboundEdge,
             letterSpacing: "0.06em",
@@ -1134,7 +1141,7 @@ function renderPathFallback(
           style={{
             display: "flex",
             justifyContent: "space-between",
-            fontSize: 10,
+            fontSize: fontSize.target,
             color:
               targetDisplay.status === "missing"
                 ? context.theme.status.warning.color
@@ -1152,7 +1159,7 @@ function renderPathFallback(
       return (
         <div
           style={{
-            fontSize: 11,
+            fontSize: fontSize.body,
             color: context.theme.zoneSubtext,
             lineHeight: 1.4,
           }}
@@ -1245,7 +1252,7 @@ function renderZonePreview(props: PreviewHostProps) {
                 width: `${localRect.width}px`,
                 height: `${localRect.height}px`,
                 boxSizing: "border-box",
-                fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+                fontFamily: context.theme.typography.fontFamily,
               }}
             >
               {Component ? (
@@ -1342,7 +1349,7 @@ function renderPathPreview(props: PreviewHostProps) {
                 width: `${localRect.width}px`,
                 height: `${localRect.height}px`,
                 boxSizing: "border-box",
-                fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+                fontFamily: context.theme.typography.fontFamily,
               }}
             >
               {Component ? (

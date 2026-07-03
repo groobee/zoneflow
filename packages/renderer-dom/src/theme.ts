@@ -11,6 +11,38 @@ export type ZoneflowEdgeFlowTheme = {
   gapLength: number;
 };
 
+/** 기본 zone 렌더러의 슬롯별 폰트 크기(px). title 은 textScale(sm/md/lg)별. */
+export type ZoneflowZoneFontSizes = {
+  titleSm: number;
+  title: number;
+  titleLg: number;
+  type: number;
+  badge: number;
+  body: number;
+  footer: number;
+  /** 도킹 슬롯 레인 라벨 */
+  slotLabel: number;
+};
+
+/** 기본 path 렌더러의 슬롯별 폰트 크기(px). */
+export type ZoneflowPathFontSizes = {
+  label: number;
+  rule: number;
+  target: number;
+  body: number;
+};
+
+/**
+ * 기본 렌더러(존/패스 슬롯, 레인 라벨, 에디터 드래그 프리뷰)의 타이포그래피.
+ * 소비자가 슬롯/풀바디 렌더러를 직접 주입하면 그 안의 폰트는 소비자 몫이고,
+ * 이 토큰은 라이브러리 기본 드로우에만 적용된다.
+ */
+export type ZoneflowTypographyTheme = {
+  fontFamily: string;
+  zoneFontSize: ZoneflowZoneFontSizes;
+  pathFontSize: ZoneflowPathFontSizes;
+};
+
 export type ZoneflowTheme = {
   background: string;
 
@@ -49,6 +81,12 @@ export type ZoneflowTheme = {
       slotLabel?: string;
       /** Empty docking snap-point ring color. Falls back to `slotBorder`. */
       slotSnapPoint?: string;
+      /**
+       * clip-path 존(diamond/hexagon/커스텀 clip)의 drop-shadow filter.
+       * box-shadow 는 clip 에 잘려나가므로 이 토큰이 `shadow` 대신 쓰인다.
+       * 미지정 시 라이브러리 기본 그림자로 폴백.
+       */
+      clipShadow?: string;
     };
     path: {
       background: string;
@@ -69,6 +107,20 @@ export type ZoneflowTheme = {
   };
 
   edgeFlow: ZoneflowEdgeFlowTheme;
+
+  typography: ZoneflowTypographyTheme;
+
+  /**
+   * 캔버스 그리드 기본색. `gridOptions.color / majorColor` 가 항상 우선이고,
+   * 이 토큰은 그 미지정 시의 폴백이다 (그마저 없으면 라이브러리 기본색).
+   * 일반 그리드와 모듈러 그리드가 같은 토큰을 공유한다.
+   */
+  grid?: {
+    /** 가는(minor) 그리드 선 색 */
+    line?: string;
+    /** major 선(일반 그리드) / 셀 경계선(모듈러 그리드) 색 */
+    majorLine?: string;
+  };
 
   density: {
     zone: {
@@ -94,15 +146,36 @@ export type PathDensityThresholds = ZoneflowTheme["density"]["path"];
 
 /**
  * Input shape for the renderer `theme` prop. Same as a partial `ZoneflowTheme`,
- * except `density` accepts partial threshold sets — so a consumer can retune
- * just `{ density: { zone: { detail: 320 } } }` without restating every level
- * (the rest fall back to the defaults). The density engine reads these to
- * decide each zone's level (farest…detail).
+ * except nested groups(`surface` / `status` / `edgeFlow` / `density` /
+ * `typography`)도 부분 지정을 허용한다 — `{ surface: { zone: { background } } }`
+ * 나 `{ typography: { fontFamily: "Inter, sans-serif" } }` 처럼 한 토큰만 주면
+ * 나머지는 기본값으로 폴백한다 (`resolveTheme` 이 그룹별로 머지).
  */
-export type ZoneflowThemeInput = Partial<Omit<ZoneflowTheme, "density">> & {
+export type ZoneflowThemeInput = Partial<
+  Omit<
+    ZoneflowTheme,
+    "surface" | "status" | "edgeFlow" | "density" | "typography"
+  >
+> & {
+  surface?: {
+    chrome?: Partial<ZoneflowTheme["surface"]["chrome"]>;
+    zone?: Partial<ZoneflowTheme["surface"]["zone"]>;
+    path?: Partial<ZoneflowTheme["surface"]["path"]>;
+    anchor?: Partial<ZoneflowTheme["surface"]["anchor"]>;
+  };
+  status?: {
+    info?: Partial<ZoneflowStatusTone>;
+    warning?: Partial<ZoneflowStatusTone>;
+  };
+  edgeFlow?: Partial<ZoneflowEdgeFlowTheme>;
   density?: {
     zone?: Partial<ZoneDensityThresholds>;
     path?: Partial<PathDensityThresholds>;
+  };
+  typography?: {
+    fontFamily?: string;
+    zoneFontSize?: Partial<ZoneflowZoneFontSizes>;
+    pathFontSize?: Partial<ZoneflowPathFontSizes>;
   };
 };
 

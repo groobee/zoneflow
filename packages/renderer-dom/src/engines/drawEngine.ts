@@ -161,8 +161,9 @@ let modularGridSeq = 0;
 function createModularGridLayer(params: {
   options: NonNullable<RendererDrawInput["gridOptions"]>;
   camera: RendererDrawInput["camera"];
+  theme: RendererDrawInput["theme"];
 }): SVGSVGElement | null {
-  const { options, camera } = params;
+  const { options, camera, theme } = params;
   const m = options.modular;
   if (!m) return null;
   const zoom = camera.zoom;
@@ -175,8 +176,10 @@ function createModularGridLayer(params: {
   const periodY = rowsScreen.reduce((sum, n) => sum + n, 0);
   const hasCells = periodX >= 2 && periodY >= 2;
 
-  // 기본: 그리드 점선 / 셀선 실선. 색·두께·종류는 외부 주입(grid/cell)으로 덮어쓴다.
-  const fineColor = options.color ?? "rgba(148, 163, 184, 0.28)";
+  // 기본: 그리드 점선 / 셀선 실선. 색·두께·종류는 외부 주입(grid/cell)으로 덮어쓰고,
+  // 색은 gridOptions 미지정 시 테마 토큰(theme.grid) → 라이브러리 기본색 순으로 폴백.
+  const fineColor =
+    options.color ?? theme.grid?.line ?? "rgba(148, 163, 184, 0.28)";
   const fineWidth = m.grid?.width ?? 1;
   const fineDash = resolveModularGridDash(
     m.grid?.style ?? "dashed",
@@ -184,7 +187,10 @@ function createModularGridLayer(params: {
     minor
   );
   const cellColor =
-    m.cell?.color ?? options.majorColor ?? "rgba(148, 163, 184, 0.55)";
+    m.cell?.color ??
+    options.majorColor ??
+    theme.grid?.majorLine ??
+    "rgba(148, 163, 184, 0.55)";
   // 셀 경계는 점선 그리드 대비 "실선"으로 구분되므로 굵기는 그리드와 같은 1px 가 기본.
   const cellWidth = m.cell?.width ?? 1;
   const cellDash = resolveModularGridDash(
@@ -306,13 +312,14 @@ function createModularGridLayer(params: {
 function createGridLayer(params: {
   options: NonNullable<RendererDrawInput["gridOptions"]>;
   camera: RendererDrawInput["camera"];
+  theme: RendererDrawInput["theme"];
 }): HTMLElement | SVGSVGElement | null {
-  const { options, camera } = params;
+  const { options, camera, theme } = params;
 
   // 모듈러 그리드 — 가는 그리드(기본 점선) + 반복 트랙 패턴(columns/rows) 경계의 셀선(기본
   // 실선). cellSnap 과 같은 패턴을 받아 시각/스냅을 일치시킨다. 점선/실선 표현을 위해 SVG.
   if (options.modular) {
-    return createModularGridLayer({ options, camera });
+    return createModularGridLayer({ options, camera, theme });
   }
 
   const worldSize = Math.max(options.size ?? 16, 2);
@@ -327,8 +334,10 @@ function createGridLayer(params: {
   const majorOffsetX = positiveModulo(camera.x, majorSize);
   const majorOffsetY = positiveModulo(camera.y, majorSize);
 
-  const minorColor = options.color ?? "rgba(148, 163, 184, 0.10)";
-  const majorColor = options.majorColor ?? "rgba(148, 163, 184, 0.18)";
+  const minorColor =
+    options.color ?? theme.grid?.line ?? "rgba(148, 163, 184, 0.10)";
+  const majorColor =
+    options.majorColor ?? theme.grid?.majorLine ?? "rgba(148, 163, 184, 0.18)";
 
   const grid = document.createElement("div");
   applyStyles(grid, {
@@ -614,6 +623,7 @@ function renderPathFallback(
   slot: PathComponentSlotName,
   context: PathComponentRendererContext
 ) {
+  const fontSize = context.theme.typography.pathFontSize;
   const base: Record<string, string | number> = {
     width: "100%",
     height: "100%",
@@ -622,7 +632,7 @@ function renderPathFallback(
     whiteSpace: "nowrap",
     color: context.theme.pathLabel,
     boxSizing: "border-box",
-    fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+    fontFamily: context.theme.typography.fontFamily,
   };
 
   if (slot === "label") {
@@ -635,7 +645,7 @@ function renderPathFallback(
       ...base,
       // Consumer-resolved per-path color (resolvePathColor) overrides the theme.
       color: context.pathColor ?? context.theme.pathLabel,
-      fontSize: "12px",
+      fontSize: `${fontSize.label}px`,
       fontWeight: 700,
     });
     return;
@@ -646,7 +656,7 @@ function renderPathFallback(
     applyStyles(host, {
       ...base,
       color: context.theme.zoneSubtext,
-      fontSize: "10px",
+      fontSize: `${fontSize.rule}px`,
       textTransform: "uppercase",
       letterSpacing: "0.04em",
     });
@@ -668,7 +678,7 @@ function renderPathFallback(
           : targetDisplay.status === "unconfigured"
             ? context.theme.status.info.color
             : context.theme.zoneSubtext,
-      fontSize: "11px",
+      fontSize: `${fontSize.target}px`,
       fontWeight: targetDisplay.status === "resolved" ? 500 : 700,
     });
     return;
@@ -684,7 +694,7 @@ function renderPathFallback(
       ...base,
       whiteSpace: "normal",
       color: context.theme.zoneSubtext,
-      fontSize: "11px",
+      fontSize: `${fontSize.body}px`,
       lineHeight: "1.4",
     });
   }
@@ -1239,6 +1249,7 @@ export const domDrawEngine: DrawEngine = {
       const gridLayer = createGridLayer({
         options: input.gridOptions,
         camera,
+        theme: input.theme,
       });
       if (gridLayer) viewportRoot.appendChild(gridLayer);
     }

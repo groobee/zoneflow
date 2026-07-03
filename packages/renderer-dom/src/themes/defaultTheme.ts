@@ -1,4 +1,5 @@
 import type { ZoneflowTheme, ZoneflowThemeInput } from "../theme";
+import { ZONE_CLIP_SHADOW } from "../engines/drawShared";
 
 /**
  * 기본 테마 (모든 필수 값 포함)
@@ -39,6 +40,7 @@ export const defaultTheme: ZoneflowTheme = {
       slotBorder: "rgba(37, 99, 235, 0.30)",
       slotLabel: "rgba(37, 99, 235, 0.72)",
       slotSnapPoint: "rgba(37, 99, 235, 0.38)",
+      clipShadow: ZONE_CLIP_SHADOW,
     },
     path: {
       background:
@@ -79,6 +81,29 @@ export const defaultTheme: ZoneflowTheme = {
     segmentLength: 18,
     gapLength: 28,
   },
+
+  typography: {
+    fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+    zoneFontSize: {
+      titleSm: 12,
+      title: 13,
+      titleLg: 15,
+      type: 11,
+      badge: 11,
+      body: 12,
+      footer: 11,
+      slotLabel: 10,
+    },
+    pathFontSize: {
+      label: 12,
+      rule: 10,
+      target: 11,
+      body: 11,
+    },
+  },
+
+  // grid 는 의도적으로 미지정 — 일반/모듈러 그리드의 기본색이 서로 달라
+  // (drawEngine 참조) 토큰 미지정 시 각자의 기본색으로 폴백한다.
 
   density: {
     zone: {
@@ -136,6 +161,22 @@ export function resolveTheme(
     edgeFlow: {
       ...defaultTheme.edgeFlow,
       ...theme.edgeFlow,
+    },
+    typography: {
+      fontFamily:
+        theme.typography?.fontFamily ?? defaultTheme.typography.fontFamily,
+      zoneFontSize: {
+        ...defaultTheme.typography.zoneFontSize,
+        ...theme.typography?.zoneFontSize,
+      },
+      pathFontSize: {
+        ...defaultTheme.typography.pathFontSize,
+        ...theme.typography?.pathFontSize,
+      },
+    },
+    grid: {
+      ...defaultTheme.grid,
+      ...theme.grid,
     },
     density: {
       zone: {

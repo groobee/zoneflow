@@ -31,6 +31,7 @@ function renderZoneFallback(
   slot: ZoneComponentSlotName,
   context: ZoneComponentRendererContext
 ) {
+  const fontSize = context.theme.typography.zoneFontSize;
   const base: Record<string, string | number> = {
     width: "100%",
     height: "100%",
@@ -39,7 +40,7 @@ function renderZoneFallback(
     whiteSpace: "nowrap",
     color: context.theme.zoneTitle,
     boxSizing: "border-box",
-    fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+    fontFamily: context.theme.typography.fontFamily,
   };
 
   if (slot === "title") {
@@ -48,10 +49,10 @@ function renderZoneFallback(
       ...base,
       fontSize:
         context.textScale === "lg"
-          ? "15px"
+          ? `${fontSize.titleLg}px`
           : context.textScale === "sm"
-            ? "12px"
-            : "13px",
+            ? `${fontSize.titleSm}px`
+            : `${fontSize.title}px`,
       fontWeight: 700,
     });
     return;
@@ -62,7 +63,7 @@ function renderZoneFallback(
     applyStyles(host, {
       ...base,
       color: context.theme.zoneSubtext,
-      fontSize: "11px",
+      fontSize: `${fontSize.type}px`,
       textTransform: "uppercase",
       letterSpacing: "0.04em",
     });
@@ -81,7 +82,8 @@ function renderZoneFallback(
       borderRadius: "999px",
       background: context.theme.zoneBadgeBg,
       color: context.theme.zoneTitle,
-      fontSize: "11px",
+      fontFamily: context.theme.typography.fontFamily,
+      fontSize: `${fontSize.badge}px`,
       fontWeight: 600,
       boxSizing: "border-box",
       overflow: "hidden",
@@ -100,7 +102,7 @@ function renderZoneFallback(
       ...base,
       whiteSpace: "normal",
       color: context.theme.zoneSubtext,
-      fontSize: "12px",
+      fontSize: `${fontSize.body}px`,
       lineHeight: "1.4",
     });
     return;
@@ -114,7 +116,7 @@ function renderZoneFallback(
     applyStyles(host, {
       ...base,
       color: context.theme.zoneSubtext,
-      fontSize: "11px",
+      fontSize: `${fontSize.footer}px`,
     });
   }
 }
@@ -313,7 +315,7 @@ export function renderZoneSlotLanes(params: {
         left: "8px",
         bottom: "6px",
         color: laneLabelColor,
-        fontSize: "10px",
+        fontSize: `${theme.typography.zoneFontSize.slotLabel}px`,
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
@@ -321,7 +323,7 @@ export function renderZoneSlotLanes(params: {
         overflow: "hidden",
         maxWidth: `${localRect.width - 16}px`,
         textOverflow: "ellipsis",
-        fontFamily: "'IBM Plex Sans', 'Pretendard', sans-serif",
+        fontFamily: theme.typography.fontFamily,
         pointerEvents: "none",
       });
       lane.appendChild(label);
@@ -398,7 +400,7 @@ export function renderDefaultZoneBody(params: DefaultZoneBodyInput) {
       clipPath: shape.clipPath,
       boxSizing: "border-box",
       overflow: "hidden",
-      filter: ZONE_CLIP_SHADOW,
+      filter: theme.surface.zone.clipShadow ?? ZONE_CLIP_SHADOW,
     });
 
     const zoneFillEl = document.createElement("div");
