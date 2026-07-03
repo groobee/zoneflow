@@ -12,7 +12,7 @@ import type { UniverseLayoutModel, UniverseModel } from "@zoneflow/core";
 export const sampleParallelUniverse: UniverseModel = {
   version: "2.0.0",
   universeId: "parallel-flow",
-  rootZoneIds: ["visit", "journey", "converted"],
+  rootZoneIds: ["visit", "journey", "converted", "auditGroup"],
   meta: {
     name: "Parallel Slot",
     description:
@@ -159,6 +159,17 @@ export const sampleParallelUniverse: UniverseModel = {
       pathIds: [],
       pathsById: {},
     },
+    // canDropZone 데모용 자유 컨테이너 — 도킹 레인에 끌어넣으면 ✕ 마커가 뜨고
+    // 드롭 시 원위치로 복원된다 (playground editorConfig.canDropZone 참조).
+    auditGroup: {
+      id: "auditGroup",
+      parentZoneId: null,
+      name: "Audit Group",
+      zoneType: "container",
+      childZoneIds: [],
+      pathIds: [],
+      pathsById: {},
+    },
   },
 };
 
@@ -250,6 +261,16 @@ export const sampleParallelUniverseLayout: UniverseLayoutModel = {
       anchors: {
         inlet: { point: { x: 0, y: 55 } },
         outlet: { point: { x: 220, y: 55 } },
+      },
+    },
+    auditGroup: {
+      x: 40,
+      y: 460,
+      width: 240,
+      height: 140,
+      anchors: {
+        inlet: { point: { x: 0, y: 70 } },
+        outlet: { point: { x: 240, y: 70 } },
       },
     },
   },

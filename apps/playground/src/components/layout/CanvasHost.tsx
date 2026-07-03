@@ -451,6 +451,10 @@ export function CanvasHost({
           },
           onPathCreated: handlePathCreated,
           onPathDropOnEmptySpace: handlePathDropOnEmptySpace,
+          // 존 드롭 검증 데모 — 도킹 레인에는 컨테이너 존을 도킹할 수 없다.
+          // 거부되면 드래그 중인 존에 ✕ 마커가 뜨고 드롭 시 원위치로 복원된다.
+          canDropZone: ({ slotKey, zone }) =>
+            !(slotKey && zone.zoneType === "container"),
           onZoneSelectionChange,
           onPathSelectionChange,
           onZoneResize: ({ zoneId, from, to }) => {
