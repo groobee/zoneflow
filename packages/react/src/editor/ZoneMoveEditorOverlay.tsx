@@ -939,6 +939,8 @@ function renderPathEdgeHighlights(params: {
             source: edge.source,
             target: edge.target,
             lineShape,
+            // 렌더러와 같은 방향으로 그려야 강조가 실제 선 위에 겹친다.
+            flowDirection: frame.pipeline.flowDirection,
           })
         ),
         width:
