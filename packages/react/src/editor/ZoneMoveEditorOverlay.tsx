@@ -3851,6 +3851,49 @@ export function ZoneMoveEditorOverlay(props: {
           event.stopPropagation();
           event.currentTarget.setPointerCapture?.(event.pointerId);
         }}
+        onPointerMove={(event) => {
+          // 빈 캔버스 위 hover — 연결선(threshold 이내) 위면 선택 가능함을
+          // 커서(pointer)와 hover 강조로 알린다. 커서는 상태를 거치지 않고
+          // 요소에 직접 써서 pointermove 마다 리렌더하지 않는다.
+          if (event.target !== event.currentTarget) return;
+          if (
+            dragRef.current ||
+            resizeRef.current ||
+            pathResizeRef.current ||
+            pathCreateRef.current ||
+            pathRetargetRef.current ||
+            marqueeSelectionRef.current
+          ) {
+            return;
+          }
+          const liveFrame = latestRef.current.frame;
+          if (!liveFrame) return;
+
+          const hitPathId = resolvePathAtScreenPoint({
+            frame: liveFrame,
+            camera: latestRef.current.camera,
+            point: toCanvasScreenPoint(
+              overlayRef.current,
+              event.clientX,
+              event.clientY
+            ),
+            resolvePathStyle: latestRef.current.resolvePathStyle,
+          });
+          event.currentTarget.style.cursor = hitPathId ? "pointer" : "";
+          setHoveredTargetKey((current) => {
+            const next = hitPathId ? `path:${hitPathId}` : null;
+            if (next === current) return current;
+            // 배경에서는 패스 hover 만 관리한다 — 타깃(존/라벨) hover 는
+            // 각 타깃의 enter/leave 소관이라 다른 값은 건드리지 않는다.
+            if (!hitPathId && current && !current.startsWith("path:")) {
+              return current;
+            }
+            return next;
+          });
+        }}
+        onPointerLeave={(event) => {
+          event.currentTarget.style.cursor = "";
+        }}
         style={{
           position: "absolute",
           inset: 0,
