@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "playground-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "playground", "exec", "vite", "--port", "5273", "--strictPort"],
+      "port": 5273
+    },
+    {
       "name": "kittyflow",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "kittyflow", "dev"],
