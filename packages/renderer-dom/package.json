@@ -1,6 +1,6 @@
 {
   "name": "@zoneflow/renderer-dom",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "license": "MIT",
   "description": "Low-level DOM renderer engines for Zoneflow.",
   "type": "module",
