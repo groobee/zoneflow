@@ -27,8 +27,9 @@ type HandleTone = {
   color: string;
   shadow: string;
   /**
-   * connect(패스 output) 핸들 내부 글리프. 기본 "→". 소비자의
-   * `renderPathOutputAnchor` 가 더 우선이며, 그게 없을 때 이 값이 쓰인다.
+   * 핸들 내부 글리프. connect(패스 output) 는 기본 "→", createPath(존 outlet
+   * 앵커) 는 기본 "+". 소비자의 `renderPathOutputAnchor` /
+   * `renderZoneOutletAnchor` 가 더 우선이며, 그게 없을 때 이 값이 쓰인다.
    * (zoneResize 핸들에는 적용되지 않음)
    */
   glyph?: string;
@@ -133,6 +134,12 @@ type OverlayTone = {
   };
   handles: {
     connect: HandleTone;
+    /**
+     * 존 outlet 앵커의 "패스 생성" 표시(기본 "+"). `pathCreateTrigger` 가
+     * 앵커 클릭을 포함할 때(hover/선택 시) 그려진다 — drag 전용이면 기존처럼
+     * 투명 히트 영역만 있다.
+     */
+    createPath: HandleTone;
     zoneResize: HandleTone;
     pathResize: HandleTone;
     delete: HandleTone;
@@ -188,6 +195,7 @@ export type ZoneflowEditorThemeInput = {
     }>;
     handles: Partial<{
       connect: Partial<HandleTone>;
+      createPath: Partial<HandleTone>;
       zoneResize: Partial<HandleTone>;
       pathResize: Partial<HandleTone>;
       delete: Partial<HandleTone>;
@@ -399,6 +407,13 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
         color: "#0f766e",
         shadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
         glyph: "→",
+      },
+      createPath: {
+        border: "1px solid rgba(37, 99, 235, 0.9)",
+        background: "#eff6ff",
+        color: "#2563eb",
+        shadow: "0 6px 14px rgba(15, 23, 42, 0.16)",
+        glyph: "+",
       },
       zoneResize: {
         border: "1px solid rgba(14, 165, 233, 0.92)",
@@ -621,6 +636,10 @@ export function resolveEditorTheme(
         connect: {
           ...defaultEditorTheme.overlay.handles.connect,
           ...theme.overlay?.handles?.connect,
+        },
+        createPath: {
+          ...defaultEditorTheme.overlay.handles.createPath,
+          ...theme.overlay?.handles?.createPath,
         },
         zoneResize: {
           ...defaultEditorTheme.overlay.handles.zoneResize,

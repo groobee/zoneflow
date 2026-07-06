@@ -38,6 +38,19 @@ export type CanConnectPathParams = {
 
 export type CanConnectPath = (params: CanConnectPathParams) => boolean;
 
+export type CanCreatePathParams = {
+  sourceZoneId: ZoneId;
+  sourceZone: Zone;
+  model: UniverseModel;
+};
+
+/**
+ * "이 존에서 패스를 뽑아낼 수 있는가"의 사전 판정. `canConnectPath` 는 타깃이
+ * 정해져야 판정할 수 있으므로(create/retarget 의 연결 유효성), 출발 자체의
+ * 허용 여부는 이 별도 술어가 맡는다 — 앵커 노출/드래그 시작을 함께 게이트한다.
+ */
+export type CanCreatePath = (params: CanCreatePathParams) => boolean;
+
 function typedValues<TKey extends string, TValue>(
   record: Record<TKey, TValue>
 ): TValue[] {
@@ -378,13 +391,29 @@ export function retargetPathFromOutputAnchorDrag(params: {
   );
 }
 
-export function createPathFromOutputAnchorDrag(params: {
+/**
+ * 존에서 새 패스를 만들어내는 공용 코어 — 드래그 드롭(아래
+ * {@link createPathFromOutputAnchorDrag})과 앵커 클릭(프로그래매틱 생성) 양쪽이
+ * 이 함수를 쓴다.
+ *
+ * 라벨 배치:
+ * - 타깃이 있고 `frame` 이 있으면 소스 아웃렛과 연결점의 중간.
+ * - 타깃이 없으면 `labelWorldPoint` (드래그 드롭 좌표 등).
+ * - 둘 다 없으면 layout 을 건드리지 않는다 — graphLayoutEngine 의 기본 배치
+ *   (아웃렛 우측, 패스 순서대로 세로 스택)가 그대로 적용된다. 앵커 클릭 생성이
+ *   "존 우측에 라벨 자동 생성"이 되는 것은 이 기본 배치 덕분이다.
+ */
+export function createPathFromZone(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
-  frame: RendererFrame;
   sourceZoneId: ZoneId;
-  dropWorldPoint: Point;
+  /** 라벨 배치 계산에만 쓰인다. 없으면 기본 배치(레이아웃 미기록). */
+  frame?: RendererFrame;
   targetZoneId?: ZoneId | null;
+  /** 타깃 없이 라벨 중심을 놓을 월드 좌표(드래그 드롭 지점 등). */
+  labelWorldPoint?: Point;
+  /** 생성될 패스의 초기 필드 오버라이드. 미지정 필드는 기본값(key=condition_N, name=Empty, rule=null). */
+  path?: Partial<Pick<Path, "key" | "name" | "rule" | "meta">>;
   gridSnap?: GridSnapOptions;
   canConnect?: CanConnectPath;
 }): CreatePathFromAnchorDragResult | undefined {
@@ -393,15 +422,15 @@ export function createPathFromOutputAnchorDrag(params: {
     layoutModel,
     frame,
     sourceZoneId,
-    dropWorldPoint,
     targetZoneId,
+    labelWorldPoint,
+    path,
     gridSnap,
     canConnect,
   } = params;
 
   const sourceZone = model.zonesById[sourceZoneId];
-  const sourceVisual = frame.pipeline.graphLayout.zonesById[sourceZoneId];
-  if (!sourceZone || !sourceVisual) return undefined;
+  if (!sourceZone) return undefined;
   if (!isZoneOutputEnabled(sourceZone)) return undefined;
 
   let resolvedTargetZoneId: ZoneId | null = targetZoneId ?? null;
@@ -427,57 +456,90 @@ export function createPathFromOutputAnchorDrag(params: {
       resolvedTargetZoneId = null;
     }
   }
-  const targetVisual = resolvedTargetZoneId
-    ? frame.pipeline.graphLayout.zonesById[resolvedTargetZoneId]
-    : undefined;
 
   const pathId = createPathId();
   const nextPathIndex = sourceZone.pathIds.length;
-  const sourceOutlet = sourceVisual.anchors.outlet.point;
-  // 조상 컨테이너(exit) 타깃은 연결점이 인렛(왼쪽 바깥 면)이 아니라 아웃렛
-  // 안쪽 면이다 — 엣지 라우팅과 같은 규칙. 라벨도 소스 아웃렛과 그 연결점
-  // 사이(컨테이너 안)에 놓는다.
-  const targetIsAncestor =
-    resolvedTargetZoneId != null &&
-    isDescendantZone(model, resolvedTargetZoneId, sourceZoneId);
-  const targetConnectPoint = targetIsAncestor
-    ? targetVisual?.anchors.outlet?.point
-    : targetVisual?.anchors.inlet?.point;
-  const desiredCenter = targetConnectPoint
-    ? midpoint(sourceOutlet, targetConnectPoint)
-    : dropWorldPoint;
-  const desiredRect = {
-    x: snapCoordinate(desiredCenter.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
-    y: snapCoordinate(desiredCenter.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
-  };
-  const routeOffset = {
-    x: roundCoordinate(desiredRect.x - (sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X)),
-    y: roundCoordinate(
-      desiredRect.y -
-      (sourceOutlet.y - DEFAULT_PATH_NODE_HEIGHT / 2 + nextPathIndex * DEFAULT_PATH_NODE_GAP_Y)
-    ),
-  };
   const ordinal = nextPathIndex + 1;
 
   const nextModel = addPath(model, sourceZoneId, {
     id: pathId,
-    key: `condition_${ordinal}`,
-    name: "Empty",
+    key: path?.key ?? `condition_${ordinal}`,
+    name: path?.name ?? "Empty",
     target: resolvedTargetZoneId
       ? {
           universeId: model.universeId,
           zoneId: resolvedTargetZoneId,
         }
       : null,
-    rule: null,
+    rule: path?.rule ?? null,
+    meta: path?.meta,
   });
-  const nextLayoutModel = updatePathLayout(layoutModel, pathId, {
-    routeOffset,
-  });
+
+  const sourceVisual = frame?.pipeline.graphLayout.zonesById[sourceZoneId];
+  let nextLayoutModel = layoutModel;
+  if (sourceVisual) {
+    const targetVisual = resolvedTargetZoneId
+      ? frame!.pipeline.graphLayout.zonesById[resolvedTargetZoneId]
+      : undefined;
+    const sourceOutlet = sourceVisual.anchors.outlet.point;
+    // 조상 컨테이너(exit) 타깃은 연결점이 인렛(왼쪽 바깥 면)이 아니라 아웃렛
+    // 안쪽 면이다 — 엣지 라우팅과 같은 규칙. 라벨도 소스 아웃렛과 그 연결점
+    // 사이(컨테이너 안)에 놓는다.
+    const targetIsAncestor =
+      resolvedTargetZoneId != null &&
+      isDescendantZone(model, resolvedTargetZoneId, sourceZoneId);
+    const targetConnectPoint = targetIsAncestor
+      ? targetVisual?.anchors.outlet?.point
+      : targetVisual?.anchors.inlet?.point;
+    const desiredCenter = targetConnectPoint
+      ? midpoint(sourceOutlet, targetConnectPoint)
+      : labelWorldPoint;
+    if (desiredCenter) {
+      const desiredRect = {
+        x: snapCoordinate(desiredCenter.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
+        y: snapCoordinate(desiredCenter.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
+      };
+      const routeOffset = {
+        x: roundCoordinate(desiredRect.x - (sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X)),
+        y: roundCoordinate(
+          desiredRect.y -
+          (sourceOutlet.y - DEFAULT_PATH_NODE_HEIGHT / 2 + nextPathIndex * DEFAULT_PATH_NODE_GAP_Y)
+        ),
+      };
+      nextLayoutModel = updatePathLayout(layoutModel, pathId, {
+        routeOffset,
+      });
+    }
+  }
 
   return {
     model: nextModel,
     layoutModel: nextLayoutModel,
     pathId,
   };
+}
+
+export function createPathFromOutputAnchorDrag(params: {
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  frame: RendererFrame;
+  sourceZoneId: ZoneId;
+  dropWorldPoint: Point;
+  targetZoneId?: ZoneId | null;
+  gridSnap?: GridSnapOptions;
+  canConnect?: CanConnectPath;
+}): CreatePathFromAnchorDragResult | undefined {
+  const { frame, sourceZoneId } = params;
+  // 드래그 흐름은 비주얼 앵커가 필수 — 없으면 라벨을 놓을 기준이 없다.
+  if (!frame.pipeline.graphLayout.zonesById[sourceZoneId]) return undefined;
+  return createPathFromZone({
+    model: params.model,
+    layoutModel: params.layoutModel,
+    frame,
+    sourceZoneId,
+    targetZoneId: params.targetZoneId,
+    labelWorldPoint: params.dropWorldPoint,
+    gridSnap: params.gridSnap,
+    canConnect: params.canConnect,
+  });
 }

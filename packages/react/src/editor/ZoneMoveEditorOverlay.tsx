@@ -51,6 +51,8 @@ import {
   screenPointToWorldPoint,
   type CanConnectPath,
   type CanConnectPathParams,
+  type CanCreatePath,
+  type CanCreatePathParams,
   type CanDropZone,
   type MoveEditorDragOrigin,
   type MoveEditorTarget,
@@ -234,6 +236,29 @@ export type CanvasExternalDropPayload = {
 };
 
 export type { CanConnectPath, CanConnectPathParams };
+export type { CanCreatePath, CanCreatePathParams };
+
+/**
+ * 존 outlet 앵커에서 패스를 만들어내는 트리거.
+ * - `"drag"` (기본): 앵커를 끌어 타깃 존/빈 공간에 드롭 — 기존 동작 그대로.
+ * - `"anchorClick"`: 앵커 클릭 → {@link ZoneMoveEditorConfig.onPathCreateRequest}
+ *   발화. 드래그로는 만들 수 없다.
+ * - `"both"`: 움직임 임계값으로 클릭/드래그를 구분해 둘 다 지원.
+ */
+export type PathCreateTrigger = "drag" | "anchorClick" | "both";
+
+export type PathCreateRequestPayload = {
+  sourceZoneId: ZoneId;
+  sourceZone: Zone;
+  /** outlet 앵커의 캔버스 화면 좌표 rect (카메라 반영). 앵커를 못 찾으면 null. */
+  anchorScreenRect: Rect | null;
+  /** outlet 앵커의 뷰포트(client) 좌표 rect — 팝오버/피커 배치용. */
+  anchorClientRect: Rect | null;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  /** 클릭 시점 프레임 — `createPathFromZone` 에 그대로 넘겨 라벨 배치에 쓸 수 있다. */
+  frame: RendererFrame;
+};
 
 export type EditorTransactionMeta =
   | {
@@ -355,6 +380,19 @@ export type ZoneMoveEditorConfig = {
     path: Path;
     sourceZoneId: ZoneId;
   }) => ReactNode;
+  /**
+   * 존 outlet 앵커의 "패스 생성" 배지 내부 비주얼을 커스터마이즈한다. 라이브러리는
+   * 배지 위치·상호작용(드래그/클릭)을 그대로 소유하고, `+` 자리에 들어갈 내부
+   * 콘텐츠만 소비자가 그린다 — `renderPathOutputAnchor` 와 대칭. `null`/미지정 시
+   * 테마 글리프(`overlay.handles.createPath.glyph`, 기본 "+")로 폴백.
+   *
+   * 배지는 존 hover/선택 시에만 보인다. 기본 트리거(`"drag"`)에서는 커스텀
+   * 콘텐츠를 넘긴 경우에만 그려진다 — 기존 소비자의 화면은 바뀌지 않는다.
+   */
+  renderZoneOutletAnchor?: (params: {
+    zone: Zone;
+    zoneId: ZoneId;
+  }) => ReactNode;
   renderZoneEditor?: (props: ZoneEditorRenderProps) => ReactNode;
   renderPathEditor?: (props: PathEditorRenderProps) => ReactNode;
   onZoneEditClick?: (zoneId: ZoneId) => void;
@@ -430,6 +468,34 @@ export type ZoneMoveEditorConfig = {
    * pointermove 마다 호출되므로 동기적이고 가벼워야 함.
    */
   canConnectPath?: CanConnectPath;
+  /**
+   * 존 outlet 앵커에서 패스를 만들어내는 트리거. 기본 `"drag"` (기존 동작 그대로).
+   * `"anchorClick"` / `"both"` 면 앵커 클릭(움직임 없이 릴리스) 시
+   * {@link onPathCreateRequest} 가 발화하고, hover/선택 시 앵커에 기본 "+" 배지가
+   * 보인다. {@link PathCreateTrigger}
+   */
+  pathCreateTrigger?: PathCreateTrigger;
+  /**
+   * "이 존에서 패스를 뽑아낼 수 있는가"의 사전 판정 — `canConnectPath` 의 출발판.
+   *
+   * - 미지정 시 기본 동작: 모든 존 허용 (기존 동작과 동일).
+   * - `false` 반환 시 outlet 앵커가 아예 비활성 — "+" 배지도, 드래그 생성도,
+   *   클릭 생성도 없다. (`canConnectPath` 는 타깃이 정해진 뒤의 연결 판정이라
+   *   출발 자체의 허용 여부는 이 술어가 맡는다.)
+   * - 렌더마다 존별로 호출되므로 동기적이고 가벼워야 하며, throw 는 `false` 로 처리.
+   */
+  canCreatePath?: CanCreatePath;
+  /**
+   * outlet 앵커 클릭(트리거가 `"anchorClick"`/`"both"` 일 때)으로 패스 생성이
+   * 요청되면 호출됩니다. 라이브러리는 여기서 아무 것도 만들지 않습니다 — 패스
+   * "종류" 선택 UI(피커/팝오버)와 실제 생성은 소비자 몫입니다.
+   *
+   * 생성은 `createPathFromZone`(editor-dom, `@zoneflow/react` 재수출)에 payload 의
+   * `model`/`layoutModel`/`frame` 을 넘겨 만들고, 결과를 앱 상태로 커밋하는 패턴을
+   * 권장합니다 — 타깃 없이 만들면 존 우측 기본 스택 위치에 라벨이 놓입니다.
+   * 에디터 트랜잭션 밖에서(정리 후) 발화되므로 히스토리 처리는 커밋하는 쪽 몫입니다.
+   */
+  onPathCreateRequest?: (params: PathCreateRequestPayload) => void;
   /**
    * 존 드래그의 드롭 허용 여부를 외부에서 검증하는 콜백. `canConnectPath` 의 존 이동판.
    *
@@ -1484,6 +1550,11 @@ export function ZoneMoveEditorOverlay(props: {
     () => resolveEditorTheme(editor?.theme),
     [editor?.theme]
   );
+  // 패스 생성 트리거 — 기본 "drag" (기존 동작 그대로). 클릭 포함 시에만
+  // 앵커에 기본 "+" 배지가 그려진다.
+  const pathCreateTrigger = editor?.pathCreateTrigger ?? "drag";
+  const pathCreateDragEnabled = pathCreateTrigger !== "anchorClick";
+  const pathCreateClickEnabled = pathCreateTrigger !== "drag";
   const hudButtonStyle = useMemo<CSSProperties>(
     () => ({
       border: resolvedEditorTheme.hud.buttonBorder,
@@ -1636,6 +1707,8 @@ export function ZoneMoveEditorOverlay(props: {
     onTransactionCancel: editor?.onTransactionCancel,
     canConnectPath: editor?.canConnectPath,
     canDropZone: editor?.canDropZone,
+    pathCreateTrigger: editor?.pathCreateTrigger,
+    onPathCreateRequest: editor?.onPathCreateRequest,
     onPathCreated: editor?.onPathCreated,
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
     onZoneSelectionChange: editor?.onZoneSelectionChange,
@@ -1664,6 +1737,8 @@ export function ZoneMoveEditorOverlay(props: {
       onTransactionCancel: editor?.onTransactionCancel,
       canConnectPath: editor?.canConnectPath,
       canDropZone: editor?.canDropZone,
+      pathCreateTrigger: editor?.pathCreateTrigger,
+      onPathCreateRequest: editor?.onPathCreateRequest,
       onPathCreated: editor?.onPathCreated,
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
       onZoneSelectionChange: editor?.onZoneSelectionChange,
@@ -2043,7 +2118,7 @@ export function ZoneMoveEditorOverlay(props: {
         });
       };
 
-    const stopDragging = () => {
+    const stopDragging = (event?: PointerEvent) => {
       cancelLongPress();
 
       const drag = dragRef.current;
@@ -2158,8 +2233,11 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
+      const pathCreateTrigger = latestRef.current.pathCreateTrigger ?? "drag";
+
       if (
         pathCreate?.hasMoved &&
+        pathCreateTrigger !== "anchorClick" &&
         latestRef.current.frame &&
         latestRef.current.permissions.createPath
       ) {
@@ -2208,6 +2286,51 @@ export function ZoneMoveEditorOverlay(props: {
           latestRef.current.onModelChange?.(finalModel);
           latestRef.current.onLayoutModelChange?.(finalLayoutModel);
           setSelectedTargetKey(`path:${createdPath.pathId}`);
+        }
+      }
+
+      // 앵커 클릭(움직임 없이 릴리스) — 트리거가 클릭을 포함하면 생성 요청을
+      // 준비만 해 둔다. 발화는 정리(cleanup)가 끝난 뒤 — 콜백이 동기적으로
+      // 모델을 바꿔도 에디터 내부 상태 초기화와 엇갈리지 않도록.
+      let pathCreateRequest: PathCreateRequestPayload | null = null;
+      if (
+        pathCreate &&
+        !pathCreate.hasMoved &&
+        event?.type === "pointerup" &&
+        pathCreateTrigger !== "drag" &&
+        latestRef.current.frame &&
+        latestRef.current.permissions.createPath
+      ) {
+        const sourceZone =
+          latestRef.current.model.zonesById[pathCreate.sourceZoneId];
+        if (sourceZone) {
+          const anchorScreenRect =
+            resolveZoneAnchorScreenRect({
+              frame: latestRef.current.frame,
+              camera: latestRef.current.camera,
+              zoneId: pathCreate.sourceZoneId,
+              kind: "outlet",
+              resolveZoneShape: latestRef.current.resolveZoneShape,
+            }) ?? null;
+          const overlayBounds = overlayRef.current?.getBoundingClientRect();
+          const anchorClientRect =
+            anchorScreenRect && overlayBounds
+              ? {
+                  x: overlayBounds.left + anchorScreenRect.x,
+                  y: overlayBounds.top + anchorScreenRect.y,
+                  width: anchorScreenRect.width,
+                  height: anchorScreenRect.height,
+                }
+              : null;
+          pathCreateRequest = {
+            sourceZoneId: pathCreate.sourceZoneId,
+            sourceZone,
+            anchorScreenRect,
+            anchorClientRect,
+            model: latestRef.current.model,
+            layoutModel: latestRef.current.layoutModel,
+            frame: latestRef.current.frame,
+          };
         }
       }
 
@@ -2404,6 +2527,10 @@ export function ZoneMoveEditorOverlay(props: {
       latestRef.current.onExclusionStateChange?.(undefined);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+
+      if (pathCreateRequest) {
+        latestRef.current.onPathCreateRequest?.(pathCreateRequest);
+      }
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -2716,6 +2843,13 @@ export function ZoneMoveEditorOverlay(props: {
       };
 
       pathCreateRef.current = nextState;
+
+      // 클릭 전용 트리거면 드래그 프리뷰/타깃 판정을 하지 않는다 — hasMoved 만
+      // 추적해 "제자리 릴리스 = 클릭" 판정에 쓴다.
+      if ((latestRef.current.pathCreateTrigger ?? "drag") === "anchorClick") {
+        return;
+      }
+
       setCreatingPath(nextState);
       setPathCreateTargetZoneId(
         resolveInputAnchorTargetZoneId({
@@ -4692,6 +4826,25 @@ export function ZoneMoveEditorOverlay(props: {
             sourceAnchorScreenRect && target.kind === "zone"
               ? toLocalRect(target.rect, sourceAnchorScreenRect)
               : undefined;
+          // canCreatePath — "이 존에서 패스를 뽑아낼 수 있는가" 사전 판정.
+          // false 면 outlet 앵커가 통째로 비활성(배지·드래그·클릭 모두). throw 는 false.
+          const canCreatePathFromZone =
+            target.kind === "zone" && zone && permissions.createPath
+              ? (() => {
+                  const fn = editor.canCreatePath;
+                  if (!fn) return true;
+                  try {
+                    return fn({
+                      sourceZoneId: target.zoneId,
+                      sourceZone: zone,
+                      model,
+                    });
+                  } catch (err) {
+                    console.error("[zoneflow] canCreatePath threw:", err);
+                    return false;
+                  }
+                })()
+              : false;
           const pathLabelRect =
             target.kind === "path"
               ? frame.pipeline.componentLayout.pathsById[target.pathId]?.slots.label
@@ -4732,6 +4885,16 @@ export function ZoneMoveEditorOverlay(props: {
             !retargetingPath &&
             !isDeleteArmed &&
             !!pathOutputAnchorLocalRect &&
+            (visualState === "hover" || visualState === "selected");
+          // outlet 앵커 "패스 생성" 배지(기본 "+") — 클릭 트리거가 켜져 있거나
+          // 커스텀 앵커 콘텐츠가 주입된 경우에만, hover/선택 시 표시.
+          // 기본 트리거("drag")에선 기존처럼 투명 히트 영역만 남는다.
+          const shouldShowCreateAnchorBadge =
+            canCreatePathFromZone &&
+            (pathCreateClickEnabled || !!editor.renderZoneOutletAnchor) &&
+            !creatingPath &&
+            !retargetingPath &&
+            !isDeleteArmed &&
             (visualState === "hover" || visualState === "selected");
           // 패스 라벨 리사이즈 허용/제약(소비자 주입). enabled=false 면 핸들 숨김.
           const pathLabelResize =
@@ -5043,7 +5206,7 @@ export function ZoneMoveEditorOverlay(props: {
             >
               {sourceAnchorLocalRect &&
               target.kind === "zone" &&
-              permissions.createPath ? (
+              canCreatePathFromZone ? (
                 <button
                   type="button"
                   title={`${target.label} add path`}
@@ -5067,18 +5230,22 @@ export function ZoneMoveEditorOverlay(props: {
                       currentScreenPoint,
                       hasMoved: false,
                     };
-                    startTransaction({
-                      kind: "create-path",
-                      sourceZoneId: target.zoneId,
-                    });
+                    // 클릭 전용 트리거에선 드래그 트랜잭션/프리뷰를 시작하지
+                    // 않는다 — ref 만 세워 릴리스 시 클릭 판정에 쓴다.
+                    if (pathCreateDragEnabled) {
+                      startTransaction({
+                        kind: "create-path",
+                        sourceZoneId: target.zoneId,
+                      });
+                      setCreatingPath(nextState);
+                      setPathCreateTargetZoneId(null);
+                      document.body.style.cursor = "crosshair";
+                      document.body.style.userSelect = "none";
+                    }
 
                     pathCreateRef.current = nextState;
-                    setCreatingPath(nextState);
-                    setPathCreateTargetZoneId(null);
                     setSelectedTargetKey(target.key);
                     setHoveredTargetKey(target.key);
-                    document.body.style.cursor = "crosshair";
-                    document.body.style.userSelect = "none";
                     event.currentTarget.setPointerCapture?.(event.pointerId);
                   }}
                   style={{
@@ -5090,11 +5257,50 @@ export function ZoneMoveEditorOverlay(props: {
                     border: 0,
                     borderRadius: 999,
                     background: "transparent",
-                    cursor: "crosshair",
+                    cursor: pathCreateDragEnabled ? "crosshair" : "pointer",
                     pointerEvents: "auto",
                     touchAction: "none",
                   }}
-                />
+                >
+                  {shouldShowCreateAnchorBadge ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: 18,
+                        height: 18,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: 999,
+                        border:
+                          resolvedEditorTheme.overlay.handles.createPath.border,
+                        background:
+                          resolvedEditorTheme.overlay.handles.createPath
+                            .background,
+                        boxShadow:
+                          resolvedEditorTheme.overlay.handles.createPath.shadow,
+                        color:
+                          resolvedEditorTheme.overlay.handles.createPath.color,
+                        fontSize: 13,
+                        fontWeight: 900,
+                        lineHeight: 1,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {(zone &&
+                        editor.renderZoneOutletAnchor?.({
+                          zone,
+                          zoneId: target.zoneId,
+                        })) ??
+                        resolvedEditorTheme.overlay.handles.createPath.glyph ??
+                        "+"}
+                    </span>
+                  ) : null}
+                </button>
               ) : null}
 
               {shouldShowPathRetargetHandle ? (

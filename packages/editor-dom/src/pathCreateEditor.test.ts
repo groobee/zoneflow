@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { UniverseModel, Zone } from "@zoneflow/core";
 import type { RendererFrame } from "@zoneflow/renderer-dom";
-import { createPathFromOutputAnchorDrag } from "./pathCreateEditor";
+import {
+  createPathFromOutputAnchorDrag,
+  createPathFromZone,
+} from "./pathCreateEditor";
 
 const NODE_W = 120;
 const NODE_H = 32;
@@ -125,5 +128,74 @@ describe("createPathFromOutputAnchorDrag — 라벨 위치", () => {
     const center = nodeCenterFromRouteOffset({ x: 700, y: 200 }, routeOffset);
     // midpoint(컨테이너 아웃렛 (700,200), outside 인렛 (900,140)) = (800, 170)
     expect(center).toEqual({ x: 800, y: 170 });
+  });
+});
+
+describe("createPathFromZone — 프로그래매틱(앵커 클릭) 생성", () => {
+  it("타깃·labelWorldPoint 없이 만들면 레이아웃을 기록하지 않아 기본 스택 배치가 적용된다", () => {
+    const result = createPathFromZone({
+      model,
+      layoutModel,
+      sourceZoneId: "outside",
+    })!;
+    expect(result).toBeTruthy();
+
+    // layout 미기록 → graphLayoutEngine 이 아웃렛 우측 기본 위치에 라벨을 놓는다.
+    expect(result.layoutModel.pathLayoutsById[result.pathId]).toBeUndefined();
+    const created =
+      result.model.zonesById["outside"]!.pathsById[result.pathId]!;
+    expect(created.key).toBe("condition_1");
+    expect(created.name).toBe("Empty");
+    expect(created.rule).toBeNull();
+    expect(created.target).toBeNull();
+  });
+
+  it("path 오버라이드(name/rule/meta)가 초기값 대신 쓰인다", () => {
+    const result = createPathFromZone({
+      model,
+      layoutModel,
+      sourceZoneId: "outside",
+      path: {
+        name: "허용",
+        rule: { type: "allow" },
+        meta: { origin: "anchor-click" },
+      },
+    })!;
+
+    const created =
+      result.model.zonesById["outside"]!.pathsById[result.pathId]!;
+    expect(created.name).toBe("허용");
+    expect(created.rule).toEqual({ type: "allow" });
+    expect(created.meta).toEqual({ origin: "anchor-click" });
+  });
+
+  it("타깃과 frame 이 있으면 드래그와 같은 규칙(연결점 중간)으로 라벨을 놓는다", () => {
+    const result = createPathFromZone({
+      model,
+      layoutModel,
+      frame,
+      sourceZoneId: "c",
+      targetZoneId: "outside",
+    })!;
+
+    const routeOffset = result.layoutModel.pathLayoutsById[result.pathId]!.routeOffset!;
+    const center = nodeCenterFromRouteOffset({ x: 700, y: 200 }, routeOffset);
+    expect(center).toEqual({ x: 800, y: 170 });
+    expect(result.model.zonesById["c"]!.pathsById[result.pathId]!.target).toEqual({
+      universeId: "u1",
+      zoneId: "outside",
+    });
+  });
+
+  it("canConnect 가 거부하면 타깃이 null 로 강등된 dangling 패스가 된다", () => {
+    const result = createPathFromZone({
+      model,
+      layoutModel,
+      sourceZoneId: "outside",
+      targetZoneId: "c",
+      canConnect: () => false,
+    })!;
+
+    expect(result.model.zonesById["outside"]!.pathsById[result.pathId]!.target).toBeNull();
   });
 });

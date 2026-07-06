@@ -1,6 +1,7 @@
 export * from "./canvas/UniverseCanvas";
 export * from "./editor/DefaultEditorToolbar";
 export {
+  createPathFromZone,
   defaultEditorTheme,
   resolveEditorTheme,
   type ZoneflowEditorTheme,
