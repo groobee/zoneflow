@@ -739,11 +739,6 @@ function drawEdges(params: {
     className: PULSE_CLASS,
   });
 
-  const selectedPathIds = new Set(
-    input.selectionState?.selectedPathIds ?? []
-  );
-  const hoveredPathId = input.selectionState?.hoveredPathId ?? null;
-
   for (const [pathId, edges] of Object.entries(input.pipeline.graphLayout.edgesByPathId)) {
     const visibility = input.pipeline.visibility.pathVisibilityById[pathId];
     if (!visibility?.shouldRenderEdge) continue;
@@ -764,14 +759,6 @@ function drawEdges(params: {
       ? input.resolvePathStyle?.(pathVisual.path) ?? undefined
       : undefined;
 
-    // 에디터 선택/hover 강조 — 패스가 선택되면 연결선 전체가 선택 색으로
-    // 켜진다(라벨 유무 무관). UI 상태라 소비자 lineColor 보다도 우선.
-    const isSelected = selectedPathIds.has(pathId);
-    const isHovered = !isSelected && hoveredPathId === pathId;
-    const emphasisColor = isSelected ? input.theme.selection : undefined;
-    const emphasisWidthDelta = isSelected ? 1 : isHovered ? 0.7 : 0;
-    const emphasisOpacityBoost = isSelected || isHovered;
-
     // Pulsing segments are wrapped in a group so the blink animates the
     // group's opacity without fighting the per-stroke flow animation class.
     let edgeOwner: SVGElement = svg;
@@ -790,7 +777,6 @@ function drawEdges(params: {
 
     for (const { edge, collapsed } of drawableEdges) {
       const stroke =
-        emphasisColor ??
         lineColor ??
         (collapsed
           ? resolveCollapsedEdgeStroke(input.theme)
@@ -803,11 +789,8 @@ function drawEdges(params: {
         target: edge.target,
         lineShape: pathStyle?.lineShape,
       });
-      const opacity = emphasisOpacityBoost
-        ? Math.min(1, getOpacity(visibility.emphasis) + 0.18)
-        : getOpacity(visibility.emphasis);
-      const baseWidth =
-        (edge.kind === "path-to-zone" ? 2.25 : 1.85) + emphasisWidthDelta;
+      const opacity = getOpacity(visibility.emphasis);
+      const baseWidth = edge.kind === "path-to-zone" ? 2.25 : 1.85;
 
       if (patterned) {
         const dashed = createSvgElement("path");

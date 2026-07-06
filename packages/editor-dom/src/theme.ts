@@ -117,6 +117,19 @@ type MetaChipTone = {
   shadow: string;
 };
 
+/**
+ * 선택/hover 패스의 연결선 강조(에디터 오버레이 레이어에 덧그리는 선).
+ * 렌더러 리드로우 없이 그려지므로 flow 애니메이션을 건드리지 않는다.
+ */
+type PathHighlightTone = {
+  stroke: string;
+  /** 선택 시 강조선 굵기(px, 줌 무관 스크린 기준). */
+  strokeWidth: number;
+  /** hover 시 강조선 굵기. */
+  hoverStrokeWidth: number;
+  opacity: number;
+};
+
 type OverlayTone = {
   helpPanel: HelpPanelTone;
   floatingToolbar: FloatingToolbarTone;
@@ -145,6 +158,7 @@ type OverlayTone = {
     delete: HandleTone;
   };
   metaChip: MetaChipTone;
+  pathHighlight: PathHighlightTone;
 };
 
 export type ZoneflowEditorThemeInput = {
@@ -201,6 +215,7 @@ export type ZoneflowEditorThemeInput = {
       delete: Partial<HandleTone>;
     }>;
     metaChip: Partial<MetaChipTone>;
+    pathHighlight: Partial<PathHighlightTone>;
   }>;
 };
 
@@ -439,6 +454,13 @@ export const defaultEditorTheme: ZoneflowEditorTheme = {
       color: "#0f172a",
       shadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
     },
+    // targetOutline.selected 와 같은 하늘색 계열 — 라벨 아웃라인과 선이 한 세트로 읽힌다.
+    pathHighlight: {
+      stroke: "rgba(14, 165, 233, 0.9)",
+      strokeWidth: 3.5,
+      hoverStrokeWidth: 2.4,
+      opacity: 0.9,
+    },
   },
 };
 
@@ -657,6 +679,10 @@ export function resolveEditorTheme(
       metaChip: {
         ...defaultEditorTheme.overlay.metaChip,
         ...theme.overlay?.metaChip,
+      },
+      pathHighlight: {
+        ...defaultEditorTheme.overlay.pathHighlight,
+        ...theme.overlay?.pathHighlight,
       },
     },
   };

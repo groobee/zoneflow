@@ -607,17 +607,6 @@ export type RendererExclusionState = {
   excludedPathIds?: PathId[];
 };
 
-/**
- * 에디터의 선택/hover 상태를 렌더러에 내려보내는 채널
- * (`exclusionState` 와 대칭). 선택된 패스는 연결선 전체가 `theme.selection`
- * 색으로 강조된다 — 라벨 노드가 없는(display "edge") 패스도 선으로
- * 피드백을 받도록. hover 는 굵기/불투명도만 올린다.
- */
-export type RendererSelectionState = {
-  selectedPathIds?: PathId[];
-  hoveredPathId?: PathId | null;
-};
-
 export type RenderPipelineInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
@@ -667,7 +656,6 @@ export type RendererDrawInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
-  selectionState?: RendererSelectionState;
 };
 
 export type RendererFrame = {
@@ -761,7 +749,6 @@ export type RendererInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
-  selectionState?: RendererSelectionState;
 
   debug?: RendererDebugOptions;
 };

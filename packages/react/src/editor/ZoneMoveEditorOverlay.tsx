@@ -62,20 +62,22 @@ import {
   type ZOrderMode,
   type ZoneResizeOrigin,
 } from "@zoneflow/editor-dom";
-import type {
-  CameraState,
-  PathComponentMount,
-  PathComponentRendererContext,
-  PathComponentSlotName,
-  RendererExclusionState,
-  RendererFrame,
-  RendererSelectionState,
-  Rect,
-  ResolvePathStyle,
-  ResolveZoneShape,
-  ZoneComponentMount,
-  ZoneComponentRendererContext,
-  ZoneComponentSlotName,
+import {
+  edgeSegmentsToPathD,
+  getEdgeSegments,
+  resolveDrawableEdgeSegments,
+  type CameraState,
+  type PathComponentMount,
+  type PathComponentRendererContext,
+  type PathComponentSlotName,
+  type RendererExclusionState,
+  type RendererFrame,
+  type Rect,
+  type ResolvePathStyle,
+  type ResolveZoneShape,
+  type ZoneComponentMount,
+  type ZoneComponentRendererContext,
+  type ZoneComponentSlotName,
 } from "@zoneflow/renderer-dom";
 import type {
   PathSlotComponentMap,
@@ -895,6 +897,87 @@ function toCanvasScreenPoint(
   };
 }
 
+/**
+ * 선택/hover 패스의 연결선 강조 — 렌더러 리드로우 없이, 에디터 오버레이의
+ * 카메라 변환 레이어에 렌더러와 같은 기하(edgeGeometry)로 위에 덧그린다.
+ * (선택 상태를 렌더러 입력으로 내려보내면 전체 리드로우 때문에 flow
+ * 애니메이션이 매번 리셋되어 캔버스가 깜빡인다 — 강조는 이 레이어 소관.)
+ * 좌표는 월드 기준이고 굵기는 줌으로 나눠 스크린 고정 두께를 유지한다.
+ */
+function renderPathEdgeHighlights(params: {
+  frame: RendererFrame;
+  entries: Array<{ pathId: PathId; emphasis: "selected" | "hover" }>;
+  resolvePathStyle?: ResolvePathStyle;
+  zoom: number;
+  tone: ZoneflowEditorTheme["overlay"]["pathHighlight"];
+}) {
+  const { frame, entries, resolvePathStyle, zoom, tone } = params;
+  if (entries.length === 0) return null;
+  const safeZoom = zoom > 0 ? zoom : 1;
+
+  const shapes: Array<{ key: string; d: string; width: number }> = [];
+  for (const { pathId, emphasis } of entries) {
+    const edges = frame.pipeline.graphLayout.edgesByPathId[pathId];
+    const visibility = frame.pipeline.visibility.pathVisibilityById[pathId];
+    if (!edges?.length || !visibility?.shouldRenderEdge) continue;
+
+    const pathVisual = frame.pipeline.graphLayout.pathsById[pathId];
+    const lineShape = pathVisual
+      ? resolvePathStyle?.(pathVisual.path)?.lineShape
+      : undefined;
+
+    for (const { edge } of resolveDrawableEdgeSegments({
+      pathId,
+      edges,
+      visibility,
+    })) {
+      shapes.push({
+        key: edge.id,
+        d: edgeSegmentsToPathD(
+          edge.source,
+          getEdgeSegments({
+            source: edge.source,
+            target: edge.target,
+            lineShape,
+          })
+        ),
+        width:
+          (emphasis === "selected" ? tone.strokeWidth : tone.hoverStrokeWidth) /
+          safeZoom,
+      });
+    }
+  }
+  if (shapes.length === 0) return null;
+
+  return (
+    <svg
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: 1,
+        height: 1,
+        overflow: "visible",
+        pointerEvents: "none",
+      }}
+    >
+      {shapes.map((shape) => (
+        <path
+          key={shape.key}
+          d={shape.d}
+          fill="none"
+          stroke={tone.stroke}
+          strokeWidth={shape.width}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={tone.opacity}
+        />
+      ))}
+    </svg>
+  );
+}
+
 function getScreenDistance(params: {
   startClientX: number;
   startClientY: number;
@@ -1535,8 +1618,6 @@ export function ZoneMoveEditorOverlay(props: {
   /** 렌더러와 같은 연결선 모양 리졸버 — 선 클릭 히트테스트/칩 배치가 같은 곡선을 보게. */
   resolvePathStyle?: ResolvePathStyle;
   onExclusionStateChange?: (next: RendererExclusionState | undefined) => void;
-  /** 선택/hover 패스를 렌더러로 내려보내는 채널 — 연결선 강조용. */
-  onSelectionStateChange?: (next: RendererSelectionState | undefined) => void;
 }) {
   const {
     model,
@@ -1549,7 +1630,6 @@ export function ZoneMoveEditorOverlay(props: {
     resolveZoneShape,
     resolvePathStyle,
     onExclusionStateChange,
-    onSelectionStateChange,
   } = props;
   const permissions = useMemo(
     () => resolvePermissions(editor?.permissions),
@@ -1795,26 +1875,6 @@ export function ZoneMoveEditorOverlay(props: {
     latestRef.current.onPathSelectionChange?.([...selectedPathIds]);
   }, [selectedPathIds]);
 
-  // 선택/hover 패스를 렌더러로 — 연결선 강조(라벨 없는 패스의 유일한 시각
-  // 피드백이자, 라벨 있는 패스의 "어디서 어디로" 피드백). 언마운트 시 해제.
-  useEffect(() => {
-    const hoveredPathId = hoveredTargetKey?.startsWith("path:")
-      ? (hoveredTargetKey.slice("path:".length) as PathId)
-      : null;
-    onSelectionStateChange?.(
-      selectedPathIds.length === 0 && !hoveredPathId
-        ? undefined
-        : { selectedPathIds: [...selectedPathIds], hoveredPathId }
-    );
-  }, [selectedPathIds, hoveredTargetKey, onSelectionStateChange]);
-
-  useEffect(
-    () => () => {
-      onSelectionStateChange?.(undefined);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3808,6 +3868,26 @@ export function ZoneMoveEditorOverlay(props: {
           willChange: "transform",
         }}
       >
+        {renderPathEdgeHighlights({
+          frame,
+          entries: [
+            ...selectedPathIds.map((pathId) => ({
+              pathId,
+              emphasis: "selected" as const,
+            })),
+            ...(() => {
+              const hoveredPathId = hoveredTargetKey?.startsWith("path:")
+                ? (hoveredTargetKey.slice("path:".length) as PathId)
+                : null;
+              return hoveredPathId && !selectedPathIds.includes(hoveredPathId)
+                ? [{ pathId: hoveredPathId, emphasis: "hover" as const }]
+                : [];
+            })(),
+          ],
+          resolvePathStyle,
+          zoom: camera.zoom,
+          tone: resolvedEditorTheme.overlay.pathHighlight,
+        })}
         {draggingTarget &&
         draggingZoneGroupIds.length === 0 &&
         draggingPathGroupIds.length === 0
