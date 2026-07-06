@@ -26,6 +26,7 @@ import {
   type RendererDebugOptions,
   type RendererInteractionHandlers,
   type ResolvePathColor,
+  type ResolvePathDisplay,
   type ResolvePathLineColor,
   type ResolvePathStyle,
   type ResolveZoneColor,
@@ -99,6 +100,12 @@ export type UniverseCanvasProps = {
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
+  /**
+   * 패스별 표시 형태 결정 — `"edge"` 반환 시 라벨 노드 없이 존→존 직결선만
+   * 그린다(단순 진행 연결). 미지정/`undefined` 는 기존 동작. dangling 패스는
+   * `"edge"` 를 반환해도 노드가 유지된다. {@link ResolvePathDisplay}
+   */
+  resolvePathDisplay?: ResolvePathDisplay;
   zoneComponents?: ZoneSlotComponentMap;
   pathComponents?: PathSlotComponentMap;
   backgroundRenderer?: BackgroundRenderer;
@@ -192,6 +199,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
+    resolvePathDisplay,
     zoneComponents,
     pathComponents,
     backgroundRenderer,
@@ -455,6 +463,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolvePathColor,
       resolvePathLineColor,
       resolvePathStyle,
+      resolvePathDisplay,
       backgroundRenderer: effectiveBackgroundRenderer,
       gridOptions: grid,
       interactionHandlers,
@@ -500,6 +509,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolvePathColor,
     resolvePathLineColor,
     resolvePathStyle,
+    resolvePathDisplay,
     effectiveBackgroundRenderer,
     zoneComponents,
     pathComponents,

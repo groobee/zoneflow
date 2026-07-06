@@ -6,6 +6,7 @@ import {
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
+  type Zone,
   type ZoneId,
   type AnchorRect,
 } from "@zoneflow/core";
@@ -13,8 +14,10 @@ import type {
   EdgeVisual,
   GraphLayoutEngine,
   GraphLayoutResult,
+  PathDisplayMode,
   PathVisualNode,
   Rect,
+  ResolvePathDisplay,
   ZoneVisualNode,
 } from "../types";
 
@@ -237,12 +240,48 @@ function createZoneVisualNodes(params: {
   return result;
 }
 
+/**
+ * 소비자 리졸버로 패스 표시 형태를 판정한다. `"edge"` 는 연결이 실제로 그려질
+ * 수 있을 때만(타깃 존 비주얼 존재) 유효 — dangling 패스가 라벨마저 잃으면
+ * 화면에서 완전히 사라지므로 노드를 강제 유지한다. throw 는 기본(undefined).
+ */
+function resolvePathDisplayMode(params: {
+  resolvePathDisplay?: ResolvePathDisplay;
+  model: UniverseModel;
+  path: PathVisualNode["path"];
+  sourceZone: Zone;
+  targetZoneId: ZoneId | null;
+  zonesById: Record<ZoneId, ZoneVisualNode>;
+}): PathDisplayMode | undefined {
+  const { resolvePathDisplay, model, path, sourceZone, targetZoneId, zonesById } =
+    params;
+  if (!resolvePathDisplay) return undefined;
+
+  let resolved: PathDisplayMode | null | undefined;
+  try {
+    resolved = resolvePathDisplay(path, {
+      sourceZone,
+      targetZone: targetZoneId ? model.zonesById[targetZoneId] : undefined,
+    });
+  } catch (err) {
+    console.error("[zoneflow] resolvePathDisplay threw:", err);
+    return undefined;
+  }
+
+  if (resolved === "edge") {
+    const hasDrawableTarget = targetZoneId != null && !!zonesById[targetZoneId];
+    return hasDrawableTarget ? "edge" : undefined;
+  }
+  return resolved ?? undefined;
+}
+
 function createPathVisualNodes(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   zonesById: Record<ZoneId, ZoneVisualNode>;
+  resolvePathDisplay?: ResolvePathDisplay;
 }): Record<PathId, PathVisualNode> {
-  const { model, layoutModel, zonesById } = params;
+  const { model, layoutModel, zonesById, resolvePathDisplay } = params;
   const result: Record<PathId, PathVisualNode> = {};
 
   const zoneIds = Object.keys(model.zonesById) as ZoneId[];
@@ -274,6 +313,15 @@ function createPathVisualNodes(params: {
 
       const anchors = resolvePathNodeAnchors(rect);
 
+      const display = resolvePathDisplayMode({
+        resolvePathDisplay,
+        model,
+        path,
+        sourceZone: zone,
+        targetZoneId,
+        zonesById,
+      });
+
       result[pathId] = {
         universeId: model.universeId,
         pathId,
@@ -283,6 +331,7 @@ function createPathVisualNodes(params: {
         rect,
         inlet: anchors.inlet,
         outlet: anchors.outlet,
+        display,
       };
     });
   }
@@ -381,6 +430,7 @@ export const defaultGraphLayoutEngine: GraphLayoutEngine = {
       model,
       layoutModel: resolvedLayout,
       zonesById,
+      resolvePathDisplay: input.resolvePathDisplay,
     });
 
     const edgesByPathId = createEdgeVisuals({

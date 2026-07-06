@@ -132,6 +132,7 @@ export function createRenderer(): ZoneflowRenderer {
         resolvePathColor,
         resolvePathLineColor,
         resolvePathStyle,
+        resolvePathDisplay,
         backgroundRenderer,
         gridOptions,
         interactionHandlers,
@@ -151,6 +152,7 @@ export function createRenderer(): ZoneflowRenderer {
           viewportInfo,
           theme: mergedTheme,
           textScale,
+          resolvePathDisplay,
         },
         {
           graphLayoutEngine,

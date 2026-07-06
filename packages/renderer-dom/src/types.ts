@@ -85,6 +85,12 @@ export type PathVisualNode = {
   rect?: Rect;
   inlet?: Point;
   outlet?: Point;
+  /**
+   * 소비자 리졸버({@link ResolvePathDisplay})가 강제한 표시 형태. `"edge"` 면
+   * visibility 가 노드/라벨 렌더를 끄고 연결선은 직결로 collapse 된다.
+   * 미지정 = `"node"` (기존 동작, density 자동 축약만 적용).
+   */
+  display?: PathDisplayMode;
 };
 
 export type EdgeVisual = {
@@ -295,6 +301,39 @@ export type PathStyleOverride = {
 export type ResolvePathStyle = (
   path: Path
 ) => PathStyleOverride | null | undefined;
+
+/**
+ * 패스의 표시 형태.
+ * - `"node"`: 라벨 노드 + 양쪽 연결선 (기존 기본).
+ * - `"edge"`: 라벨 노드를 그리지 않고 존→존 **직결선**만 그린다 — "존 실행 후
+ *   그냥 다음 존으로" 같은 단순 진행 연결용. 줌아웃 시 density 가 자동으로
+ *   하는 edge-only 축약과 같은 렌더 경로를 쓴다.
+ */
+export type PathDisplayMode = "node" | "edge";
+
+export type PathDisplayContext = {
+  sourceZone: Zone;
+  /** 타깃 존(모델). dangling 패스면 undefined. */
+  targetZone?: Zone;
+};
+
+/**
+ * 패스별 표시 형태를 소비자가 결정하는 리졸버 — "어떤 패스가 라벨 없는 단순
+ * 연결인가"는 도메인 의미(존의 진행 방식 등)라 라이브러리는 판단하지 않는다.
+ * `undefined`/`null` 반환 시 기존 동작(라벨 노드 + density 자동 축약).
+ *
+ * - 타깃 없는 dangling 패스에는 `"edge"` 를 반환해도 무시된다(라벨마저 없으면
+ *   화면에서 완전히 사라지므로 라이브러리가 노드를 강제 유지).
+ * - `"edge"` 패스는 라벨 rect 기반 히트 타깃이 없어 캔버스에서 직접 선택되지
+ *   않는다 — 줌아웃 edge-only 와 동일한 제약. 편집이 필요하면 정책에서
+ *   `"node"` 로 되돌리는 식으로 우회한다(예: 소스 존 선택 중에는 노드 표시).
+ * - 렌더마다 패스별로 호출되므로 동기적이고 가벼워야 하며, throw 는
+ *   `undefined` 로 처리.
+ */
+export type ResolvePathDisplay = (
+  path: Path,
+  context: PathDisplayContext
+) => PathDisplayMode | null | undefined;
 
 export type ZoneComponentMount = {
   key: string;
@@ -575,6 +614,12 @@ export type RenderPipelineInput = {
   viewportInfo: RenderViewportInfo;
   theme: ZoneflowTheme;
   textScale: TextScaleLevel;
+  /**
+   * 파이프라인 단계(graph layout → visibility)에서 쓰이는 패스 표시 형태
+   * 리졸버. 드로우 전용 리졸버들(resolvePathStyle 등)과 달리 레이아웃/가시성
+   * 결과 자체를 바꾸므로 파이프라인 입력에 있다.
+   */
+  resolvePathDisplay?: ResolvePathDisplay;
 };
 
 export type RenderPipelineResult = {
@@ -699,6 +744,7 @@ export type RendererInput = {
   resolvePathColor?: ResolvePathColor;
   resolvePathLineColor?: ResolvePathLineColor;
   resolvePathStyle?: ResolvePathStyle;
+  resolvePathDisplay?: ResolvePathDisplay;
   backgroundRenderer?: BackgroundRenderer;
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;

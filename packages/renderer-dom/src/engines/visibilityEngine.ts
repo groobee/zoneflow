@@ -85,13 +85,18 @@ export const defaultVisibilityEngine: VisibilityEngine = {
         isVisible && !containsFully(worldViewport, rect);
       const emphasis = resolvePathEmphasis(isVisible, isPartial);
       const densityMode = density.pathDensityById[path.pathId];
+      // 소비자 리졸버가 "edge" 로 강제한 패스는 줌 레벨과 무관하게 노드를
+      // 숨긴다 — 드로우 층이 두 세그먼트를 직결선으로 collapse 하는 것은
+      // density edge-only 와 같은 경로(resolveDrawableEdgeSegments).
+      const showNode =
+        isVisible && densityMode !== "edge-only" && path.display !== "edge";
 
       pathVisibilityById[path.pathId] = {
         isVisible,
         isPartial,
-        shouldRenderNode: isVisible && densityMode !== "edge-only",
+        shouldRenderNode: showNode,
         shouldRenderEdge: true,
-        shouldRenderLabel: isVisible && densityMode !== "edge-only",
+        shouldRenderLabel: showNode,
         emphasis,
       };
     });

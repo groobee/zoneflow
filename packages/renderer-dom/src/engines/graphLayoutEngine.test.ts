@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   UniverseLayoutModel,
   UniverseModel,
   Zone,
 } from "@zoneflow/core";
 import { defaultGraphLayoutEngine } from "./graphLayoutEngine";
+import { defaultVisibilityEngine } from "./visibilityEngine";
 
 function zone(id: string, over: Partial<Zone> = {}): Zone {
   return {
@@ -103,5 +104,77 @@ describe("graph layout edge endpoints", () => {
     });
     const p2z = result.edgesByPathId["p1"].find((e) => e.kind === "path-to-zone")!;
     expect(p2z.target).toEqual({ x: 0, y: 150 });
+  });
+});
+
+function modelWithDanglingPath(sourceId: string): UniverseModel {
+  const model = modelWithPath(sourceId, "c");
+  const source = model.zonesById[sourceId];
+  return {
+    ...model,
+    zonesById: {
+      ...model.zonesById,
+      [sourceId]: {
+        ...source,
+        pathsById: {
+          p1: { ...source.pathsById["p1"], target: null },
+        },
+      },
+    },
+  };
+}
+
+describe("resolvePathDisplay — 패스 표시 형태", () => {
+  it('리졸버가 "edge" 를 반환하면 PathVisualNode.display 에 찍힌다', () => {
+    const result = defaultGraphLayoutEngine.compute({
+      model: modelWithPath("outside", "c"),
+      layoutModel,
+      resolvePathDisplay: () => "edge",
+    });
+    expect(result.pathsById["p1"].display).toBe("edge");
+  });
+
+  it('dangling 패스는 "edge" 를 반환해도 무시된다 (노드 강제 유지)', () => {
+    const result = defaultGraphLayoutEngine.compute({
+      model: modelWithDanglingPath("outside"),
+      layoutModel,
+      resolvePathDisplay: () => "edge",
+    });
+    expect(result.pathsById["p1"].display).toBeUndefined();
+  });
+
+  it("리졸버가 throw 하면 기본(undefined)으로 처리된다", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = defaultGraphLayoutEngine.compute({
+      model: modelWithPath("outside", "c"),
+      layoutModel,
+      resolvePathDisplay: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(result.pathsById["p1"].display).toBeUndefined();
+    errorSpy.mockRestore();
+  });
+
+  it('display "edge" 패스는 visibility 에서 노드/라벨 렌더가 꺼진다', () => {
+    const graphLayout = defaultGraphLayoutEngine.compute({
+      model: modelWithPath("outside", "c"),
+      layoutModel,
+      resolvePathDisplay: () => "edge",
+    });
+    const visibility = defaultVisibilityEngine.compute({
+      base: {
+        viewportInfo: {
+          world: { x: -1000, y: -1000, width: 4000, height: 4000 },
+        },
+      },
+      graphLayout,
+      density: { zoneDensityById: {}, pathDensityById: { p1: "full" } },
+    } as never);
+
+    const pathVisibility = visibility.pathVisibilityById["p1"];
+    expect(pathVisibility.shouldRenderNode).toBe(false);
+    expect(pathVisibility.shouldRenderLabel).toBe(false);
+    expect(pathVisibility.shouldRenderEdge).toBe(true);
   });
 });
