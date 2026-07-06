@@ -46,6 +46,10 @@ import {
   resolvePathMoveOriginSnapshot,
 } from "./pathMoveEditor";
 import {
+  resolvePolylineMidpoint,
+  samplePathEdgeWorldPolylines,
+} from "./pathHitTest";
+import {
   applyZoneOriginsDelta,
   resolveZoneGroupOrigins,
 } from "./zoneGeometry";
@@ -82,6 +86,8 @@ export {
 export type { CanDropZone, CanDropZoneParams } from "./zoneReparent";
 
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
+// 라벨 없는(display "edge") 패스의 선택 칩 — 연결선 중점의 스크린 고정 크기.
+const EDGE_CHIP_SCREEN_SIZE = 22;
 const DEFAULT_MIN_ZONE_WIDTH = 140;
 // Kept below the renderer's chip-layout height threshold (44px) so a normal
 // zone can be dragged down into chip size via the resize handle.
@@ -220,7 +226,42 @@ export function getMoveEditorTargets(params: {
     const visibility =
       frame.pipeline.visibility.pathVisibilityById[pathVisual.pathId];
 
-    if (!visibility?.shouldRenderNode || !pathVisual.rect) continue;
+    if (!visibility?.shouldRenderNode || !pathVisual.rect) {
+      // 라벨 노드가 소비자 display "edge" 로 숨겨진 패스 — 연결선 중점에 작은
+      // 칩 히트 영역을 만들어 선택 시스템(클릭·마퀴·툴바·삭제)에 합류시킨다.
+      // 줌아웃(density edge-only) 축약은 기존대로 타깃에서 제외.
+      if (pathVisual.display !== "edge" || !visibility?.shouldRenderEdge) {
+        continue;
+      }
+      const chipCenter = resolvePolylineMidpoint(
+        samplePathEdgeWorldPolylines({
+          frame,
+          pathId: pathVisual.pathId,
+          resolvePathStyle: options?.resolvePathStyle,
+        })[0] ?? []
+      );
+      if (!chipCenter) continue;
+
+      const chipScreenCenter = {
+        x: camera.x + chipCenter.x * camera.zoom,
+        y: camera.y + chipCenter.y * camera.zoom,
+      };
+      pathTargets.push({
+        key: `path:${pathVisual.pathId}`,
+        kind: "path",
+        pathId: pathVisual.pathId,
+        label: pathVisual.path.name,
+        rect: {
+          x: chipScreenCenter.x - EDGE_CHIP_SCREEN_SIZE / 2,
+          y: chipScreenCenter.y - EDGE_CHIP_SCREEN_SIZE / 2,
+          width: EDGE_CHIP_SCREEN_SIZE,
+          height: EDGE_CHIP_SCREEN_SIZE,
+        },
+        nodeHidden: true,
+        zOrder: layoutModel?.pathLayoutsById[pathVisual.pathId]?.zOrder ?? index,
+      });
+      continue;
+    }
 
     const rect = projectWorldRectToScreenRect(pathVisual.rect, camera);
     if (rect.width < minVisibleSize || rect.height < minVisibleSize) {

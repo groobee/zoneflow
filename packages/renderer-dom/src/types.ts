@@ -324,9 +324,9 @@ export type PathDisplayContext = {
  *
  * - 타깃 없는 dangling 패스에는 `"edge"` 를 반환해도 무시된다(라벨마저 없으면
  *   화면에서 완전히 사라지므로 라이브러리가 노드를 강제 유지).
- * - `"edge"` 패스는 라벨 rect 기반 히트 타깃이 없어 캔버스에서 직접 선택되지
- *   않는다 — 줌아웃 edge-only 와 동일한 제약. 편집이 필요하면 정책에서
- *   `"node"` 로 되돌리는 식으로 우회한다(예: 소스 존 선택 중에는 노드 표시).
+ * - `"edge"` 패스도 에디터에서 **선택 가능한 항목**이다 — 연결선 중점의 칩
+ *   또는 (존 위가 아닌) 선 클릭으로 선택되고, 선택되면 연결선이 강조되며
+ *   툴바/삭제가 동작한다. 라벨 이동·리사이즈·재연결 핸들만 대상이 아니다.
  * - 렌더마다 패스별로 호출되므로 동기적이고 가벼워야 하며, throw 는
  *   `undefined` 로 처리.
  */
@@ -607,6 +607,17 @@ export type RendererExclusionState = {
   excludedPathIds?: PathId[];
 };
 
+/**
+ * 에디터의 선택/hover 상태를 렌더러에 내려보내는 채널
+ * (`exclusionState` 와 대칭). 선택된 패스는 연결선 전체가 `theme.selection`
+ * 색으로 강조된다 — 라벨 노드가 없는(display "edge") 패스도 선으로
+ * 피드백을 받도록. hover 는 굵기/불투명도만 올린다.
+ */
+export type RendererSelectionState = {
+  selectedPathIds?: PathId[];
+  hoveredPathId?: PathId | null;
+};
+
 export type RenderPipelineInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
@@ -656,6 +667,7 @@ export type RendererDrawInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
+  selectionState?: RendererSelectionState;
 };
 
 export type RendererFrame = {
@@ -749,6 +761,7 @@ export type RendererInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
+  selectionState?: RendererSelectionState;
 
   debug?: RendererDebugOptions;
 };

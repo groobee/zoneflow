@@ -6,6 +6,7 @@ import type {
 import type {
   CameraState,
   Rect,
+  ResolvePathStyle,
 } from "@zoneflow/renderer-dom";
 
 export type MoveEditorTarget =
@@ -22,11 +23,22 @@ export type MoveEditorTarget =
       pathId: PathId;
       label: string;
       rect: Rect;
+      /**
+       * 라벨 노드가 소비자 display "edge" 로 숨겨진 패스. `rect` 는 라벨이
+       * 아니라 연결선 중점의 작은 칩(히트 핸들)이다 — 선택·마퀴·툴바·삭제는
+       * 동일하게 동작하되, 라벨 이동/리사이즈/재연결 핸들은 대상이 아니다.
+       */
+      nodeHidden?: boolean;
     };
 
 export type MoveEditorTargetOptions = {
   includeRoot?: boolean;
   minVisibleSize?: number;
+  /**
+   * 연결선 모양(직선/곡선) 리졸버 — 라벨 없는 패스의 칩 중심을 실제 그려지는
+   * 선 위에 놓기 위해 필요하다. 렌더러에 주는 것과 같은 리졸버를 넘기면 된다.
+   */
+  resolvePathStyle?: ResolvePathStyle;
 };
 
 export type PathMoveCoordinateSpace = "route-offset" | "component-layout";

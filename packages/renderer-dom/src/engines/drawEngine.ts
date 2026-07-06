@@ -4,6 +4,7 @@ import type {
   PathComponentLayout,
   PathComponentRendererContext,
   PathComponentSlotName,
+  PathLineShape,
   PathLineStyle,
   PathRendererContext,
   PathVisualNode,
@@ -30,6 +31,7 @@ import {
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
 } from "./edgeFlow";
+import { edgeSegmentsToPathD, getEdgeSegments } from "./edgeGeometry";
 import {
   applyStyles,
   createSurfaceChrome,
@@ -522,65 +524,14 @@ function getEdgeDashPattern(lineStyle: PathLineStyle | undefined): string | null
   }
 }
 
-// 패스 연결선을 출발→도착 직선으로(곡선 우회 없이). lineShape: "straight" 용.
-function getStraightPathD(params: {
+// 연결선 기하는 edgeGeometry(단일 소스)에서 온다 — 에디터의 선 클릭
+// 히트테스트가 같은 곡선을 샘플링하므로 여기서 따로 계산하지 않는다.
+function getEdgePathD(params: {
   source: { x: number; y: number };
   target: { x: number; y: number };
+  lineShape?: PathLineShape;
 }) {
-  const { source, target } = params;
-  return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
-}
-
-function getBezierCurvePathD(params: {
-  source: { x: number; y: number };
-  target: { x: number; y: number };
-}) {
-  const { source, target } = params;
-  const distanceX = Math.abs(target.x - source.x);
-  const distanceY = Math.abs(target.y - source.y);
-
-  if (distanceX <= 72 && distanceY <= 48) {
-    return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
-  }
-
-  const sourceLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.18, 18), 42);
-  const leadSourceX = source.x + sourceLead;
-  const targetLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.16, 18), 42);
-  const targetApproachX = target.x - targetLead;
-  const shouldRouteAround = targetApproachX - leadSourceX < 36;
-
-  if (shouldRouteAround) {
-    const bridgeDistance = Math.abs(leadSourceX - targetApproachX);
-    const midX = (leadSourceX + targetApproachX) / 2;
-    const sourceBendX =
-      leadSourceX + Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const targetBendX =
-      targetApproachX - Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const verticalGap = Math.abs(target.y - source.y);
-    const verticalDirection = target.y >= source.y ? 1 : -1;
-    const laneOffset = Math.min(
-      Math.max(Math.abs(target.x - source.x) * 0.22 + 48, 56),
-      144
-    );
-    const laneY =
-      (source.y + target.y) / 2 +
-      (verticalGap < 36 ? verticalDirection * laneOffset : 0);
-
-    return [
-      `M ${source.x} ${source.y}`,
-      `L ${leadSourceX} ${source.y}`,
-      `C ${sourceBendX} ${source.y}, ${sourceBendX} ${laneY}, ${midX} ${laneY}`,
-      `C ${targetBendX} ${laneY}, ${targetBendX} ${target.y}, ${targetApproachX} ${target.y}`,
-      `L ${target.x} ${target.y}`,
-    ].join(" ");
-  }
-
-  const dx = targetApproachX - leadSourceX;
-  const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
-  const control1X = leadSourceX + handle;
-  const control2X = targetApproachX - handle;
-
-  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${targetApproachX} ${target.y} L ${target.x} ${target.y}`;
+  return edgeSegmentsToPathD(params.source, getEdgeSegments(params));
 }
 
 function computeSceneBounds(input: RendererDrawInput): Rect {
@@ -788,6 +739,11 @@ function drawEdges(params: {
     className: PULSE_CLASS,
   });
 
+  const selectedPathIds = new Set(
+    input.selectionState?.selectedPathIds ?? []
+  );
+  const hoveredPathId = input.selectionState?.hoveredPathId ?? null;
+
   for (const [pathId, edges] of Object.entries(input.pipeline.graphLayout.edgesByPathId)) {
     const visibility = input.pipeline.visibility.pathVisibilityById[pathId];
     if (!visibility?.shouldRenderEdge) continue;
@@ -808,6 +764,14 @@ function drawEdges(params: {
       ? input.resolvePathStyle?.(pathVisual.path) ?? undefined
       : undefined;
 
+    // 에디터 선택/hover 강조 — 패스가 선택되면 연결선 전체가 선택 색으로
+    // 켜진다(라벨 유무 무관). UI 상태라 소비자 lineColor 보다도 우선.
+    const isSelected = selectedPathIds.has(pathId);
+    const isHovered = !isSelected && hoveredPathId === pathId;
+    const emphasisColor = isSelected ? input.theme.selection : undefined;
+    const emphasisWidthDelta = isSelected ? 1 : isHovered ? 0.7 : 0;
+    const emphasisOpacityBoost = isSelected || isHovered;
+
     // Pulsing segments are wrapped in a group so the blink animates the
     // group's opacity without fighting the per-stroke flow animation class.
     let edgeOwner: SVGElement = svg;
@@ -826,6 +790,7 @@ function drawEdges(params: {
 
     for (const { edge, collapsed } of drawableEdges) {
       const stroke =
+        emphasisColor ??
         lineColor ??
         (collapsed
           ? resolveCollapsedEdgeStroke(input.theme)
@@ -833,12 +798,16 @@ function drawEdges(params: {
               kind: edge.kind,
               theme: input.theme,
             }));
-      const pathD =
-        pathStyle?.lineShape === "straight"
-          ? getStraightPathD({ source: edge.source, target: edge.target })
-          : getBezierCurvePathD({ source: edge.source, target: edge.target });
-      const opacity = getOpacity(visibility.emphasis);
-      const baseWidth = edge.kind === "path-to-zone" ? 2.25 : 1.85;
+      const pathD = getEdgePathD({
+        source: edge.source,
+        target: edge.target,
+        lineShape: pathStyle?.lineShape,
+      });
+      const opacity = emphasisOpacityBoost
+        ? Math.min(1, getOpacity(visibility.emphasis) + 0.18)
+        : getOpacity(visibility.emphasis);
+      const baseWidth =
+        (edge.kind === "path-to-zone" ? 2.25 : 1.85) + emphasisWidthDelta;
 
       if (patterned) {
         const dashed = createSvgElement("path");

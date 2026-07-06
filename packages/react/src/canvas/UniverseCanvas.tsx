@@ -19,6 +19,7 @@ import {
   type GraphLayoutEngine,
   type GridOptions,
   type RendererExclusionState,
+  type RendererSelectionState,
   type RenderMountRegistry,
   type RendererFrame,
   type PathComponentRendererMap,
@@ -219,6 +220,10 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
   const frameRef = useRef<RendererFrame | null>(null);
   const [exclusionState, setExclusionState] = useState<
     RendererExclusionState | undefined
+  >(undefined);
+  // 에디터 선택/hover 패스 → 렌더러 연결선 강조 채널 (exclusionState 와 대칭).
+  const [selectionState, setSelectionState] = useState<
+    RendererSelectionState | undefined
   >(undefined);
   const [mounts, setMounts] = useState<RenderMountRegistry>({
     zones: [],
@@ -468,6 +473,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       gridOptions: grid,
       interactionHandlers,
       exclusionState,
+      selectionState,
       debug,
     });
 
@@ -516,6 +522,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     background,
     interactionHandlers,
     exclusionState,
+    selectionState,
     debug,
     cameraState,
     onCameraChange,
@@ -594,7 +601,9 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
         pathComponents={pathComponents}
         editor={zoneMoveEditor}
         resolveZoneShape={resolveZoneShape}
+        resolvePathStyle={resolvePathStyle}
         onExclusionStateChange={setExclusionState}
+        onSelectionStateChange={setSelectionState}
       />
     </div>
   );

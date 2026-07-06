@@ -137,6 +137,7 @@ export function createRenderer(): ZoneflowRenderer {
         gridOptions,
         interactionHandlers,
         exclusionState,
+        selectionState,
 
         debug,
       } = input;
@@ -216,6 +217,7 @@ export function createRenderer(): ZoneflowRenderer {
         gridOptions,
         interactionHandlers,
         exclusionState,
+        selectionState,
       });
 
       return {

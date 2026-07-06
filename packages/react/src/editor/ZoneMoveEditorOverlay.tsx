@@ -44,6 +44,7 @@ import {
   retargetPathFromOutputAnchorDrag,
   resolveInputAnchorTargetZoneId,
   resolveGroupPathDragOrigin,
+  resolvePathAtScreenPoint,
   resolveZoneDropPlacement,
   resolveZoneReparentCandidate,
   resolveZoneAnchorScreenRect,
@@ -68,7 +69,9 @@ import type {
   PathComponentSlotName,
   RendererExclusionState,
   RendererFrame,
+  RendererSelectionState,
   Rect,
+  ResolvePathStyle,
   ResolveZoneShape,
   ZoneComponentMount,
   ZoneComponentRendererContext,
@@ -1529,7 +1532,11 @@ export function ZoneMoveEditorOverlay(props: {
   pathComponents?: PathSlotComponentMap;
   editor?: ZoneMoveEditorConfig;
   resolveZoneShape?: ResolveZoneShape;
+  /** 렌더러와 같은 연결선 모양 리졸버 — 선 클릭 히트테스트/칩 배치가 같은 곡선을 보게. */
+  resolvePathStyle?: ResolvePathStyle;
   onExclusionStateChange?: (next: RendererExclusionState | undefined) => void;
+  /** 선택/hover 패스를 렌더러로 내려보내는 채널 — 연결선 강조용. */
+  onSelectionStateChange?: (next: RendererSelectionState | undefined) => void;
 }) {
   const {
     model,
@@ -1540,7 +1547,9 @@ export function ZoneMoveEditorOverlay(props: {
     pathComponents,
     editor,
     resolveZoneShape,
+    resolvePathStyle,
     onExclusionStateChange,
+    onSelectionStateChange,
   } = props;
   const permissions = useMemo(
     () => resolvePermissions(editor?.permissions),
@@ -1715,6 +1724,7 @@ export function ZoneMoveEditorOverlay(props: {
     onPathSelectionChange: editor?.onPathSelectionChange,
     onZoneResize: editor?.onZoneResize,
     resolveZoneShape,
+    resolvePathStyle,
     onExclusionStateChange,
   });
 
@@ -1745,6 +1755,7 @@ export function ZoneMoveEditorOverlay(props: {
       onPathSelectionChange: editor?.onPathSelectionChange,
       onZoneResize: editor?.onZoneResize,
       resolveZoneShape,
+      resolvePathStyle,
       onExclusionStateChange,
     };
   }, [
@@ -1754,6 +1765,7 @@ export function ZoneMoveEditorOverlay(props: {
     frame,
     editor,
     resolveZoneShape,
+    resolvePathStyle,
     onExclusionStateChange,
   ]);
 
@@ -1782,6 +1794,27 @@ export function ZoneMoveEditorOverlay(props: {
     notifiedPathSelectionRef.current = selectedPathIds;
     latestRef.current.onPathSelectionChange?.([...selectedPathIds]);
   }, [selectedPathIds]);
+
+  // 선택/hover 패스를 렌더러로 — 연결선 강조(라벨 없는 패스의 유일한 시각
+  // 피드백이자, 라벨 있는 패스의 "어디서 어디로" 피드백). 언마운트 시 해제.
+  useEffect(() => {
+    const hoveredPathId = hoveredTargetKey?.startsWith("path:")
+      ? (hoveredTargetKey.slice("path:".length) as PathId)
+      : null;
+    onSelectionStateChange?.(
+      selectedPathIds.length === 0 && !hoveredPathId
+        ? undefined
+        : { selectedPathIds: [...selectedPathIds], hoveredPathId }
+    );
+  }, [selectedPathIds, hoveredTargetKey, onSelectionStateChange]);
+
+  useEffect(
+    () => () => {
+      onSelectionStateChange?.(undefined);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2447,10 +2480,32 @@ export function ZoneMoveEditorOverlay(props: {
           setSelectedTargetKey(
             selectedKeys.length === 1 ? selectedKeys[0] : null
           );
-        } else if (!marquee.appendToSelection) {
-          setSelectedZoneIds([]);
-          setSelectedPathIds([]);
-          setSelectedTargetKey(null);
+        } else {
+          // 클릭(마퀴 임계 미만) — 빈 캔버스라도 연결선 위(threshold 이내)면
+          // 그 패스를 선택한다. 라벨 유무 무관 — 라벨 없는 직결 패스를 집는
+          // 기본 수단이자, 라벨 패스도 선을 눌러 선택할 수 있게 한다.
+          const clickedPathId = resolvePathAtScreenPoint({
+            frame: latestRef.current.frame,
+            camera: latestRef.current.camera,
+            point: { x: marquee.currentX, y: marquee.currentY },
+            resolvePathStyle: latestRef.current.resolvePathStyle,
+          });
+
+          if (clickedPathId) {
+            setSelectedZoneIds([]);
+            setSelectedPathIds(
+              marquee.appendToSelection
+                ? Array.from(
+                    new Set([...selectedPathIdsRef.current, clickedPathId])
+                  )
+                : [clickedPathId]
+            );
+            setSelectedTargetKey(`path:${clickedPathId}`);
+          } else if (!marquee.appendToSelection) {
+            setSelectedZoneIds([]);
+            setSelectedPathIds([]);
+            setSelectedTargetKey(null);
+          }
         }
       }
 
@@ -2890,9 +2945,10 @@ export function ZoneMoveEditorOverlay(props: {
       camera,
       options: {
         includeRoot: editor.includeRoot,
+        resolvePathStyle,
       },
     });
-  }, [camera, editor, frame, model]);
+  }, [camera, editor, frame, model, resolvePathStyle]);
 
   const selectedZoneTargets = useMemo(
     () =>
@@ -4881,6 +4937,7 @@ export function ZoneMoveEditorOverlay(props: {
           const shouldShowPathRetargetHandle =
             permissions.retargetPath &&
             target.kind === "path" &&
+            !target.nodeHidden &&
             !creatingPath &&
             !retargetingPath &&
             !isDeleteArmed &&
@@ -4917,6 +4974,7 @@ export function ZoneMoveEditorOverlay(props: {
           const shouldShowPathResizeHandle =
             permissions.routePath &&
             target.kind === "path" &&
+            !target.nodeHidden &&
             pathLabelResize?.enabled !== false &&
             !creatingPath &&
             !retargetingPath &&
@@ -5146,10 +5204,12 @@ export function ZoneMoveEditorOverlay(props: {
                 }
                 event.stopPropagation();
 
+                // 라벨 없는(nodeHidden) 패스 칩은 이동 대상이 아니다 — 보이지
+                // 않는 라벨 위치만 움직여 의미가 없으므로 선택/삭제만 허용.
                 if (
-                  target.kind === "zone"
+                  (target.kind === "zone"
                     ? permissions.moveZone
-                    : permissions.routePath
+                    : permissions.routePath && !target.nodeHidden)
                 ) {
                   dragRef.current = {
                     target,
@@ -5190,11 +5250,14 @@ export function ZoneMoveEditorOverlay(props: {
                 width: `${target.rect.width}px`,
                 height: `${target.rect.height}px`,
                 pointerEvents: "auto",
-                cursor: isResizingTarget
-                  ? resizeCursor
-                  : isDragging
-                    ? "grabbing"
-                    : "grab",
+                cursor:
+                  target.kind === "path" && target.nodeHidden
+                    ? "pointer"
+                    : isResizingTarget
+                      ? resizeCursor
+                      : isDragging
+                        ? "grabbing"
+                        : "grab",
                 touchAction: "none",
                 animation:
                   isDeleteArmed && shouldAnimateDeleteUi

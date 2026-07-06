@@ -1,5 +1,6 @@
 export * from "./zoneMoveEditor";
 export * from "./pathCreateEditor";
+export * from "./pathHitTest";
 export * from "./zOrderEditor";
 export * from "./floatingLayout";
 export * from "./theme";
