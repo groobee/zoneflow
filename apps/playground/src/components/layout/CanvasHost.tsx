@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { updatePath, type PathId, type ZoneId } from "@zoneflow/core";
 import {
+  createPathFromZone,
   createZoneFromDropTemplate,
   editorPermissionPresets,
   UniverseEditorCanvas,
   type CanConnectPath,
   type CanvasExternalDropPayload,
+  type PathCreateRequestPayload,
   type UniverseEditorCanvasHandle,
   type UniverseEditorController,
 } from "@zoneflow/react";
@@ -295,6 +297,33 @@ export function CanvasHost({
     editorCanvasRef.current?.focusZone(zoneId);
   };
 
+  // 앵커 클릭 패스 생성 데모 — outlet 앵커의 "+" 를 클릭하면 요청이 여기 담기고,
+  // 앵커 옆 팝오버에서 종류를 고르면 createPathFromZone 으로 만들어 커밋한다.
+  // (드래그 생성은 기존 onPathCreated prompt 흐름 그대로 — trigger "both" 데모)
+  const [pathCreateRequest, setPathCreateRequest] =
+    useState<PathCreateRequestPayload | null>(null);
+
+  const handlePathTypePick = (ruleType: string | null) => {
+    const request = pathCreateRequest;
+    setPathCreateRequest(null);
+    if (!request) return;
+
+    // 타깃 없이 만들면 라벨은 존 우측 기본 스택 위치에 놓인다.
+    const next = createPathFromZone({
+      model: editor.model,
+      layoutModel: editor.layoutModel,
+      frame: request.frame,
+      sourceZoneId: request.sourceZoneId,
+      path: ruleType
+        ? { name: ruleType, rule: { type: ruleType } }
+        : undefined,
+    });
+    if (!next) return;
+
+    editor.updateDraftModel(next.model);
+    editor.updateDraftLayoutModel(next.layoutModel);
+  };
+
   useEffect(() => {
     if (!ref.current) return;
 
@@ -451,6 +480,13 @@ export function CanvasHost({
           },
           onPathCreated: handlePathCreated,
           onPathDropOnEmptySpace: handlePathDropOnEmptySpace,
+          // 패스 생성 트리거 데모 — 드래그(기존)와 앵커 클릭 둘 다. 존 hover 시
+          // outlet 앵커에 "+" 배지가 뜨고, 클릭하면 종류 피커 팝오버가 열린다.
+          pathCreateTrigger: "both",
+          onPathCreateRequest: setPathCreateRequest,
+          // 생성 가능 판정 데모 — 패스가 4개 이상인 존은 더 못 뽑는다
+          // ("+" 배지·드래그·클릭 모두 비활성).
+          canCreatePath: ({ sourceZone }) => sourceZone.pathIds.length < 4,
           // 존 드롭 검증 데모 — 도킹 레인에는 컨테이너 존을 도킹할 수 없다.
           // 거부되면 드래그 중인 존에 ✕ 마커가 뜨고 드롭 시 원위치로 복원된다.
           canDropZone: ({ slotKey, zone }) =>
@@ -609,9 +645,97 @@ export function CanvasHost({
           onJumpToZone={handleJumpToZone}
         />
       ) : null}
+      {pathCreateRequest ? (
+        <PathTypePickerPopover
+          request={pathCreateRequest}
+          onPick={handlePathTypePick}
+          onClose={() => setPathCreateRequest(null)}
+        />
+      ) : null}
     </main>
   );
 }
+
+const PATH_RULE_OPTIONS = ["allow", "deny", "match", "fallback"] as const;
+
+/**
+ * 앵커 클릭 패스 생성용 종류 피커 — onPathCreateRequest 의 anchorClientRect
+ * (뷰포트 좌표) 옆에 뜨는 팝오버. 라이브러리는 피커를 그리지 않으므로
+ * (패스 "종류"는 도메인 의미) 이런 UI 는 전적으로 소비자 몫이다.
+ */
+function PathTypePickerPopover({
+  request,
+  onPick,
+  onClose,
+}: {
+  request: PathCreateRequestPayload;
+  onPick: (ruleType: string | null) => void;
+  onClose: () => void;
+}) {
+  const anchor = request.anchorClientRect;
+  const left = anchor ? anchor.x + anchor.width + 10 : window.innerWidth / 2;
+  const top = anchor ? anchor.y + anchor.height / 2 : window.innerHeight / 2;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 60 }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          left,
+          top,
+          transform: "translateY(-50%)",
+          zIndex: 61,
+          minWidth: 132,
+          borderRadius: 10,
+          border: "1px solid rgba(148, 163, 184, 0.28)",
+          background: "rgba(2, 6, 23, 0.94)",
+          color: "#e2e8f0",
+          padding: 8,
+          display: "grid",
+          gap: 4,
+          fontSize: 12,
+          boxShadow: "0 18px 40px rgba(2, 6, 23, 0.5)",
+        }}
+      >
+        <strong style={{ padding: "2px 6px", fontSize: 11, color: "#94a3b8" }}>
+          {request.sourceZone.name} — 새 패스
+        </strong>
+        {PATH_RULE_OPTIONS.map((ruleType) => (
+          <button
+            key={ruleType}
+            type="button"
+            style={pathTypePickerItemStyle}
+            onClick={() => onPick(ruleType)}
+          >
+            {ruleType}
+          </button>
+        ))}
+        <button
+          type="button"
+          style={{ ...pathTypePickerItemStyle, color: "#94a3b8" }}
+          onClick={() => onPick(null)}
+        >
+          빈 패스 (rule 없음)
+        </button>
+      </div>
+    </>
+  );
+}
+
+const pathTypePickerItemStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "5px 6px",
+  borderRadius: 6,
+  border: "none",
+  background: "rgba(255, 255, 255, 0.06)",
+  color: "#e2e8f0",
+  fontSize: 12,
+  cursor: "pointer",
+};
 
 const cleanupPanelButtonStyle: React.CSSProperties = {
   flex: 1,
