@@ -265,6 +265,22 @@ export type PathCreateRequestPayload = {
   frame: RendererFrame;
 };
 
+export type ZoneCreateRequestPayload = {
+  pathId: PathId;
+  path: Path;
+  sourceZoneId: ZoneId;
+  sourceZone: Zone;
+  /** 패스 output 앵커의 캔버스 화면 좌표 rect (카메라 반영). 앵커를 못 찾으면 null. */
+  anchorScreenRect: Rect | null;
+  /** 패스 output 앵커의 뷰포트(client) 좌표 rect — 팝오버/피커 배치용. */
+  anchorClientRect: Rect | null;
+  /** output 앵커 중심의 월드 좌표 — 새 존 배치 기준점으로 쓸 수 있다. */
+  anchorWorldPoint: Point;
+  model: UniverseModel;
+  layoutModel: UniverseLayoutModel;
+  frame: RendererFrame;
+};
+
 export type EditorTransactionMeta =
   | {
       kind: "move-zone";
@@ -501,6 +517,24 @@ export type ZoneMoveEditorConfig = {
    * 에디터 트랜잭션 밖에서(정리 후) 발화되므로 히스토리 처리는 커밋하는 쪽 몫입니다.
    */
   onPathCreateRequest?: (params: PathCreateRequestPayload) => void;
+  /**
+   * 패스 라벨의 output(재연결) 앵커를 클릭(움직임 없이 릴리스)하면 호출됩니다 —
+   * {@link onPathCreateRequest}(존 앵커 클릭 → 패스 생성 요청)의 패스판 대칭.
+   * 라이브러리는 여기서 아무 것도 만들지 않습니다 — 존 "종류" 선택 UI 와 실제
+   * 생성·연결은 소비자 몫입니다.
+   *
+   * - 이 콜백을 지정해야 클릭 동작이 켜집니다(미지정 시 기존과 동일 — 앵커는
+   *   드래그 재연결 전용). 드래그는 그대로 재연결로 동작하며, 빈 공간 드롭
+   *   생성 흐름은 {@link onPathDropOnEmptySpace} 가 담당합니다(드래그판 대칭).
+   * - `createZone` 권한이 있어야 발화합니다(빈 공간 드롭 생성과 동일 게이트).
+   *   앵커 자체는 `retargetPath` 권한으로 표시되므로 둘 다 필요합니다.
+   * - 타깃이 이미 있는 패스에서도 발화합니다 — `path.target` 을 보고 무시할지
+   *   재연결할지는 소비자가 결정하세요.
+   * - 생성은 존을 만들어(`createZoneFromDropTemplate` 등, `anchorWorldPoint`
+   *   기준 배치) `setPathTarget`(core)으로 연결해 커밋하는 패턴을 권장합니다.
+   *   에디터 트랜잭션 밖에서(정리 후) 발화되므로 히스토리 처리는 커밋하는 쪽 몫입니다.
+   */
+  onZoneCreateRequest?: (params: ZoneCreateRequestPayload) => void;
   /**
    * 존 드래그의 드롭 허용 여부를 외부에서 검증하는 콜백. `canConnectPath` 의 존 이동판.
    *
@@ -1798,6 +1832,7 @@ export function ZoneMoveEditorOverlay(props: {
     canDropZone: editor?.canDropZone,
     pathCreateTrigger: editor?.pathCreateTrigger,
     onPathCreateRequest: editor?.onPathCreateRequest,
+    onZoneCreateRequest: editor?.onZoneCreateRequest,
     onPathCreated: editor?.onPathCreated,
     onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
     onZoneSelectionChange: editor?.onZoneSelectionChange,
@@ -1829,6 +1864,7 @@ export function ZoneMoveEditorOverlay(props: {
       canDropZone: editor?.canDropZone,
       pathCreateTrigger: editor?.pathCreateTrigger,
       onPathCreateRequest: editor?.onPathCreateRequest,
+      onZoneCreateRequest: editor?.onZoneCreateRequest,
       onPathCreated: editor?.onPathCreated,
       onPathDropOnEmptySpace: editor?.onPathDropOnEmptySpace,
       onZoneSelectionChange: editor?.onZoneSelectionChange,
@@ -2489,6 +2525,62 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
+      // output 앵커 클릭(움직임 없이 릴리스) — 존 생성 요청을 준비만 해 둔다.
+      // 존 앵커 클릭의 pathCreateRequest 와 대칭: 발화는 정리(cleanup)가 끝난 뒤.
+      // 게이트는 빈 공간 드롭 생성(onPathDropOnEmptySpace)과 같은 createZone 권한.
+      let zoneCreateRequest: ZoneCreateRequestPayload | null = null;
+      if (
+        pathRetarget &&
+        !pathRetarget.hasMoved &&
+        event?.type === "pointerup" &&
+        latestRef.current.onZoneCreateRequest &&
+        latestRef.current.frame &&
+        latestRef.current.permissions.createZone
+      ) {
+        const sourceZone =
+          latestRef.current.model.zonesById[pathRetarget.sourceZoneId];
+        const path = sourceZone?.pathsById[pathRetarget.pathId];
+        if (sourceZone && path) {
+          const anchorScreenRect =
+            resolvePathOutputAnchorScreenRect({
+              frame: latestRef.current.frame,
+              camera: latestRef.current.camera,
+              pathId: pathRetarget.pathId,
+            }) ?? null;
+          const overlayBounds = overlayRef.current?.getBoundingClientRect();
+          const anchorClientRect =
+            anchorScreenRect && overlayBounds
+              ? {
+                  x: overlayBounds.left + anchorScreenRect.x,
+                  y: overlayBounds.top + anchorScreenRect.y,
+                  width: anchorScreenRect.width,
+                  height: anchorScreenRect.height,
+                }
+              : null;
+          const anchorWorldPoint = screenPointToWorldPoint(
+            anchorScreenRect
+              ? {
+                  x: anchorScreenRect.x + anchorScreenRect.width / 2,
+                  y: anchorScreenRect.y + anchorScreenRect.height / 2,
+                }
+              : pathRetarget.currentScreenPoint,
+            latestRef.current.camera
+          );
+          zoneCreateRequest = {
+            pathId: pathRetarget.pathId,
+            path,
+            sourceZoneId: pathRetarget.sourceZoneId,
+            sourceZone,
+            anchorScreenRect,
+            anchorClientRect,
+            anchorWorldPoint,
+            model: latestRef.current.model,
+            layoutModel: latestRef.current.layoutModel,
+            frame: latestRef.current.frame,
+          };
+        }
+      }
+
       if (marquee && latestRef.current.frame) {
         const marqueeRect = normalizeMarqueeRect(marquee);
         const didMarqueeSelect =
@@ -2645,6 +2737,9 @@ export function ZoneMoveEditorOverlay(props: {
 
       if (pathCreateRequest) {
         latestRef.current.onPathCreateRequest?.(pathCreateRequest);
+      }
+      if (zoneCreateRequest) {
+        latestRef.current.onZoneCreateRequest?.(zoneCreateRequest);
       }
     };
 
