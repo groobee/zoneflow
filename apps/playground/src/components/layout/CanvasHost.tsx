@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { updatePath, type PathId, type ZoneId } from "@zoneflow/core";
+import {
+  setPathTarget,
+  updatePath,
+  type PathId,
+  type ZoneId,
+} from "@zoneflow/core";
 import {
   createPathFromZone,
   createZoneFromDropTemplate,
@@ -10,6 +15,7 @@ import {
   type PathCreateRequestPayload,
   type UniverseEditorCanvasHandle,
   type UniverseEditorController,
+  type ZoneCreateRequestPayload,
 } from "@zoneflow/react";
 import {
   createDiffDecorations,
@@ -26,7 +32,11 @@ import {
   type ZoneShape,
 } from "@zoneflow/renderer-dom";
 import type { DebugState } from "../../hooks/useDebugState";
-import { readPaletteZoneDragData } from "../../palette/zonePalette";
+import {
+  paletteZoneTemplates,
+  readPaletteZoneDragData,
+  type PaletteZoneTemplate,
+} from "../../palette/zonePalette";
 import { canvasHostStyle } from "./layout.styles";
 import { getThemePresetComponents } from "../renderers/presetComponents";
 import {
@@ -344,6 +354,52 @@ export function CanvasHost({
     editor.updateDraftLayoutModel(next.layoutModel);
   };
 
+  // 앵커 클릭 존 생성 데모 — 패스 라벨의 output 앵커(점)를 클릭하면 요청이 여기
+  // 담기고, 앵커 옆 팝오버에서 존 종류(팔레트 템플릿)를 고르면 앵커 오른쪽에
+  // 존을 만들어 그 패스의 타깃으로 연결한다. 드래그 재연결/빈 공간 드롭 생성
+  // (onPathDropOnEmptySpace prompt 데모)은 기존 그대로 — 클릭판 대칭 데모.
+  const [zoneCreateRequest, setZoneCreateRequest] =
+    useState<ZoneCreateRequestPayload | null>(null);
+
+  const handleZoneTemplatePick = (template: PaletteZoneTemplate) => {
+    const request = zoneCreateRequest;
+    setZoneCreateRequest(null);
+    if (!request) return;
+
+    // createZoneFromDropTemplate 는 worldPoint 를 존 중심으로 배치하므로,
+    // 앵커에서 간격 + 반너비만큼 오른쪽으로 민 지점을 중심으로 준다.
+    const next = createZoneFromDropTemplate({
+      model: editor.model,
+      layoutModel: editor.layoutModel,
+      worldPoint: {
+        x: request.anchorWorldPoint.x + 60 + template.width / 2,
+        y: request.anchorWorldPoint.y,
+      },
+      gridSnapEnabled: editor.gridSnapEnabled,
+      gridSnapSize: editor.gridSnapSize,
+      template: {
+        name: template.label,
+        zoneType: template.zoneType,
+        width: template.width,
+        height: template.height,
+        action: template.action,
+        inputDisabled: template.inputDisabled,
+        outputDisabled: template.outputDisabled,
+        fixedWidth: template.fixedWidth,
+        fixedHeight: template.fixedHeight,
+        meta: template.meta,
+      },
+    });
+
+    editor.updateDraftModel(
+      setPathTarget(next.model, request.sourceZoneId, request.pathId, {
+        universeId: next.model.universeId,
+        zoneId: next.zoneId,
+      })
+    );
+    editor.updateDraftLayoutModel(next.layoutModel);
+  };
+
   useEffect(() => {
     if (!ref.current) return;
 
@@ -505,6 +561,9 @@ export function CanvasHost({
           // outlet 앵커에 "+" 배지가 뜨고, 클릭하면 종류 피커 팝오버가 열린다.
           pathCreateTrigger: "both",
           onPathCreateRequest: setPathCreateRequest,
+          // 존 생성 트리거 데모 — 패스 라벨 output 앵커 클릭 시 존 종류 피커
+          // 팝오버를 연다(드래그 재연결은 그대로). onPathCreateRequest 의 패스판 대칭.
+          onZoneCreateRequest: setZoneCreateRequest,
           // 생성 가능 판정 데모 — 패스가 4개 이상인 존은 더 못 뽑는다
           // ("+" 배지·드래그·클릭 모두 비활성).
           canCreatePath: ({ sourceZone }) => sourceZone.pathIds.length < 4,
@@ -673,6 +732,13 @@ export function CanvasHost({
           onClose={() => setPathCreateRequest(null)}
         />
       ) : null}
+      {zoneCreateRequest ? (
+        <ZoneTemplatePickerPopover
+          request={zoneCreateRequest}
+          onPick={handleZoneTemplatePick}
+          onClose={() => setZoneCreateRequest(null)}
+        />
+      ) : null}
     </main>
   );
 }
@@ -755,6 +821,82 @@ function PathTypePickerPopover({
         >
           빈 패스 (rule 없음)
         </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * 앵커 클릭 존 생성용 종류 피커 — onZoneCreateRequest 의 anchorClientRect
+ * (뷰포트 좌표) 옆에 뜨는 팝오버. PathTypePickerPopover 의 존판 대칭 —
+ * 존 "종류"도 도메인 의미라 라이브러리는 피커를 그리지 않는다.
+ * 입력이 막힌 템플릿(inputDisabled)은 패스를 받을 수 없으므로 제외한다.
+ */
+function ZoneTemplatePickerPopover({
+  request,
+  onPick,
+  onClose,
+}: {
+  request: ZoneCreateRequestPayload;
+  onPick: (template: PaletteZoneTemplate) => void;
+  onClose: () => void;
+}) {
+  const anchor = request.anchorClientRect;
+  const left = anchor ? anchor.x + anchor.width + 10 : window.innerWidth / 2;
+  const top = anchor ? anchor.y + anchor.height / 2 : window.innerHeight / 2;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 60 }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          left,
+          top,
+          transform: "translateY(-50%)",
+          zIndex: 61,
+          minWidth: 148,
+          borderRadius: 10,
+          border: "1px solid rgba(148, 163, 184, 0.28)",
+          background: "rgba(2, 6, 23, 0.94)",
+          color: "#e2e8f0",
+          padding: 8,
+          display: "grid",
+          gap: 4,
+          fontSize: 12,
+          boxShadow: "0 18px 40px rgba(2, 6, 23, 0.5)",
+        }}
+      >
+        <strong style={{ padding: "2px 6px", fontSize: 11, color: "#94a3b8" }}>
+          {request.path.name || "패스"} — 새 존 연결
+        </strong>
+        {paletteZoneTemplates
+          .filter((template) => !template.inputDisabled)
+          .map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              style={pathTypePickerItemStyle}
+              title={template.description}
+              onClick={() => onPick(template)}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  marginRight: 6,
+                  borderRadius: 999,
+                  background:
+                    (template.meta?.color as string | undefined) ?? "#94a3b8",
+                }}
+              />
+              {template.label}
+            </button>
+          ))}
       </div>
     </>
   );
