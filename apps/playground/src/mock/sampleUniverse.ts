@@ -129,6 +129,11 @@ export const sampleUniverse: UniverseModel = {
               seconds: 1800,
             },
           },
+          // 단순 진행(다음으로) 연결 데모 — resolvePathDisplay 가 이 플래그를
+          // 보고 라벨 노드 없이 존→존 직결선만 그린다 (CanvasHost 참조).
+          meta: {
+            flow: "next",
+          },
         },
       },
       meta: {

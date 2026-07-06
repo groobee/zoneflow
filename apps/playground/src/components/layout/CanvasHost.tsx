@@ -15,6 +15,7 @@ import {
   createDiffDecorations,
   DIFF_DECORATION_COLORS,
   type ResolvePathColor,
+  type ResolvePathDisplay,
   type ResolvePathLineColor,
   type ResolvePathStyle,
   type ResolveZoneColor,
@@ -85,6 +86,16 @@ const resolvePathLineColor: ResolvePathLineColor = (path) =>
 /** 설정 안 된 패스의 연결선 모양(점선). 그 외엔 기본 실선+flow. */
 const resolvePathStyle: ResolvePathStyle = (path) =>
   isUnconfiguredPath(path) ? { lineStyle: "dashed" } : undefined;
+
+/**
+ * 단순 진행("다음으로") 연결은 라벨 노드 없이 존→존 직결선만 — 표시 형태의
+ * 기준(어떤 패스가 단순 연결인가)은 도메인 의미라 소비자가 정한다. 이 데모는
+ * path.meta.flow === "next" 플래그를 쓴다. 타깃 없는 dangling 패스는 라이브러리가
+ * 노드를 강제 유지하므로, 앵커 클릭으로 갓 만든 "다음으로" 패스는 라벨로 보이다가
+ * 존에 연결하는 순간 직결선이 된다.
+ */
+const resolvePathDisplay: ResolvePathDisplay = (path) =>
+  path.meta?.flow === "next" ? "edge" : undefined;
 
 /**
  * farest(가장 작게/줌아웃) 일 때 표시할 아이콘. meta.icon 우선, 없으면
@@ -303,20 +314,29 @@ export function CanvasHost({
   const [pathCreateRequest, setPathCreateRequest] =
     useState<PathCreateRequestPayload | null>(null);
 
-  const handlePathTypePick = (ruleType: string | null) => {
+  const handlePathTypePick = (pick: PathTypePick) => {
     const request = pathCreateRequest;
     setPathCreateRequest(null);
     if (!request) return;
 
     // 타깃 없이 만들면 라벨은 존 우측 기본 스택 위치에 놓인다.
+    // "다음으로" 는 meta.flow 플래그를 실어, 존에 연결되는 순간
+    // resolvePathDisplay 가 라벨 없는 직결선으로 바꾼다.
     const next = createPathFromZone({
       model: editor.model,
       layoutModel: editor.layoutModel,
       frame: request.frame,
       sourceZoneId: request.sourceZoneId,
-      path: ruleType
-        ? { name: ruleType, rule: { type: ruleType } }
-        : undefined,
+      path:
+        pick.kind === "rule"
+          ? { name: pick.ruleType, rule: { type: pick.ruleType } }
+          : pick.kind === "next"
+            ? {
+                name: "다음으로",
+                rule: { type: "next" },
+                meta: { flow: "next" },
+              }
+            : undefined,
     });
     if (!next) return;
 
@@ -455,6 +475,7 @@ export function CanvasHost({
         renderPath={renderPath}
         renderPathOverlay={renderPathOverlay}
         resolvePathColor={cleanupResolvers?.resolvePathColor ?? resolvePathColor}
+        resolvePathDisplay={resolvePathDisplay}
         resolvePathLineColor={
           cleanupResolvers?.resolvePathLineColor ?? resolvePathLineColor
         }
@@ -658,6 +679,11 @@ export function CanvasHost({
 
 const PATH_RULE_OPTIONS = ["allow", "deny", "match", "fallback"] as const;
 
+type PathTypePick =
+  | { kind: "rule"; ruleType: string }
+  | { kind: "next" }
+  | { kind: "empty" };
+
 /**
  * 앵커 클릭 패스 생성용 종류 피커 — onPathCreateRequest 의 anchorClientRect
  * (뷰포트 좌표) 옆에 뜨는 팝오버. 라이브러리는 피커를 그리지 않으므로
@@ -669,7 +695,7 @@ function PathTypePickerPopover({
   onClose,
 }: {
   request: PathCreateRequestPayload;
-  onPick: (ruleType: string | null) => void;
+  onPick: (pick: PathTypePick) => void;
   onClose: () => void;
 }) {
   const anchor = request.anchorClientRect;
@@ -704,12 +730,20 @@ function PathTypePickerPopover({
         <strong style={{ padding: "2px 6px", fontSize: 11, color: "#94a3b8" }}>
           {request.sourceZone.name} — 새 패스
         </strong>
+        <button
+          type="button"
+          style={{ ...pathTypePickerItemStyle, color: "#93c5fd" }}
+          title="라벨 없는 직결 연결 — 존에 연결하면 선만 남는다"
+          onClick={() => onPick({ kind: "next" })}
+        >
+          다음으로 (직결)
+        </button>
         {PATH_RULE_OPTIONS.map((ruleType) => (
           <button
             key={ruleType}
             type="button"
             style={pathTypePickerItemStyle}
-            onClick={() => onPick(ruleType)}
+            onClick={() => onPick({ kind: "rule", ruleType })}
           >
             {ruleType}
           </button>
@@ -717,7 +751,7 @@ function PathTypePickerPopover({
         <button
           type="button"
           style={{ ...pathTypePickerItemStyle, color: "#94a3b8" }}
-          onClick={() => onPick(null)}
+          onClick={() => onPick({ kind: "empty" })}
         >
           빈 패스 (rule 없음)
         </button>
