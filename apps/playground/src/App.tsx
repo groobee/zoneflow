@@ -59,6 +59,7 @@ export default function App() {
     setModel,
     setLayoutModel,
     canConnectPath,
+    flowDirection,
   } =
     useSampleSwitcher("small");
 
@@ -86,6 +87,7 @@ export default function App() {
     layoutModel,
     setModel,
     setLayoutModel,
+    flowDirection,
   });
 
   const localScaleActive = localScaleEnabled && !editor.isEditMode;
@@ -150,6 +152,7 @@ export default function App() {
     model,
     layoutModel,
     onLayoutModelChange: setLayoutModel,
+    options: { flowDirection },
   });
 
   const handleCreateNewDocument = () => {
@@ -320,6 +323,7 @@ export default function App() {
         themePreset={themePreset}
         weatherBackgroundId={weatherBackgroundId}
         canConnectPath={canConnectPath}
+        flowDirection={flowDirection}
         densityOverride={densityOverride}
         cleanupPreview={cleanupPreview}
         onApplyCleanup={handleApplyCleanup}

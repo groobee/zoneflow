@@ -1,7 +1,9 @@
 import {
+  DEFAULT_FLOW_DIRECTION,
   isDescendantZone,
   resolveZoneSlotRegions,
   type AnchorLayout,
+  type FlowDirection,
   type PathId,
   type Point,
   type UniverseLayoutModel,
@@ -23,8 +25,48 @@ import type {
 
 export const DEFAULT_PATH_NODE_WIDTH = 120;
 export const DEFAULT_PATH_NODE_HEIGHT = 32;
+/** 소스 아웃렛에서 흐름 진행 방향으로 띄우는 기본 거리(가로·세로 공통). */
 export const DEFAULT_PATH_NODE_OFFSET_X = 32;
+/** leftToRight 에서 형제 패스 노드를 세로로 펼치는 간격(높이 32 + 여유 8). */
 export const DEFAULT_PATH_NODE_GAP_Y = 40;
+/** topToBottom 에서 형제 패스 노드를 가로로 펼치는 간격(폭 120 + 여유 8). */
+export const DEFAULT_PATH_NODE_GAP_X = 128;
+
+/**
+ * 커스텀 배치(routeOffset·컴포넌트 레이아웃)가 없을 때의 패스 노드 기본 위치.
+ * 소스 아웃렛에서 흐름 방향으로 오프셋을 두고, 형제들은 교차축으로 펼친다.
+ * 에디터(pathCreateEditor)가 드롭 위치 → routeOffset 역산에 같은 공식을 쓴다.
+ */
+export function resolveDefaultPathNodeBaseRect(params: {
+  sourceOutlet: Point;
+  fallbackIndex: number;
+  flowDirection?: FlowDirection;
+}): Rect {
+  const { sourceOutlet, fallbackIndex } = params;
+  const flowDirection = params.flowDirection ?? DEFAULT_FLOW_DIRECTION;
+
+  if (flowDirection === "topToBottom") {
+    return {
+      x:
+        sourceOutlet.x -
+        DEFAULT_PATH_NODE_WIDTH / 2 +
+        fallbackIndex * DEFAULT_PATH_NODE_GAP_X,
+      y: sourceOutlet.y + DEFAULT_PATH_NODE_OFFSET_X,
+      width: DEFAULT_PATH_NODE_WIDTH,
+      height: DEFAULT_PATH_NODE_HEIGHT,
+    };
+  }
+
+  return {
+    x: sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X,
+    y:
+      sourceOutlet.y -
+      DEFAULT_PATH_NODE_HEIGHT / 2 +
+      fallbackIndex * DEFAULT_PATH_NODE_GAP_Y,
+    width: DEFAULT_PATH_NODE_WIDTH,
+    height: DEFAULT_PATH_NODE_HEIGHT,
+  };
+}
 
 function rectFromLayout(layout: {
   x: number;
@@ -155,8 +197,10 @@ function resolvePathNodeRect(params: {
   pathId: PathId;
   sourceOutlet: Point;
   fallbackIndex: number;
+  flowDirection?: FlowDirection;
 }): Rect {
-  const { layoutModel, pathId, sourceOutlet, fallbackIndex } = params;
+  const { layoutModel, pathId, sourceOutlet, fallbackIndex, flowDirection } =
+    params;
   const pathLayout = layoutModel.pathLayoutsById[pathId];
 
   const preferredComponentLayout =
@@ -168,20 +212,32 @@ function resolvePathNodeRect(params: {
   }
 
   const routeOffset = pathLayout?.routeOffset;
+  const base = resolveDefaultPathNodeBaseRect({
+    sourceOutlet,
+    fallbackIndex,
+    flowDirection,
+  });
 
   return {
-    x: sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X + (routeOffset?.x ?? 0),
-    y:
-      sourceOutlet.y -
-      DEFAULT_PATH_NODE_HEIGHT / 2 +
-      fallbackIndex * DEFAULT_PATH_NODE_GAP_Y +
-      (routeOffset?.y ?? 0),
-    width: DEFAULT_PATH_NODE_WIDTH,
-    height: DEFAULT_PATH_NODE_HEIGHT,
+    ...base,
+    x: base.x + (routeOffset?.x ?? 0),
+    y: base.y + (routeOffset?.y ?? 0),
   };
 }
 
-function resolvePathNodeAnchors(rect: Rect) {
+function resolvePathNodeAnchors(rect: Rect, flowDirection?: FlowDirection) {
+  if (flowDirection === "topToBottom") {
+    return {
+      inlet: {
+        x: rect.x + rect.width / 2,
+        y: rect.y,
+      },
+      outlet: {
+        x: rect.x + rect.width / 2,
+        y: rect.y + rect.height,
+      },
+    };
+  }
   return {
     inlet: {
       x: rect.x,
@@ -280,8 +336,10 @@ function createPathVisualNodes(params: {
   layoutModel: UniverseLayoutModel;
   zonesById: Record<ZoneId, ZoneVisualNode>;
   resolvePathDisplay?: ResolvePathDisplay;
+  flowDirection?: FlowDirection;
 }): Record<PathId, PathVisualNode> {
-  const { model, layoutModel, zonesById, resolvePathDisplay } = params;
+  const { model, layoutModel, zonesById, resolvePathDisplay, flowDirection } =
+    params;
   const result: Record<PathId, PathVisualNode> = {};
 
   const zoneIds = Object.keys(model.zonesById) as ZoneId[];
@@ -309,9 +367,10 @@ function createPathVisualNodes(params: {
         pathId,
         sourceOutlet,
         fallbackIndex: index,
+        flowDirection,
       });
 
-      const anchors = resolvePathNodeAnchors(rect);
+      const anchors = resolvePathNodeAnchors(rect, flowDirection);
 
       const display = resolvePathDisplayMode({
         resolvePathDisplay,
@@ -431,6 +490,7 @@ export const defaultGraphLayoutEngine: GraphLayoutEngine = {
       layoutModel: resolvedLayout,
       zonesById,
       resolvePathDisplay: input.resolvePathDisplay,
+      flowDirection: input.flowDirection,
     });
 
     const edgesByPathId = createEdgeVisuals({

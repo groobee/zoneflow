@@ -23,6 +23,7 @@ import {
   isDescendantZone,
   isZoneInputEnabled,
   isZoneOutputEnabled,
+  type FlowDirection,
 } from "@zoneflow/core";
 import {
   appendEdgeFlowStyle,
@@ -530,6 +531,7 @@ function getEdgePathD(params: {
   source: { x: number; y: number };
   target: { x: number; y: number };
   lineShape?: PathLineShape;
+  flowDirection?: FlowDirection;
 }) {
   return edgeSegmentsToPathD(params.source, getEdgeSegments(params));
 }
@@ -788,6 +790,7 @@ function drawEdges(params: {
         source: edge.source,
         target: edge.target,
         lineShape: pathStyle?.lineShape,
+        flowDirection: input.pipeline.flowDirection,
       });
       const opacity = getOpacity(visibility.emphasis);
       const baseWidth = edge.kind === "path-to-zone" ? 2.25 : 1.85;
@@ -864,6 +867,8 @@ function drawZoneAnchors(params: {
   hasInternalExit?: boolean;
 }) {
   const { owner, zone, input, mode = "edge", hasInternalExit = false } = params;
+  const flowDirection = input.pipeline.flowDirection;
+  const vertical = flowDirection === "topToBottom";
   const density =
     input.pipeline.density.zoneDensityById[zone.zoneId] ?? "far";
   const zoneColor =
@@ -896,14 +901,16 @@ function drawZoneAnchors(params: {
   if (hasInternalExit) {
     const markerSize = 16;
     const marker = document.createElement("div");
-    marker.textContent = "→";
+    marker.textContent = vertical ? "↓" : "→";
     applyStyles(marker, {
       position: "absolute",
-      top: "50%",
-      right: "0",
+      top: vertical ? "auto" : "50%",
+      bottom: vertical ? "0" : "auto",
+      left: vertical ? "50%" : "auto",
+      right: vertical ? "auto" : "0",
       width: `${markerSize}px`,
       height: `${markerSize}px`,
-      transform: "translate(-30%, -50%)",
+      transform: vertical ? "translate(-50%, -30%)" : "translate(-30%, -50%)",
       borderRadius: "999px",
       display: "flex",
       alignItems: "center",
@@ -921,9 +928,9 @@ function drawZoneAnchors(params: {
     owner.appendChild(marker);
   }
 
-  // childInput 이 막힌 슬롯에 도킹된 존은 인렛 앵커가 사라지는 자리(좌측 엣지
-  // 중앙)에 슬롯 라벨 첫 글자 마커를 그린다 — "패스로 진입하지 않는 존"임을
-  // 앵커 위치에서 바로 읽게 한다. 슬롯 레인과 같은 테마 토큰을 쓴다.
+  // childInput 이 막힌 슬롯에 도킹된 존은 인렛 앵커가 사라지는 자리(흐름 진입
+  // 엣지 중앙)에 슬롯 라벨 첫 글자 마커를 그린다 — "패스로 진입하지 않는
+  // 존"임을 앵커 위치에서 바로 읽게 한다. 슬롯 레인과 같은 테마 토큰을 쓴다.
   if (effectiveSlot?.effects?.childInput === "disabled") {
     const markerSize = 16;
     const marker = document.createElement("div");
@@ -933,8 +940,8 @@ function drawZoneAnchors(params: {
       )[0]?.toUpperCase() ?? "•";
     applyStyles(marker, {
       position: "absolute",
-      top: "50%",
-      left: "0",
+      top: vertical ? "0" : "50%",
+      left: vertical ? "50%" : "0",
       width: `${markerSize}px`,
       height: `${markerSize}px`,
       transform: "translate(-50%, -50%)",
@@ -957,9 +964,10 @@ function drawZoneAnchors(params: {
     owner.appendChild(marker);
   }
 
-  // Vertex mode: a compact dot centered on the left/right edge midpoint,
-  // sitting exactly on a round/diamond node's side. The interactive anchor
-  // geometry is unchanged — this only swaps the visual indicator.
+  // Vertex mode: a compact dot centered on the flow-entry/exit edge midpoint
+  // (leftToRight: left/right, topToBottom: top/bottom), sitting exactly on a
+  // round/diamond node's side. The interactive anchor geometry is unchanged —
+  // this only swaps the visual indicator.
   if (mode === "vertex") {
     const dotSize = 14;
     for (const kind of ["inlet", "outlet"] as const) {
@@ -969,13 +977,17 @@ function drawZoneAnchors(params: {
 
       applyStyles(dot, {
         position: "absolute",
-        top: "50%",
-        left: kind === "inlet" ? "0" : "auto",
-        right: kind === "outlet" ? "0" : "auto",
+        top: vertical ? (kind === "inlet" ? "0" : "auto") : "50%",
+        bottom: vertical && kind === "outlet" ? "0" : "auto",
+        left: vertical ? "50%" : kind === "inlet" ? "0" : "auto",
+        right: !vertical && kind === "outlet" ? "0" : "auto",
         width: `${dotSize}px`,
         height: `${dotSize}px`,
-        transform:
-          kind === "inlet"
+        transform: vertical
+          ? kind === "inlet"
+            ? "translate(-50%, -50%)"
+            : "translate(-50%, 50%)"
+          : kind === "inlet"
             ? "translate(-50%, -50%)"
             : "translate(50%, -50%)",
         borderRadius: "999px",
@@ -1009,11 +1021,14 @@ function drawZoneAnchors(params: {
       zoneRect: zone.rect,
       anchor,
       kind,
+      flowDirection,
     });
     const el = document.createElement("div");
     const seam = document.createElement("div");
     const accent = document.createElement("div");
 
+    // 밴드의 "열린 면"(존과 맞닿는 쪽)은 테두리를 지우고 seam 으로 잇는다 —
+    // leftToRight 인렛은 오른쪽 면, topToBottom 인렛은 아래 면이 존을 향한다.
     applyStyles(el, {
       position: "absolute",
       left: `${rect.x - zone.rect.x}px`,
@@ -1023,36 +1038,76 @@ function drawZoneAnchors(params: {
       borderRadius: "0",
       background: input.theme.surface.anchor.background,
       border: `1px solid ${zoneBorderColor}`,
-      borderRight: kind === "inlet" ? "none" : `1px solid ${zoneBorderColor}`,
-      borderLeft: kind === "outlet" ? "none" : `1px solid ${zoneBorderColor}`,
+      ...(vertical
+        ? {
+            borderBottom:
+              kind === "inlet" ? "none" : `1px solid ${zoneBorderColor}`,
+            borderTop:
+              kind === "outlet" ? "none" : `1px solid ${zoneBorderColor}`,
+          }
+        : {
+            borderRight:
+              kind === "inlet" ? "none" : `1px solid ${zoneBorderColor}`,
+            borderLeft:
+              kind === "outlet" ? "none" : `1px solid ${zoneBorderColor}`,
+          }),
       boxShadow: input.theme.surface.anchor.shadow,
       boxSizing: "border-box",
       overflow: "hidden",
       pointerEvents: "none",
     });
 
-    applyStyles(seam, {
-      position: "absolute",
-      top: "0",
-      bottom: "0",
-      width: "10px",
-      background: input.theme.surface.anchor.background,
-      right: kind === "inlet" ? "0" : "auto",
-      left: kind === "outlet" ? "0" : "auto",
-    });
+    applyStyles(
+      seam,
+      vertical
+        ? {
+            position: "absolute",
+            left: "0",
+            right: "0",
+            height: "10px",
+            background: input.theme.surface.anchor.background,
+            bottom: kind === "inlet" ? "0" : "auto",
+            top: kind === "outlet" ? "0" : "auto",
+          }
+        : {
+            position: "absolute",
+            top: "0",
+            bottom: "0",
+            width: "10px",
+            background: input.theme.surface.anchor.background,
+            right: kind === "inlet" ? "0" : "auto",
+            left: kind === "outlet" ? "0" : "auto",
+          }
+    );
 
-    applyStyles(accent, {
-      position: "absolute",
-      top: "50%",
-      width: "4px",
-      height: `${Math.max(22, rect.height * 0.34)}px`,
-      transform: "translateY(-50%)",
-      borderRadius: "2px",
-      background: anchorAccentColor,
-      left: kind === "inlet" ? "8px" : "auto",
-      right: kind === "outlet" ? "8px" : "auto",
-      boxShadow: `0 0 0 4px ${anchorGlowColor}`,
-    });
+    applyStyles(
+      accent,
+      vertical
+        ? {
+            position: "absolute",
+            left: "50%",
+            height: "4px",
+            width: `${Math.max(22, rect.width * 0.34)}px`,
+            transform: "translateX(-50%)",
+            borderRadius: "2px",
+            background: anchorAccentColor,
+            top: kind === "inlet" ? "8px" : "auto",
+            bottom: kind === "outlet" ? "8px" : "auto",
+            boxShadow: `0 0 0 4px ${anchorGlowColor}`,
+          }
+        : {
+            position: "absolute",
+            top: "50%",
+            width: "4px",
+            height: `${Math.max(22, rect.height * 0.34)}px`,
+            transform: "translateY(-50%)",
+            borderRadius: "2px",
+            background: anchorAccentColor,
+            left: kind === "inlet" ? "8px" : "auto",
+            right: kind === "outlet" ? "8px" : "auto",
+            boxShadow: `0 0 0 4px ${anchorGlowColor}`,
+          }
+    );
 
     el.appendChild(seam);
     el.appendChild(accent);

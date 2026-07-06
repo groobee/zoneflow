@@ -6,6 +6,7 @@ import {
   resolveZoneSlotRegions,
   updateZoneLayout,
   zoneDeclaresSlots,
+  type FlowDirection,
   type PathId,
   type Point,
   type UniverseLayoutModel,
@@ -146,10 +147,39 @@ function resolveResizedAnchor(params: {
   width: number;
   height: number;
   current?: NonNullable<UniverseLayoutModel["zoneLayoutsById"][ZoneId]>["anchors"]["inlet"];
+  flowDirection?: FlowDirection;
 }) {
-  const { kind, width, height, current } = params;
+  const { kind, width, height, current, flowDirection } = params;
   const rectWidth = current?.rect?.width;
   const rectHeight = current?.rect?.height;
+
+  if (flowDirection === "topToBottom") {
+    const nextCenterX = roundCoordinate(width / 2);
+    return {
+      point: {
+        x: nextCenterX,
+        y: kind === "inlet" ? 0 : roundCoordinate(height),
+      },
+      rect: current?.rect
+        ? {
+            ...current.rect,
+            x:
+              rectWidth !== undefined
+                ? roundCoordinate(nextCenterX - rectWidth / 2)
+                : current.rect.x,
+            y:
+              kind === "inlet"
+                ? 0
+                : roundCoordinate(
+                    height - (rectHeight ?? current.rect.height ?? 0)
+                  ),
+            width: rectWidth,
+            height: rectHeight,
+          }
+        : undefined,
+    };
+  }
+
   const nextCenterY = roundCoordinate(height / 2);
   const nextRectY =
     rectHeight !== undefined
@@ -998,6 +1028,8 @@ export function resizeZoneByScreenDelta(params: {
    */
   lockHeight?: boolean;
   gridSnap?: GridSnapOptions;
+  /** 리사이즈 후 앵커가 다시 붙을 흐름 방향(기본 leftToRight). */
+  flowDirection?: FlowDirection;
 }): UniverseLayoutModel {
   const {
     layoutModel,
@@ -1012,6 +1044,7 @@ export function resizeZoneByScreenDelta(params: {
     lockWidth = false,
     lockHeight = false,
     gridSnap,
+    flowDirection,
   } = params;
 
   const currentLayout = getZoneLayout(layoutModel, origin.zoneId);
@@ -1045,12 +1078,14 @@ export function resizeZoneByScreenDelta(params: {
         width: nextWidth,
         height: nextHeight,
         current: currentLayout.anchors.inlet,
+        flowDirection,
       }),
       outlet: resolveResizedAnchor({
         kind: "outlet",
         width: nextWidth,
         height: nextHeight,
         current: currentLayout.anchors.outlet,
+        flowDirection,
       }),
     },
   });

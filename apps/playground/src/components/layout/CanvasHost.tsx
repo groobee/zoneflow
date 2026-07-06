@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { updatePath, type PathId, type ZoneId } from "@zoneflow/core";
+import { updatePath, type FlowDirection, type PathId, type ZoneId } from "@zoneflow/core";
 import {
   createPathFromZone,
   createZoneFromDropTemplate,
@@ -213,6 +213,8 @@ type Props = {
   themePreset: PlaygroundThemePreset;
   weatherBackgroundId: WeatherBackgroundId;
   canConnectPath?: CanConnectPath;
+  /** 흐름 방향 — 샘플이 정한다(vertical 샘플 = topToBottom). */
+  flowDirection?: FlowDirection;
   editPermissionMode: EditPermissionMode;
   /** density 임계값(LOD 기준) 오버라이드 — theme.density 에 partial 로 병합. */
   densityOverride?: ZoneflowThemeInput["density"];
@@ -243,6 +245,7 @@ export function CanvasHost({
   themePreset,
   weatherBackgroundId,
   canConnectPath,
+  flowDirection,
   editPermissionMode,
   densityOverride,
   cleanupPreview,
@@ -371,6 +374,7 @@ export function CanvasHost({
       worldPoint: event.worldPoint,
       gridSnapEnabled: editor.gridSnapEnabled,
       gridSnapSize: editor.gridSnapSize,
+      flowDirection,
       template: {
         name: template.label,
         zoneType: template.zoneType,
@@ -433,6 +437,7 @@ export function CanvasHost({
       worldPoint: params.worldPoint,
       gridSnapEnabled: editor.gridSnapEnabled,
       gridSnapSize: editor.gridSnapSize,
+      flowDirection,
       template: {
         name,
         zoneType: "container",
@@ -454,6 +459,7 @@ export function CanvasHost({
         ref={editorCanvasRef}
         editor={editor}
         theme={rendererTheme}
+        flowDirection={flowDirection}
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
         background={Background}

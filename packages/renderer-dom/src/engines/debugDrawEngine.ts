@@ -15,6 +15,7 @@ import {
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
 } from "./edgeFlow";
+import { edgeSegmentsToPathD, getEdgeSegments } from "./edgeGeometry";
 import { defaultTheme } from "../themes/defaultTheme";
 
 export type DebugDrawInput = RendererDrawInput & {
@@ -86,56 +87,14 @@ function getEdgeColor(params: {
     : params.theme.pathInboundEdge;
 }
 
+// 연결선 기하는 edgeGeometry(단일 소스)를 그대로 쓴다 — 본 렌더러(drawEngine)
+// 와 디버그 레이어가 같은 곡선을 그려야 좌표 검증이 의미가 있다.
 function getBezierCurvePathD(params: {
   source: { x: number; y: number };
   target: { x: number; y: number };
+  flowDirection?: import("@zoneflow/core").FlowDirection;
 }) {
-  const { source, target } = params;
-  const distanceX = Math.abs(target.x - source.x);
-  const distanceY = Math.abs(target.y - source.y);
-
-  if (distanceX <= 72 && distanceY <= 48) {
-    return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
-  }
-
-  const sourceLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.18, 18), 42);
-  const leadSourceX = source.x + sourceLead;
-  const targetLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.16, 18), 42);
-  const targetApproachX = target.x - targetLead;
-  const shouldRouteAround = targetApproachX - leadSourceX < 36;
-
-  if (shouldRouteAround) {
-    const bridgeDistance = Math.abs(leadSourceX - targetApproachX);
-    const midX = (leadSourceX + targetApproachX) / 2;
-    const sourceBendX =
-      leadSourceX + Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const targetBendX =
-      targetApproachX - Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const verticalGap = Math.abs(target.y - source.y);
-    const verticalDirection = target.y >= source.y ? 1 : -1;
-    const laneOffset = Math.min(
-      Math.max(Math.abs(target.x - source.x) * 0.22 + 48, 56),
-      144
-    );
-    const laneY =
-      (source.y + target.y) / 2 +
-      (verticalGap < 36 ? verticalDirection * laneOffset : 0);
-
-    return [
-      `M ${source.x} ${source.y}`,
-      `L ${leadSourceX} ${source.y}`,
-      `C ${sourceBendX} ${source.y}, ${sourceBendX} ${laneY}, ${midX} ${laneY}`,
-      `C ${targetBendX} ${laneY}, ${targetBendX} ${target.y}, ${targetApproachX} ${target.y}`,
-      `L ${target.x} ${target.y}`,
-    ].join(" ");
-  }
-
-  const dx = targetApproachX - leadSourceX;
-  const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
-  const control1X = leadSourceX + handle;
-  const control2X = targetApproachX - handle;
-
-  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${targetApproachX} ${target.y} L ${target.x} ${target.y}`;
+  return edgeSegmentsToPathD(params.source, getEdgeSegments(params));
 }
 
 function filterPipelineForExclusion(input: DebugDrawInput) {
@@ -485,6 +444,7 @@ function drawEdges(
       const pathD = getBezierCurvePathD({
         source: edge.source,
         target: edge.target,
+        flowDirection: pipeline.flowDirection,
       });
 
       path.setAttribute("d", pathD);

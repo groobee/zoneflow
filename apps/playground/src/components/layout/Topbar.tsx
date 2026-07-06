@@ -155,6 +155,7 @@ export function Topbar({
             <option value="large">Large sample</option>
             <option value="dag">DAG sample</option>
             <option value="parallel">Parallel slot sample</option>
+            <option value="vertical">Vertical flow sample</option>
             {sampleType === "custom" ? (
               <option value="custom">Loaded file</option>
             ) : null}

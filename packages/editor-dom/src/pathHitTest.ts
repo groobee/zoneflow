@@ -61,6 +61,7 @@ export function samplePathEdgeWorldPolylines(params: {
         source: edge.source,
         target: edge.target,
         lineShape,
+        flowDirection: frame.pipeline.flowDirection,
       })
   );
 }

@@ -2,6 +2,7 @@ import {
   getPaths,
   resolvePathTarget,
   updateZoneLayout,
+  type FlowDirection,
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
@@ -18,9 +19,14 @@ export type FloatingVelocities = Record<ZoneId, Point>;
 
 export type FloatingLayoutOptions = {
   /**
-   * Flow direction. Zoneflow flows left→right by default ("x"); "y" lays the
-   * flow out top→bottom. Connected zones are spaced along this axis and aligned
-   * along the perpendicular one.
+   * Flow direction — the renderer-wide {@link FlowDirection} option. Connected
+   * zones are spaced along this axis and aligned along the perpendicular one.
+   * Takes precedence over the legacy {@link flowAxis}.
+   */
+  flowDirection?: FlowDirection;
+  /**
+   * @deprecated Use {@link flowDirection} ("x" → "leftToRight", "y" →
+   * "topToBottom"). Kept for backward compatibility.
    */
   flowAxis?: "x" | "y";
   /** Target spacing (px) between a source and its target along the flow axis. */
@@ -101,7 +107,11 @@ export function stepFloatingLayout(params: {
 }): FloatingStepResult {
   const { model, layoutModel, velocities = {}, pinnedZoneIds, options } = params;
 
-  const flowAxis = options?.flowAxis ?? DEFAULTS.flowAxis;
+  const flowAxis = options?.flowDirection
+    ? options.flowDirection === "topToBottom"
+      ? "y"
+      : "x"
+    : options?.flowAxis ?? DEFAULTS.flowAxis;
   const layerGap = options?.layerGap ?? DEFAULTS.layerGap;
   const flowStrength = options?.flowStrength ?? DEFAULTS.flowStrength;
   const alignStrength = options?.alignStrength ?? DEFAULTS.alignStrength;

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UniverseLayoutModel, UniverseModel, ZoneId } from "@zoneflow/core";
+import type { FlowDirection, UniverseLayoutModel, UniverseModel, ZoneId } from "@zoneflow/core";
 import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay";
 import {
   useUniverseEditorSession,
@@ -56,6 +56,8 @@ export function useUniverseEditor(params: {
   initialObjectSnapEnabled?: boolean;
   initialGridSnapSize?: UniverseEditorGridSize;
   initialGridVisible?: boolean;
+  /** 흐름 방향 — 캔버스 flowDirection 과 같은 값을 준다(기본 leftToRight). */
+  flowDirection?: FlowDirection;
 }): UniverseEditorController {
   const {
     model,
@@ -66,6 +68,7 @@ export function useUniverseEditor(params: {
     initialObjectSnapEnabled = true,
     initialGridSnapSize = 16,
     initialGridVisible = false,
+    flowDirection,
   } = params;
 
   const session = useUniverseEditorSession({
@@ -73,6 +76,7 @@ export function useUniverseEditor(params: {
     layoutModel,
     setModel,
     setLayoutModel,
+    flowDirection,
   });
   const [gridSnapEnabled, setGridSnapEnabled] = useState(initialGridSnapEnabled);
   const [objectSnapEnabled, setObjectSnapEnabled] = useState(initialObjectSnapEnabled);

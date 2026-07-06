@@ -112,6 +112,7 @@ export function createRenderer(): ZoneflowRenderer {
         theme,
         textScale = "md",
         camera = DEFAULT_CAMERA,
+        flowDirection,
 
         graphLayoutEngine = defaultGraphLayoutEngine,
         densityEngine = defaultDensityEngine,
@@ -153,6 +154,7 @@ export function createRenderer(): ZoneflowRenderer {
           theme: mergedTheme,
           textScale,
           resolvePathDisplay,
+          flowDirection,
         },
         {
           graphLayoutEngine,

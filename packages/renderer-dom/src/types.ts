@@ -1,5 +1,6 @@
 import type {
   AnchorRect,
+  FlowDirection,
   Path,
   PathId,
   Point,
@@ -620,6 +621,8 @@ export type RenderPipelineInput = {
    * 결과 자체를 바꾸므로 파이프라인 입력에 있다.
    */
   resolvePathDisplay?: ResolvePathDisplay;
+  /** 흐름 진행 방향. 기본 leftToRight(좌→우). */
+  flowDirection?: FlowDirection;
 };
 
 export type RenderPipelineResult = {
@@ -628,6 +631,11 @@ export type RenderPipelineResult = {
   density: DensityResult;
   visibility: VisibilityResult;
   componentLayout: ComponentLayoutResult;
+  /**
+   * 이 프레임이 계산된 흐름 방향(입력의 flowDirection 을 기본값까지 해석한
+   * 값). 에디터(히트테스트·패스 생성)가 프레임에서 그대로 읽는다.
+   */
+  flowDirection: FlowDirection;
 };
 
 export type RendererDrawInput = {
@@ -724,6 +732,14 @@ export type RendererInput = {
   textScale?: TextScaleLevel;
   camera?: CameraState;
   viewport?: ViewportConfig;
+  /**
+   * 존/패스 흐름의 진행 방향 — 엣지 곡선(리드선·우회 레인), 기본 패스 노드
+   * 배치, 존 앵커 밴드가 모두 이 축을 따른다. 기본 leftToRight(좌→우).
+   * 존 레이아웃의 기본 앵커와 맞아야 하므로 createZoneLayout 등 레이아웃
+   * 헬퍼에도 같은 값을 넘긴다(기존 문서 전환은
+   * applyFlowDirectionToZoneAnchors 참고).
+   */
+  flowDirection?: FlowDirection;
 
   graphLayoutEngine?: GraphLayoutEngine;
   densityEngine?: DensityEngine;

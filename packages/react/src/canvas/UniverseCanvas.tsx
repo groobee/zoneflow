@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type {UniverseLayoutModel, UniverseModel, ZoneId} from "@zoneflow/core";
+import type {FlowDirection, UniverseLayoutModel, UniverseModel, ZoneId} from "@zoneflow/core";
 import {screenPointToWorldPoint} from "@zoneflow/editor-dom";
 import {
   type BackgroundRenderer,
@@ -72,6 +72,12 @@ export type UniverseCanvasProps = {
   textScale?: TextScaleLevel;
   viewport?: ViewportConfig;
   grid?: GridOptions;
+  /**
+   * 존/패스 흐름의 진행 방향(기본 leftToRight). 렌더러의 flowDirection 을
+   * 그대로 전달한다 — 존 레이아웃의 기본 앵커(createZoneLayout 등)와 같은
+   * 값을 써야 한다. {@link FlowDirection}
+   */
+  flowDirection?: FlowDirection;
 
   graphLayoutEngine?: GraphLayoutEngine;
   densityEngine?: DensityEngine;
@@ -179,6 +185,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     textScale = "md",
     viewport,
     grid,
+    flowDirection,
 
     graphLayoutEngine,
     densityEngine,
@@ -443,6 +450,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       textScale,
       camera,
       viewport,
+      flowDirection,
 
       graphLayoutEngine,
       densityEngine,
@@ -491,6 +499,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     camera,
     viewport,
     grid,
+    flowDirection,
     graphLayoutEngine,
     densityEngine,
     visibilityEngine,

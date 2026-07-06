@@ -1,4 +1,10 @@
-import type { Point } from "@zoneflow/core";
+import {
+  DEFAULT_FLOW_DIRECTION,
+  flowPointToWorldPoint,
+  worldPointToFlowPoint,
+  type FlowDirection,
+  type Point,
+} from "@zoneflow/core";
 import type { PathLineShape } from "../types";
 
 /**
@@ -14,19 +20,48 @@ export type EdgeGeometrySegment =
 /**
  * source→target 연결선의 세그먼트 목록(시작점 제외). lineShape "straight" 는
  * 단일 직선, "curved"(기본)는 drawEngine 의 기존 규칙 그대로 — 가까우면 직선,
- * 역방향/근접이면 우회 레인, 그 외 리드선 + 큐빅.
+ * 역방향/근접이면 우회 레인, 그 외 리드선 + 큐빅. flowDirection(기본 좌→우)이
+ * topToBottom 이면 같은 규칙을 플로우 프레임(x↔y 교환)에서 계산해 되돌린다.
  */
 export function getEdgeSegments(params: {
   source: Point;
   target: Point;
   lineShape?: PathLineShape;
+  flowDirection?: FlowDirection;
 }): EdgeGeometrySegment[] {
   const { source, target, lineShape } = params;
+  const flowDirection = params.flowDirection ?? DEFAULT_FLOW_DIRECTION;
 
   if (lineShape === "straight") {
     return [{ kind: "line", to: target }];
   }
 
+  const segments = getEdgeSegmentsInFlowFrame(
+    worldPointToFlowPoint(source, flowDirection),
+    worldPointToFlowPoint(target, flowDirection)
+  );
+  if (flowDirection === DEFAULT_FLOW_DIRECTION) return segments;
+
+  return segments.map((segment) =>
+    segment.kind === "line"
+      ? { kind: "line", to: flowPointToWorldPoint(segment.to, flowDirection) }
+      : {
+          kind: "cubic",
+          c1: flowPointToWorldPoint(segment.c1, flowDirection),
+          c2: flowPointToWorldPoint(segment.c2, flowDirection),
+          to: flowPointToWorldPoint(segment.to, flowDirection),
+        }
+  );
+}
+
+/**
+ * 곡선 규칙 본체 — 플로우 프레임(x = 흐름 진행축, y = 교차축) 좌표를 받는다.
+ * leftToRight 에서는 월드 좌표 그대로라 기존 동작과 동일하다.
+ */
+function getEdgeSegmentsInFlowFrame(
+  source: Point,
+  target: Point
+): EdgeGeometrySegment[] {
   const distanceX = Math.abs(target.x - source.x);
   const distanceY = Math.abs(target.y - source.y);
 
@@ -133,10 +168,11 @@ export function sampleEdgePolyline(params: {
   source: Point;
   target: Point;
   lineShape?: PathLineShape;
+  flowDirection?: FlowDirection;
   curveSamples?: number;
 }): Point[] {
-  const { source, target, lineShape, curveSamples = 12 } = params;
-  const segments = getEdgeSegments({ source, target, lineShape });
+  const { source, target, lineShape, flowDirection, curveSamples = 12 } = params;
+  const segments = getEdgeSegments({ source, target, lineShape, flowDirection });
   const points: Point[] = [source];
   let cursor = source;
 

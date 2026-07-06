@@ -7,6 +7,7 @@ import {
   setPathTarget,
   type AnchorRect,
   updatePathLayout,
+  type FlowDirection,
   type Path,
   type PathId,
   type Point,
@@ -17,6 +18,7 @@ import {
 } from "@zoneflow/core";
 import {
   normalizeZoneShape,
+  resolveDefaultPathNodeBaseRect,
   type CameraState,
   type Rect,
   type RendererFrame,
@@ -67,8 +69,6 @@ function getParentZone(
 
 const DEFAULT_PATH_NODE_WIDTH = 120;
 const DEFAULT_PATH_NODE_HEIGHT = 32;
-const DEFAULT_PATH_NODE_OFFSET_X = 32;
-const DEFAULT_PATH_NODE_GAP_Y = 40;
 const DEFAULT_ANCHOR_WIDTH = 24;
 const DEFAULT_ANCHOR_ATTACH_DEPTH = 10;
 // Square hit area for vertex-mode anchors (circle/diamond/…), centered on the
@@ -138,13 +138,15 @@ function resolveZoneAnchorRect(params: {
   anchor: { point: Point; rect?: AnchorRect };
   kind: "inlet" | "outlet";
   mode?: ZoneAnchorRenderMode;
+  flowDirection?: FlowDirection;
 }): Rect {
-  const { zoneRect, anchor, kind, mode = "edge" } = params;
+  const { zoneRect, anchor, kind, mode = "edge", flowDirection } = params;
+  const vertical = flowDirection === "topToBottom";
 
   if (mode === "vertex") {
     // Non-rectangular zones expose their anchor only at the shape vertex, so
     // the grab/drop hit area is a compact square centered on the anchor point
-    // instead of the full-height edge band used for rectangular zones.
+    // instead of the full edge band used for rectangular zones.
     // `anchor.point` is already in world coordinates (zone position + offset),
     // so it is used directly — do NOT add zoneRect again.
     return {
@@ -159,8 +161,23 @@ function resolveZoneAnchorRect(params: {
     return {
       x: anchor.rect.x,
       y: anchor.rect.y,
-      width: anchor.rect.width ?? DEFAULT_ANCHOR_WIDTH,
-      height: anchor.rect.height ?? zoneRect.height,
+      width:
+        anchor.rect.width ?? (vertical ? zoneRect.width : DEFAULT_ANCHOR_WIDTH),
+      height:
+        anchor.rect.height ??
+        (vertical ? DEFAULT_ANCHOR_WIDTH : zoneRect.height),
+    };
+  }
+
+  if (vertical) {
+    return {
+      x: zoneRect.x,
+      y:
+        kind === "inlet"
+          ? zoneRect.y - (DEFAULT_ANCHOR_WIDTH - DEFAULT_ANCHOR_ATTACH_DEPTH)
+          : zoneRect.y + zoneRect.height - DEFAULT_ANCHOR_ATTACH_DEPTH,
+      width: zoneRect.width,
+      height: DEFAULT_ANCHOR_WIDTH,
     };
   }
 
@@ -212,6 +229,7 @@ export function resolveZoneAnchorScreenRect(params: {
     anchor: zoneVisual.anchors[kind],
     kind,
     mode,
+    flowDirection: frame.pipeline.flowDirection,
   });
 
   return projectWorldRectToScreenRect(anchorRect, camera);
@@ -299,16 +317,45 @@ export function resolvePathOutputAnchorScreenRect(params: {
   const pathVisual = frame.pipeline.graphLayout.pathsById[pathId];
   if (!pathVisual?.rect) return undefined;
 
-  const outlet = pathVisual.outlet ?? {
-    x: pathVisual.rect.x + pathVisual.rect.width,
-    y: pathVisual.rect.y + pathVisual.rect.height / 2,
-  };
+  const vertical = frame.pipeline.flowDirection === "topToBottom";
+  const outlet =
+    pathVisual.outlet ??
+    (vertical
+      ? {
+          x: pathVisual.rect.x + pathVisual.rect.width / 2,
+          y: pathVisual.rect.y + pathVisual.rect.height,
+        }
+      : {
+          x: pathVisual.rect.x + pathVisual.rect.width,
+          y: pathVisual.rect.y + pathVisual.rect.height / 2,
+        });
   // 완전한 원이 되도록 정사각형 핸들(borderRadius:999 + w===h). 고정 크기를 써서 존 연결
-  // 앵커와 비슷한 크기로 맞추되, 라벨이 작으면 안에 들어가게 줄인다. outlet 점을 중심에 둔다.
+  // 앵커와 비슷한 크기로 맞추되, 라벨이 작으면 안에 들어가게 줄인다. outlet 점을 중심에
+  // 두고, 라벨 사각형을 벗어나지 않도록 교차축으로만 클램프한다.
   const size = Math.min(
     DEFAULT_PATH_OUTPUT_HANDLE_SIZE,
-    pathVisual.rect.height - DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y * 2
+    (vertical ? pathVisual.rect.width : pathVisual.rect.height) -
+      DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y * 2
   );
+
+  if (vertical) {
+    const minX = pathVisual.rect.x + DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y;
+    const maxX =
+      pathVisual.rect.x +
+      pathVisual.rect.width -
+      DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y -
+      size;
+    return projectWorldRectToScreenRect(
+      {
+        x: clamp(outlet.x - size / 2, minX, maxX),
+        y: outlet.y - size / 2,
+        width: size,
+        height: size,
+      },
+      camera
+    );
+  }
+
   const minY = pathVisual.rect.y + DEFAULT_PATH_OUTPUT_HANDLE_MARGIN_Y;
   const maxY =
     pathVisual.rect.y +
@@ -499,12 +546,17 @@ export function createPathFromZone(params: {
         x: snapCoordinate(desiredCenter.x - DEFAULT_PATH_NODE_WIDTH / 2, gridSnap),
         y: snapCoordinate(desiredCenter.y - DEFAULT_PATH_NODE_HEIGHT / 2, gridSnap),
       };
+      // routeOffset 은 "기본 배치로부터의 오프셋" — 렌더러와 같은 기본 배치
+      // 공식(resolveDefaultPathNodeBaseRect)에서 역산해야 라벨이 드롭 지점에
+      // 정확히 놓인다.
+      const baseRect = resolveDefaultPathNodeBaseRect({
+        sourceOutlet,
+        fallbackIndex: nextPathIndex,
+        flowDirection: frame?.pipeline.flowDirection,
+      });
       const routeOffset = {
-        x: roundCoordinate(desiredRect.x - (sourceOutlet.x + DEFAULT_PATH_NODE_OFFSET_X)),
-        y: roundCoordinate(
-          desiredRect.y -
-          (sourceOutlet.y - DEFAULT_PATH_NODE_HEIGHT / 2 + nextPathIndex * DEFAULT_PATH_NODE_GAP_Y)
-        ),
+        x: roundCoordinate(desiredRect.x - baseRect.x),
+        y: roundCoordinate(desiredRect.y - baseRect.y),
       };
       nextLayoutModel = updatePathLayout(layoutModel, pathId, {
         routeOffset,

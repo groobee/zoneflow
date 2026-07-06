@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UniverseModel, UniverseLayoutModel } from "@zoneflow/core";
+import type { FlowDirection, UniverseModel, UniverseLayoutModel } from "@zoneflow/core";
 import type { CanConnectPath } from "@zoneflow/react";
 
 import {
@@ -24,6 +24,10 @@ import {
   sampleParallelUniverse,
   sampleParallelUniverseLayout,
 } from "../mock/sampleParallelUniverse";
+import {
+  sampleVerticalUniverse,
+  sampleVerticalUniverseLayout,
+} from "../mock/sampleVerticalUniverse";
 import { dagCanConnectPath } from "../canConnectStrategies";
 
 export type SampleType =
@@ -32,6 +36,7 @@ export type SampleType =
   | "large"
   | "dag"
   | "parallel"
+  | "vertical"
   | "custom";
 
 type SampleSet = {
@@ -60,6 +65,16 @@ const SAMPLE_MAP: Record<Exclude<SampleType, "custom">, SampleSet> = {
     model: sampleParallelUniverse,
     layoutModel: sampleParallelUniverseLayout,
   },
+  vertical: {
+    model: sampleVerticalUniverse,
+    layoutModel: sampleVerticalUniverseLayout,
+  },
+};
+
+// 샘플별 흐름 방향 — vertical 샘플은 위→아래(topToBottom)로 렌더한다.
+// custom(파일 로드)은 마지막 프리셋의 방향을 따르지 않고 기본(가로)으로 둔다.
+const SAMPLE_FLOW_DIRECTION: Partial<Record<SampleType, FlowDirection>> = {
+  vertical: "topToBottom",
 };
 
 const SAMPLE_CAN_CONNECT: Partial<Record<SampleType, CanConnectPath>> = {
@@ -128,5 +143,6 @@ export function useSampleSwitcher(initial: SampleType = "small") {
     setModel,
     setLayoutModel,
     canConnectPath: SAMPLE_CAN_CONNECT[sampleType],
+    flowDirection: SAMPLE_FLOW_DIRECTION[sampleType],
   };
 }

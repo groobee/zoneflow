@@ -44,5 +44,6 @@ export function runRenderPipeline(
     density,
     visibility,
     componentLayout,
+    flowDirection: input.flowDirection ?? "leftToRight",
   };
 }

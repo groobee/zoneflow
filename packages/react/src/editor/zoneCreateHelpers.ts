@@ -3,6 +3,7 @@ import {
   createZoneId,
   createZoneLayout,
   setZoneLayout,
+  type FlowDirection,
   type Point,
   type UniverseLayoutModel,
   type UniverseModel,
@@ -47,6 +48,8 @@ export function createZoneFromDropTemplate(params: {
   gridSnapEnabled?: boolean;
   gridSnapSize?: UniverseEditorGridSize;
   createId?: () => ZoneId;
+  /** 새 존의 기본 앵커가 붙을 흐름 방향(기본 leftToRight). */
+  flowDirection?: FlowDirection;
 }) {
   const {
     model,
@@ -56,6 +59,7 @@ export function createZoneFromDropTemplate(params: {
     gridSnapEnabled = false,
     gridSnapSize = 16,
     createId = createZoneId,
+    flowDirection,
   } = params;
 
   const worldRect = {
@@ -98,6 +102,7 @@ export function createZoneFromDropTemplate(params: {
       y: placement.y,
       width: template.width,
       height: template.height,
+      flowDirection,
     })
   );
 

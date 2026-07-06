@@ -2687,6 +2687,9 @@ export function ZoneMoveEditorOverlay(props: {
           maxWidth: resize.maxWidth,
           maxHeight: resize.maxHeight,
           gridSnap: latestRef.current.gridSnap,
+          // 리사이즈 후 앵커가 흐름 방향의 엣지(좌/우 또는 상/하)에 다시 붙도록
+          // 렌더 파이프라인이 해석한 방향을 그대로 쓴다.
+          flowDirection: latestRef.current.frame?.pipeline.flowDirection,
         });
 
         onLayoutModelChange(nextLayoutModel);

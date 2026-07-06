@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
   resizeZoneLayout,
+  type FlowDirection,
   type UniverseLayoutModel,
   type UniverseModel,
   type ZoneId,
@@ -55,8 +56,10 @@ export function useUniverseEditorSession(params: {
   layoutModel: UniverseLayoutModel;
   setModel: Dispatch<SetStateAction<UniverseModel>>;
   setLayoutModel: Dispatch<SetStateAction<UniverseLayoutModel>>;
+  /** 흐름 방향 — resizeZone 시 앵커가 다시 붙을 엣지를 정한다(기본 leftToRight). */
+  flowDirection?: FlowDirection;
 }) {
-  const { model, layoutModel, setModel, setLayoutModel } = params;
+  const { model, layoutModel, setModel, setLayoutModel, flowDirection } = params;
   const [draftSnapshot, setDraftSnapshot] = useState<UniverseSnapshot | null>(null);
   const [history, setHistory] = useState<HistoryState>(EMPTY_HISTORY);
   const [activeTransaction, setActiveTransaction] =
@@ -302,10 +305,12 @@ export function useUniverseEditorSession(params: {
 
       // resizeZoneLayout (not updateZoneLayout) so the inlet/outlet anchors
       // follow the new edges — otherwise they'd detach from the resized zone.
-      const nextLayoutModel = resizeZoneLayout(current.layoutModel, zoneId, {
-        width: nextWidth,
-        height: nextHeight,
-      });
+      const nextLayoutModel = resizeZoneLayout(
+        current.layoutModel,
+        zoneId,
+        { width: nextWidth, height: nextHeight },
+        { flowDirection }
+      );
 
       if (draftSnapshot) {
         // Group as one undo step alongside the rest of the edit session.
@@ -321,10 +326,12 @@ export function useUniverseEditorSession(params: {
         // form so several resizeZone calls in one tick (e.g. a batch view-mode
         // toggle) accumulate instead of clobbering each other.
         setLayoutModel((prev) =>
-          resizeZoneLayout(prev, zoneId, {
-            width: nextWidth,
-            height: nextHeight,
-          })
+          resizeZoneLayout(
+            prev,
+            zoneId,
+            { width: nextWidth, height: nextHeight },
+            { flowDirection }
+          )
         );
       }
     },
@@ -332,6 +339,7 @@ export function useUniverseEditorSession(params: {
       beginTransaction,
       commitTransaction,
       draftSnapshot,
+      flowDirection,
       setLayoutModel,
       updateDraftSnapshot,
     ]

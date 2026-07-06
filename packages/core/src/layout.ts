@@ -10,6 +10,11 @@ import type {
   ZoneId,
   ZoneLayout,
 } from "./types";
+import {
+  DEFAULT_FLOW_DIRECTION,
+  resolveDefaultZoneAnchorPoint,
+  type FlowDirection,
+} from "./flow";
 
 export type CreateUniverseLayoutModelInput = {
   universeId: UniverseId;
@@ -99,8 +104,10 @@ export function createZoneLayout(input: {
   width: number;
   height: number;
   zOrder?: number;
+  /** 기본 앵커가 붙는 흐름 방향. 렌더러에 주는 flowDirection 과 맞춘다. */
+  flowDirection?: FlowDirection;
 }): ZoneLayout {
-  const { x, y, width, height, zOrder } = input;
+  const { x, y, width, height, zOrder, flowDirection } = input;
 
   return {
     x,
@@ -110,16 +117,20 @@ export function createZoneLayout(input: {
     zOrder,
     anchors: {
       inlet: {
-        point: {
-          x: 0,
-          y: height / 2,
-        },
+        point: resolveDefaultZoneAnchorPoint({
+          kind: "inlet",
+          width,
+          height,
+          flowDirection,
+        }),
       },
       outlet: {
-        point: {
-          x: width,
-          y: height / 2,
-        },
+        point: resolveDefaultZoneAnchorPoint({
+          kind: "outlet",
+          width,
+          height,
+          flowDirection,
+        }),
       },
     },
   };
@@ -333,20 +344,46 @@ function roundCoord(value: number): number {
 }
 
 /**
- * Edge-centered anchor for a zone of the given size: inlet at the left-middle,
- * outlet at the right-middle, with any custom `rect` repositioned to match.
- * Keeps anchors glued to the zone's edges when its size changes.
+ * Edge-centered anchor for a zone of the given size — inlet/outlet glued to
+ * the flow-entry/exit edges (left/right for leftToRight, top/bottom for
+ * topToBottom), with any custom `rect` repositioned to match. Keeps anchors
+ * on the zone's edges when its size changes.
  */
 function resolveResizedZoneAnchor(
   kind: "inlet" | "outlet",
   width: number,
   height: number,
-  current: ZoneLayout["anchors"]["inlet"]
+  current: ZoneLayout["anchors"]["inlet"],
+  flowDirection: FlowDirection = DEFAULT_FLOW_DIRECTION
 ): ZoneLayout["anchors"]["inlet"] {
-  const centerY = roundCoord(height / 2);
+  const point = resolveDefaultZoneAnchorPoint({
+    kind,
+    width,
+    height,
+    flowDirection,
+  });
   const rect = current.rect;
+
+  if (flowDirection === "topToBottom") {
+    const centerX = roundCoord(width / 2);
+    return {
+      point: { x: centerX, y: roundCoord(point.y) },
+      rect: rect
+        ? {
+            ...rect,
+            x:
+              rect.width !== undefined
+                ? roundCoord(centerX - rect.width / 2)
+                : rect.x,
+            y: kind === "inlet" ? 0 : roundCoord(height - (rect.height ?? 0)),
+          }
+        : undefined,
+    };
+  }
+
+  const centerY = roundCoord(height / 2);
   return {
-    point: { x: kind === "inlet" ? 0 : roundCoord(width), y: centerY },
+    point: { x: roundCoord(point.x), y: centerY },
     rect: rect
       ? {
           ...rect,
@@ -370,7 +407,8 @@ function resolveResizedZoneAnchor(
 export function resizeZoneLayout(
   layoutModel: UniverseLayoutModel,
   zoneId: ZoneId,
-  size: { width?: number; height?: number }
+  size: { width?: number; height?: number },
+  options?: { flowDirection?: FlowDirection }
 ): UniverseLayoutModel {
   const current = layoutModel.zoneLayoutsById[zoneId];
   if (!current) return layoutModel;
@@ -391,17 +429,57 @@ export function resizeZoneLayout(
               "inlet",
               nextWidth,
               nextHeight,
-              current.anchors.inlet
+              current.anchors.inlet,
+              options?.flowDirection
             ),
             outlet: resolveResizedZoneAnchor(
               "outlet",
               nextWidth,
               nextHeight,
-              current.anchors.outlet
+              current.anchors.outlet,
+              options?.flowDirection
             ),
           }
         : undefined,
   });
+}
+
+/**
+ * 레이아웃 모델 전체의 존 앵커를 주어진 흐름 방향의 기본 위치(엣지 중앙)로
+ * 재배치한다 — 기존(가로) 문서를 세로 렌더링으로 전환할 때의 마이그레이션
+ * 헬퍼. 크기를 모르는 존은 건드리지 않는다(렌더러가 중심점으로 폴백).
+ */
+export function applyFlowDirectionToZoneAnchors(
+  layoutModel: UniverseLayoutModel,
+  flowDirection: FlowDirection
+): UniverseLayoutModel {
+  const nextZoneLayoutsById: Record<ZoneId, ZoneLayout> = {};
+  for (const [zoneId, layout] of Object.entries(layoutModel.zoneLayoutsById)) {
+    if (layout.width === undefined || layout.height === undefined) {
+      nextZoneLayoutsById[zoneId as ZoneId] = layout;
+      continue;
+    }
+    nextZoneLayoutsById[zoneId as ZoneId] = {
+      ...layout,
+      anchors: {
+        inlet: resolveResizedZoneAnchor(
+          "inlet",
+          layout.width,
+          layout.height,
+          layout.anchors.inlet,
+          flowDirection
+        ),
+        outlet: resolveResizedZoneAnchor(
+          "outlet",
+          layout.width,
+          layout.height,
+          layout.anchors.outlet,
+          flowDirection
+        ),
+      },
+    };
+  }
+  return { ...layoutModel, zoneLayoutsById: nextZoneLayoutsById };
 }
 
 export function getPathLayout(

@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./flow";
 export * from "./zoneCapabilities";
 
 export * from "./diff";
