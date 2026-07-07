@@ -1009,6 +1009,7 @@ function drawZoneAnchors(params: {
       zoneRect: zone.rect,
       anchor,
       kind,
+      width: input.theme.surface.anchor.width,
     });
     const el = document.createElement("div");
     const seam = document.createElement("div");

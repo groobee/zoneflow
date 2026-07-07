@@ -98,6 +98,11 @@ export type ZoneflowTheme = {
       shadow: string;
       containerAccent: string;
       actionAccent: string;
+      /**
+       * 슬래브(edge) 앵커의 가로폭(px). 미지정 시 기본 24. **비주얼 전용** —
+       * 클릭/드래그 히트 영역(editor-dom)은 기본 폭을 유지해 조작성을 해치지 않는다.
+       */
+      width?: number;
     };
   };
 
