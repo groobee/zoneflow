@@ -78,6 +78,9 @@ vite.config.ts.timestamp-*
 ############################
 *.tgz
 
+# 릴리즈 시 CI 가 루트 LICENSE 를 각 패키지로 복사한다(단일 소스). 복사본은 커밋하지 않는다.
+packages/*/LICENSE
+
 
 bower_components
 jspm_packages

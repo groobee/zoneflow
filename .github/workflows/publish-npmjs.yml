@@ -129,6 +129,17 @@ jobs:
       - name: Type check
         run: pnpm -r --filter "./packages/*" type-check
 
+      - name: Test
+        run: pnpm -r --filter "./packages/*" test
+
+      # 게시 tarball 에 라이선스 전문을 동봉한다. 루트 LICENSE 를 단일 소스로 두고
+      # pack 직전에 각 패키지로 복사한다(npm 은 files 필드와 무관하게 LICENSE 를 포함).
+      - name: Stage LICENSE into packages
+        run: |
+          for pkg in packages/*/; do
+            cp LICENSE "${pkg}LICENSE"
+          done
+
       - name: Pack packages
         run: |
           rm -rf .npm-packages
@@ -155,6 +166,7 @@ jobs:
                 --tag "${{ steps.release-version.outputs.dist_tag }}"
             else
               npm publish "$tarball" \
+                --provenance \
                 --access "${{ steps.release-version.outputs.access }}" \
                 --tag "${{ steps.release-version.outputs.dist_tag }}"
             fi
