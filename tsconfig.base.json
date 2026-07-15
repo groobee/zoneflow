@@ -10,6 +10,9 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "declaration": true,
+    // `@internal` JSDoc 이 붙은 export 는 게시 .d.ts 에서 제거한다.
+    // 공개 모듈 안에 있어 export 는 필요하지만 공개 API 는 아닌 헬퍼를 숨기는 관례.
+    "stripInternal": true,
     "baseUrl": ".",
     "paths": {
       "@zoneflow/core": ["packages/core/src"],
