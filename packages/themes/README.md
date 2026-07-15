@@ -1,5 +1,8 @@
 # @zoneflow/themes
 
+> **ℹ️ AI 생성 안내**<br>
+> 이 라이브러리의 코드와 문서는 상당 부분 AI(Anthropic Claude)의 도움으로 작성되었습니다.
+
 `@zoneflow/themes`는 Zoneflow용 기본 프리셋 테마 묶음입니다.
 
 포함 프리셋:

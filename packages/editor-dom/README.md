@@ -1,5 +1,8 @@
 # @zoneflow/editor-dom
 
+> **ℹ️ AI 생성 안내**<br>
+> 이 라이브러리의 코드와 문서는 상당 부분 AI(Anthropic Claude)의 도움으로 작성되었습니다.
+
 `@zoneflow/editor-dom`은 Zoneflow의 저수준 editor geometry / interaction helper 패키지입니다.
 
 이 패키지는 주로 다음을 포함합니다.
