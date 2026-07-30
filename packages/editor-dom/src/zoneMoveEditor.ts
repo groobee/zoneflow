@@ -12,12 +12,12 @@ import {
   type UniverseModel,
   type ZoneId,
 } from "@zoneflow/core";
-import { resolveContainingParentZoneId } from "./zoneReparent";
+import { resolveContainingParentZoneId } from "./zoneReparent.js";
 import {
   ROOT_WORLD_ORIGIN,
   resolveWorldZoneOrigin,
   resolveWorldZoneRect,
-} from "./zoneGeometry";
+} from "./zoneGeometry.js";
 import type {
   CameraState,
   Rect,
@@ -40,19 +40,19 @@ import {
   type ZoneAlignMode,
   type ZoneDistributeMode,
   type ZoneResizeOrigin,
-} from "./moveEditorShared";
+} from "./moveEditorShared.js";
 import {
   applyPathMovePosition,
   resolvePathMoveOriginSnapshot,
-} from "./pathMoveEditor";
+} from "./pathMoveEditor.js";
 import {
   resolvePolylineMidpoint,
   samplePathEdgeWorldPolylines,
-} from "./pathHitTest";
+} from "./pathHitTest.js";
 import {
   applyZoneOriginsDelta,
   resolveZoneGroupOrigins,
-} from "./zoneGeometry";
+} from "./zoneGeometry.js";
 
 export type {
   GridSnapOptions,
@@ -66,14 +66,14 @@ export type {
   ZoneAlignMode,
   ZoneDistributeMode,
   ZoneResizeOrigin,
-} from "./moveEditorShared";
+} from "./moveEditorShared.js";
 export {
   alignPathsByMode,
   distributePathsByMode,
   resolveGroupPathDragOrigin,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
-} from "./pathMoveEditor";
+} from "./pathMoveEditor.js";
 export {
   commitZoneGroupReparentAtCurrentPosition,
   commitZoneReparentAtCurrentPosition,
@@ -82,8 +82,8 @@ export {
   resolveZoneDropPlacement,
   resolveZonePlacementAtWorldRect,
   resolveZoneReparentCandidate,
-} from "./zoneReparent";
-export type { CanDropZone, CanDropZoneParams } from "./zoneReparent";
+} from "./zoneReparent.js";
+export type { CanDropZone, CanDropZoneParams } from "./zoneReparent.js";
 
 const DEFAULT_MIN_VISIBLE_SIZE = 18;
 // 라벨 없는(display "edge") 패스의 선택 칩 — 연결선 중점의 스크린 고정 크기.

@@ -1,5 +1,5 @@
-export * from "./canvas/UniverseCanvas";
-export * from "./editor/DefaultEditorToolbar";
+export * from "./canvas/UniverseCanvas.js";
+export * from "./editor/DefaultEditorToolbar.js";
 export {
   createPathFromZone,
   defaultEditorTheme,
@@ -7,13 +7,13 @@ export {
   type ZoneflowEditorTheme,
   type ZoneflowEditorThemeInput,
 } from "@zoneflow/editor-dom";
-export * from "./editor/strings";
-export * from "./editor/editorRenderProps";
-export * from "./editor/UniverseEditorCanvas";
-export * from "./editor/ZoneMoveEditorOverlay";
-export * from "./editor/useUniverseEditor";
-export * from "./editor/useUniverseEditorSession";
-export * from "./editor/useFloatingLayout";
-export * from "./editor/editorPermissions";
-export * from "./editor/zoneCreateHelpers";
-export * from "./slots/slotComponents";
+export * from "./editor/strings.js";
+export * from "./editor/editorRenderProps.js";
+export * from "./editor/UniverseEditorCanvas.js";
+export * from "./editor/ZoneMoveEditorOverlay.js";
+export * from "./editor/useUniverseEditor.js";
+export * from "./editor/useUniverseEditorSession.js";
+export * from "./editor/useFloatingLayout.js";
+export * from "./editor/editorPermissions.js";
+export * from "./editor/zoneCreateHelpers.js";
+export * from "./slots/slotComponents.js";

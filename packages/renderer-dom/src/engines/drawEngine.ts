@@ -14,9 +14,9 @@ import type {
   VisibilityEmphasis,
   ZoneRendererContext,
   ZoneVisualNode,
-} from "../types";
-import { resolveZoneAnchorRect } from "../anchors";
-import { normalizeZoneShape, type ZoneAnchorRenderMode } from "../zoneShape";
+} from "../types.js";
+import { resolveZoneAnchorRect } from "../anchors.js";
+import { normalizeZoneShape, type ZoneAnchorRenderMode } from "../zoneShape.js";
 import {
   getEffectiveZoneSlot,
   getZoneDepth,
@@ -30,14 +30,14 @@ import {
   resolveCollapsedEdgeStroke,
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
-} from "./edgeFlow";
-import { edgeSegmentsToPathD, getEdgeSegments } from "./edgeGeometry";
+} from "./edgeFlow.js";
+import { edgeSegmentsToPathD, getEdgeSegments } from "./edgeGeometry.js";
 import {
   applyStyles,
   createSurfaceChrome,
   toLocalRect,
-} from "./drawShared";
-import { renderDefaultZoneBody } from "./defaultZoneRenderer";
+} from "./drawShared.js";
+import { renderDefaultZoneBody } from "./defaultZoneRenderer.js";
 
 const SCENE_PADDING = 64;
 const RENDER_Z_INDEX = {

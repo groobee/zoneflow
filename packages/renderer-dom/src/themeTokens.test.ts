@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveTheme } from "./themes/defaultTheme";
-import { ZONE_CLIP_SHADOW } from "./engines/drawShared";
+import { resolveTheme } from "./themes/defaultTheme.js";
+import { ZONE_CLIP_SHADOW } from "./engines/drawShared.js";
 
 describe("resolveTheme — typography tokens", () => {
   it("defaults to the library font stack and slot sizes", () => {

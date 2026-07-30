@@ -9,14 +9,14 @@ import type {
   Zone,
   ZoneId,
 } from "@zoneflow/core";
-import type { TextScaleLevel, ZoneflowTheme, ZoneflowThemeInput } from "./theme";
+import type { TextScaleLevel, ZoneflowTheme, ZoneflowThemeInput } from "./theme.js";
 import type {
   ResolveZoneColor,
   ResolveZoneIcon,
   ResolveZoneShape,
   ResolveZoneStyle,
   ZoneResolveContext,
-} from "./zoneShape";
+} from "./zoneShape.js";
 
 export type CameraState = {
   x: number;

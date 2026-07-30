@@ -8,7 +8,7 @@ import type {
   Path,
   PathId,
   ZoneRef,
-} from "./types";
+} from "./types.js";
 
 export type CreateZoneInput = {
   id: ZoneId;

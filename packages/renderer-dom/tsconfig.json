@@ -4,6 +4,10 @@
     "composite": true,
     "rootDir": "src",
     "outDir": "dist",
+    // 게시 패키지는 Node 네이티브 ESM 으로도 로드돼야 하므로 상대 import 에
+    // 명시적 확장자를 요구한다(누락 시 컴파일 에러). 앱(Vite)은 base 의 bundler 유지.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "lib": [
       "ES2020",
       "DOM"

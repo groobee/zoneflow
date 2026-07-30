@@ -1,5 +1,5 @@
 import type { AnchorRect, Point } from "@zoneflow/core";
-import type { Rect } from "./types";
+import type { Rect } from "./types.js";
 
 export type ZoneAnchorKind = "inlet" | "outlet";
 

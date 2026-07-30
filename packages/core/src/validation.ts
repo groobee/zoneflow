@@ -1,5 +1,5 @@
-import type { UniverseModel, Zone } from "./types";
-import { getEffectiveZoneSlot, zoneDeclaresSlots } from "./zoneCapabilities";
+import type { UniverseModel, Zone } from "./types.js";
+import { getEffectiveZoneSlot, zoneDeclaresSlots } from "./zoneCapabilities.js";
 
 function getParentZone(model: UniverseModel, zone: Zone): Zone | undefined {
   return zone.parentZoneId ? model.zonesById[zone.parentZoneId] : undefined;

@@ -8,8 +8,8 @@ import {
   type Zone,
   type ZoneId,
 } from "@zoneflow/core";
-import { resolveWorldZoneOrigin } from "./zoneGeometry";
-import { roundCoordinate } from "./moveEditorShared";
+import { resolveWorldZoneOrigin } from "./zoneGeometry.js";
+import { roundCoordinate } from "./moveEditorShared.js";
 
 /**
  * Per-zone velocity vectors carried between simulation steps.

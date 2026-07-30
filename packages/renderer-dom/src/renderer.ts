@@ -8,16 +8,16 @@ import type {
   RenderViewportInfo,
   WorldViewportRect,
   ZoneflowRenderer,
-} from "./types";
-import { resolveTheme } from "./themes/defaultTheme";
-import { runRenderPipeline } from "./pipeline";
+} from "./types.js";
+import { resolveTheme } from "./themes/defaultTheme.js";
+import { runRenderPipeline } from "./pipeline.js";
 
-import { defaultGraphLayoutEngine } from "./engines/graphLayoutEngine";
-import { defaultDensityEngine } from "./engines/densityEngine";
-import { defaultVisibilityEngine } from "./engines/visibilityEngine";
-import { defaultComponentLayoutEngine } from "./engines/componentLayoutEngine";
-import { domDrawEngine } from "./engines/drawEngine";
-import { debugDrawEngine } from "./engines/debugDrawEngine";
+import { defaultGraphLayoutEngine } from "./engines/graphLayoutEngine.js";
+import { defaultDensityEngine } from "./engines/densityEngine.js";
+import { defaultVisibilityEngine } from "./engines/visibilityEngine.js";
+import { defaultComponentLayoutEngine } from "./engines/componentLayoutEngine.js";
+import { domDrawEngine } from "./engines/drawEngine.js";
+import { debugDrawEngine } from "./engines/debugDrawEngine.js";
 
 const DEFAULT_CAMERA: CameraState = {
   x: 0,

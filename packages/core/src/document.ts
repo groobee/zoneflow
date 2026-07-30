@@ -1,5 +1,5 @@
-import type { UniverseLayoutModel, UniverseModel } from "./types";
-import { validateUniverseModel } from "./validation";
+import type { UniverseLayoutModel, UniverseModel } from "./types.js";
+import { validateUniverseModel } from "./validation.js";
 
 export const ZONEFLOW_DOCUMENT_KIND = "zoneflow/universe";
 export const ZONEFLOW_DOCUMENT_VERSION = 1;

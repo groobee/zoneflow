@@ -4,8 +4,8 @@ import type {
   UniverseModel,
   Zone,
 } from "@zoneflow/core";
-import { defaultGraphLayoutEngine } from "./graphLayoutEngine";
-import { defaultVisibilityEngine } from "./visibilityEngine";
+import { defaultGraphLayoutEngine } from "./graphLayoutEngine.js";
+import { defaultVisibilityEngine } from "./visibilityEngine.js";
 
 function zone(id: string, over: Partial<Zone> = {}): Zone {
   return {

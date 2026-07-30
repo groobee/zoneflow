@@ -4,8 +4,8 @@ import type {
   ZoneAction,
   ZoneId,
   ZoneType,
-} from "./types";
-import { createZoneId } from "./ids";
+} from "./types.js";
+import { createZoneId } from "./ids.js";
 
 export type CanWrapZonesResult = {
   ok: boolean;

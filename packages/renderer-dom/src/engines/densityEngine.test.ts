@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defaultDensityEngine } from "./densityEngine";
-import { resolveTheme } from "../themes/defaultTheme";
-import type { GraphLayoutResult, RenderViewportInfo } from "../types";
+import { defaultDensityEngine } from "./densityEngine.js";
+import { resolveTheme } from "../themes/defaultTheme.js";
+import type { GraphLayoutResult, RenderViewportInfo } from "../types.js";
 
 const theme = resolveTheme(undefined);
 const viewportInfo: RenderViewportInfo = {

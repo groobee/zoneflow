@@ -82,11 +82,11 @@ import {
 import type {
   PathSlotComponentMap,
   ZoneSlotComponentMap,
-} from "../slots/slotComponents";
+} from "../slots/slotComponents.js";
 import {
   resolvePermissions,
   type EditorPermissions,
-} from "./editorPermissions";
+} from "./editorPermissions.js";
 import {
   formatDeleteSelectionLabel,
   formatDeleteTargetLabel,
@@ -99,7 +99,7 @@ import {
   getZoneflowEditorStrings,
   resolveEditorLocale,
   type SelectionCommandKey,
-} from "./strings";
+} from "./strings.js";
 import {
   resolveEditorTheme,
   type ZoneflowEditorTheme,
@@ -113,7 +113,7 @@ import type {
   ResolveZoneResize,
   ZoneEditorRenderProps,
   ZoneOverlayRenderProps,
-} from "./editorRenderProps";
+} from "./editorRenderProps.js";
 
 /**
  * 선택 툴바에서 종류(정렬 / 분배 / 순서 / 커스텀 / 삭제)별 그룹을 가르는 얇은 세로

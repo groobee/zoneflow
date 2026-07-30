@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTheme } from "./themes/defaultTheme";
+import { resolveTheme } from "./themes/defaultTheme.js";
 
 describe("resolveTheme — customizable density thresholds", () => {
   it("merges a partial zone threshold set over the defaults", () => {

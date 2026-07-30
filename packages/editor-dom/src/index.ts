@@ -1,9 +1,9 @@
-export * from "./zoneMoveEditor";
-export * from "./pathCreateEditor";
-export * from "./pathHitTest";
-export * from "./zOrderEditor";
-export * from "./floatingLayout";
-export * from "./theme";
+export * from "./zoneMoveEditor.js";
+export * from "./pathCreateEditor.js";
+export * from "./pathHitTest.js";
+export * from "./zOrderEditor.js";
+export * from "./floatingLayout.js";
+export * from "./theme.js";
 export {
   alignPathsByMode,
   alignZonesByMode,
@@ -16,9 +16,9 @@ export {
   resolveZonePlacementAtWorldRect,
   resolvePathResizeOrigin,
   resizePathNodeByScreenDelta,
-} from "./zoneMoveEditor";
-export type { PathResizeOrigin } from "./zoneMoveEditor";
+} from "./zoneMoveEditor.js";
+export type { PathResizeOrigin } from "./zoneMoveEditor.js";
 export {
   resolvePathOutputAnchorScreenRect,
   retargetPathFromOutputAnchorDrag,
-} from "./pathCreateEditor";
+} from "./pathCreateEditor.js";

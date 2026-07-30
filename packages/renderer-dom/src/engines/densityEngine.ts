@@ -2,7 +2,7 @@ import type {
   DensityEngine,
   DensityLevel,
   PathVisualMode,
-} from "../types";
+} from "../types.js";
 
 function getZoneDensity(
   size: number,

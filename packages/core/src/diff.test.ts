@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { diffUniverseLayoutModels, diffUniverseModels } from "./diff";
+import { diffUniverseLayoutModels, diffUniverseModels } from "./diff.js";
 import {
   createUniverseLayoutModel,
   createZoneLayout,
   pruneLayoutModel,
   updatePathLayout,
   updateZoneLayout,
-} from "./layout";
+} from "./layout.js";
 import {
   createZone,
   removeEmptyPaths,
   removeZone,
   reorderPaths,
   setPathTarget,
-} from "./mutation";
-import type { Path, UniverseModel, Zone } from "./types";
+} from "./mutation.js";
+import type { Path, UniverseModel, Zone } from "./types.js";
 
 function zone(id: string, over: Partial<Zone> = {}): Zone {
   return {

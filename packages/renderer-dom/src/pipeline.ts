@@ -5,7 +5,7 @@ import type {
   RenderPipelineInput,
   RenderPipelineResult,
   VisibilityEngine,
-} from "./types";
+} from "./types.js";
 
 export type RenderPipelineEngines = {
   graphLayoutEngine: GraphLayoutEngine;

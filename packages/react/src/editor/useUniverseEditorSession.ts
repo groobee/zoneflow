@@ -6,7 +6,7 @@ import {
   type UniverseModel,
   type ZoneId,
 } from "@zoneflow/core";
-import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay";
+import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay.js";
 
 /** Target size for {@link useUniverseEditorSession}'s `resizeZone`. */
 export type ZoneSizeInput = {

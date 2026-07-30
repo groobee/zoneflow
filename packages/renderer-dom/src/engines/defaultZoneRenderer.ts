@@ -6,18 +6,18 @@ import type {
   ZoneComponentRendererContext,
   ZoneComponentSlotName,
   ZoneVisualNode,
-} from "../types";
+} from "../types.js";
 import type {
   ResolvedZoneShape,
   ZoneResolveContext,
   ZoneStyleOverride,
-} from "../zoneShape";
+} from "../zoneShape.js";
 import {
   ZONE_CLIP_SHADOW,
   applyStyles,
   createSurfaceChrome,
   toLocalRect,
-} from "./drawShared";
+} from "./drawShared.js";
 
 /**
  * 라이브러리가 기본 제공하는 zone 카드의 슬롯 기본 내용(title / type / badge /

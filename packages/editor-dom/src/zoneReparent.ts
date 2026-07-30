@@ -22,12 +22,12 @@ import {
   getRectArea,
   roundCoordinate,
   typedValues,
-} from "./moveEditorShared";
+} from "./moveEditorShared.js";
 import {
   ROOT_WORLD_ORIGIN,
   resolveWorldZoneOrigin,
   resolveWorldZoneRect,
-} from "./zoneGeometry";
+} from "./zoneGeometry.js";
 
 /**
  * 주어진 월드 포인트를 품는 가장 깊은 컨테이너(= 그 자리에 드롭하면 부모가

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveEditorTheme } from "./theme";
+import { resolveEditorTheme } from "./theme.js";
 
 describe("resolveEditorTheme — dialog follows the theme", () => {
   it("derives the dialog tone from the theme's HUD when no dialog is given", () => {

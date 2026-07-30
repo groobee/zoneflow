@@ -3,7 +3,7 @@ import type { Path, UniverseModelDiff, Zone } from "@zoneflow/core";
 import {
   createDiffDecorations,
   DIFF_DECORATION_COLORS,
-} from "./diffDecorations";
+} from "./diffDecorations.js";
 
 function emptyDiff(): UniverseModelDiff {
   return {

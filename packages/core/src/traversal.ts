@@ -1,4 +1,4 @@
-import type { UniverseModel, Zone, ZoneId } from "./types";
+import type { UniverseModel, Zone, ZoneId } from "./types.js";
 
 export function walkZonesDepthFirst(
   model: UniverseModel,

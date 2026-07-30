@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyLocalScale } from "./layout";
-import type { UniverseLayoutModel, UniverseModel, Zone } from "./types";
+import { applyLocalScale } from "./layout.js";
+import type { UniverseLayoutModel, UniverseModel, Zone } from "./types.js";
 
 function zone(id: string, parentZoneId: string | null = null): Zone {
   return {

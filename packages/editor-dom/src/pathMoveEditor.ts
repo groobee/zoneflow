@@ -19,7 +19,7 @@ import {
   type PathDistributeMode,
   type PathMoveOriginSnapshot,
   type PathResizeOrigin,
-} from "./moveEditorShared";
+} from "./moveEditorShared.js";
 
 export type PathNodeSnapshot = {
   pathId: PathId;

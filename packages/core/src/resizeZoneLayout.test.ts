@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resizeZoneLayout } from "./layout";
-import type { UniverseLayoutModel } from "./types";
+import { resizeZoneLayout } from "./layout.js";
+import type { UniverseLayoutModel } from "./types.js";
 
 function layoutModel(): UniverseLayoutModel {
   return {

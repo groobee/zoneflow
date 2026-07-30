@@ -1,4 +1,4 @@
-import type { Zone, ZoneSlotDef } from "./types";
+import type { Zone, ZoneSlotDef } from "./types.js";
 
 export function canZoneContainChildren(
   zone: Pick<Zone, "zoneType"> | null | undefined

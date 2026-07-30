@@ -1,9 +1,9 @@
 import type {
   UniverseModel,
   ZoneId,
-} from "./types";
-import { getZone } from "./lookup";
-import { remapSubtreeIds } from "./remap";
+} from "./types.js";
+import { getZone } from "./lookup.js";
+import { remapSubtreeIds } from "./remap.js";
 
 export type CloneZoneSubtreeOptions = {
   nextParentZoneId?: ZoneId | null;

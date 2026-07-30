@@ -3,7 +3,7 @@ import {
   edgeSegmentsToPathD,
   getEdgeSegments,
   sampleEdgePolyline,
-} from "./edgeGeometry";
+} from "./edgeGeometry.js";
 
 describe("edgeGeometry — 연결선 기하 단일 소스", () => {
   it("straight 는 단일 직선 세그먼트", () => {

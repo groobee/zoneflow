@@ -1,5 +1,5 @@
-import type { EdgeVisual, PathVisibility } from "../types";
-import type { ZoneflowTheme } from "../theme";
+import type { EdgeVisual, PathVisibility } from "../types.js";
+import type { ZoneflowTheme } from "../theme.js";
 
 export type EdgeFlowMotion = {
   durationMs: number;

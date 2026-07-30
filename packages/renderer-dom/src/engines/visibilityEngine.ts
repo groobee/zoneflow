@@ -4,7 +4,7 @@ import type {
   VisibilityEmphasis,
   VisibilityEngine,
   ZoneVisibility,
-} from "../types";
+} from "../types.js";
 
 function intersects(a: Rect, b: Rect): boolean {
   return !(

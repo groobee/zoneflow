@@ -3,7 +3,7 @@ import type { RendererFrame } from "@zoneflow/renderer-dom";
 import {
   resolvePathAtScreenPoint,
   resolvePolylineMidpoint,
-} from "./pathHitTest";
+} from "./pathHitTest.js";
 
 const CAMERA = { x: 0, y: 0, zoom: 1 };
 

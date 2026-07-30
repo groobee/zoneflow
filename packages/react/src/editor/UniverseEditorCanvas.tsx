@@ -14,17 +14,17 @@ import {
   UniverseCanvas,
   type UniverseCanvasFocusZoneOptions,
   type UniverseCanvasProps,
-} from "../canvas/UniverseCanvas";
+} from "../canvas/UniverseCanvas.js";
 import {
   getGridToggleLabel,
   getGridSnapToggleLabel,
   getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
   resolveEditorLocale,
-} from "./strings";
-import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay";
+} from "./strings.js";
+import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay.js";
 import { resolveEditorTheme } from "@zoneflow/editor-dom";
-import type { UniverseEditorController } from "./useUniverseEditor";
+import type { UniverseEditorController } from "./useUniverseEditor.js";
 
 type ControlledZoneMoveEditorConfig = Omit<
   ZoneMoveEditorConfig,

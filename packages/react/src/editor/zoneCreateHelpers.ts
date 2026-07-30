@@ -11,7 +11,7 @@ import {
   type ZoneId,
 } from "@zoneflow/core";
 import { resolveZonePlacementAtWorldRect } from "@zoneflow/editor-dom";
-import type { UniverseEditorGridSize } from "./useUniverseEditor";
+import type { UniverseEditorGridSize } from "./useUniverseEditor.js";
 
 export type ZoneDropTemplate = {
   name: string;

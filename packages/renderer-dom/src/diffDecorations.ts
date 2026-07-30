@@ -4,12 +4,12 @@ import type {
   ResolvePathColor,
   ResolvePathLineColor,
   ResolvePathStyle,
-} from "./types";
+} from "./types.js";
 import type {
   ResolveZoneColor,
   ResolveZoneStyle,
   ZoneStyleOverride,
-} from "./zoneShape";
+} from "./zoneShape.js";
 
 export type DiffDecorationStatus = "removed" | "added" | "changed";
 

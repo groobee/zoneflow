@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { UniverseLayoutModel, UniverseModel, ZoneId } from "@zoneflow/core";
-import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay";
+import type { EditorTransactionMeta } from "./ZoneMoveEditorOverlay.js";
 import {
   useUniverseEditorSession,
   type ZoneSizeInput,
-} from "./useUniverseEditorSession";
+} from "./useUniverseEditorSession.js";
 
 export type UniverseEditorGridSize = 8 | 12 | 16 | 24;
 

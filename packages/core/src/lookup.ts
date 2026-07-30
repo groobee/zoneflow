@@ -1,4 +1,4 @@
-import type { UniverseModel, Zone, ZoneId, Path, PathId } from "./types";
+import type { UniverseModel, Zone, ZoneId, Path, PathId } from "./types.js";
 
 export function getZone(
   model: UniverseModel,

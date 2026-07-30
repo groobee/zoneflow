@@ -1,26 +1,26 @@
-export * from "./theme";
-export * from "./themes/defaultTheme";
-export * from "./types";
-export * from "./zoneShape";
-export * from "./diffDecorations";
-export * from "./anchors";
-export * from "./pipeline";
-export * from "./renderer";
+export * from "./theme.js";
+export * from "./themes/defaultTheme.js";
+export * from "./types.js";
+export * from "./zoneShape.js";
+export * from "./diffDecorations.js";
+export * from "./anchors.js";
+export * from "./pipeline.js";
+export * from "./renderer.js";
 
-export * from "./engines/graphLayoutEngine";
+export * from "./engines/graphLayoutEngine.js";
 export {
   edgeSegmentsToPathD,
   getEdgeSegments,
   sampleEdgePolyline,
   type EdgeGeometrySegment,
-} from "./engines/edgeGeometry";
+} from "./engines/edgeGeometry.js";
 export {
   resolveDrawableEdgeSegments,
   type DrawableEdgeSegment,
-} from "./engines/edgeFlow";
-export * from "./engines/densityEngine";
-export * from "./engines/visibilityEngine";
-export * from "./engines/componentLayoutEngine";
-export * from "./engines/defaultZoneRenderer";
-export * from "./engines/drawEngine";
-export * from "./engines/debugDrawEngine";
+} from "./engines/edgeFlow.js";
+export * from "./engines/densityEngine.js";
+export * from "./engines/visibilityEngine.js";
+export * from "./engines/componentLayoutEngine.js";
+export * from "./engines/defaultZoneRenderer.js";
+export * from "./engines/drawEngine.js";
+export * from "./engines/debugDrawEngine.js";

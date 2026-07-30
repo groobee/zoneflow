@@ -7,7 +7,7 @@ import {
   type ZoneId,
 } from "@zoneflow/core";
 import type { Rect } from "@zoneflow/renderer-dom";
-import { roundCoordinate } from "./moveEditorShared";
+import { roundCoordinate } from "./moveEditorShared.js";
 
 export const ROOT_WORLD_ORIGIN: Point = { x: 0, y: 0 };
 

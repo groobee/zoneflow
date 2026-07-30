@@ -9,7 +9,7 @@ import type {
   Zone,
   ZoneId,
   ZoneLayout,
-} from "./types";
+} from "./types.js";
 
 export type CreateUniverseLayoutModelInput = {
   universeId: UniverseId;

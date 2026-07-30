@@ -3,9 +3,9 @@ import type {
   Zone,
   ZoneId,
   Path,
-} from "./types";
-import { createPathId, createZoneId } from "./ids";
-import { flattenSubtree } from "./traversal";
+} from "./types.js";
+import { createPathId, createZoneId } from "./ids.js";
+import { flattenSubtree } from "./traversal.js";
 
 export type ExternalTargetPolicy =
   | "preserve"

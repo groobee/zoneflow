@@ -6,15 +6,15 @@ import {
   resolveZoneSlotRegions,
   updateZoneLayout,
   DEFAULT_ZONE_SLOT_WIDTH,
-} from "./layout";
-import { detachPathsTargetingZone, moveZone } from "./mutation";
+} from "./layout.js";
+import { detachPathsTargetingZone, moveZone } from "./mutation.js";
 import {
   getEffectiveZoneSlot,
   isZoneInputEnabled,
   zoneDeclaresSlots,
-} from "./zoneCapabilities";
-import { validateUniverseModel } from "./validation";
-import type { Path, UniverseModel, Zone, ZoneSlotDef } from "./types";
+} from "./zoneCapabilities.js";
+import { validateUniverseModel } from "./validation.js";
+import type { Path, UniverseModel, Zone, ZoneSlotDef } from "./types.js";
 
 const PARALLEL_SLOT: ZoneSlotDef = {
   key: "parallel",

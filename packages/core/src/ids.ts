@@ -1,4 +1,4 @@
-import type { UniverseId, ZoneId, PathId } from "./types";
+import type { UniverseId, ZoneId, PathId } from "./types.js";
 import { v7 as uuidv7 } from "uuid";
 
 export function createUniverseId(): UniverseId {

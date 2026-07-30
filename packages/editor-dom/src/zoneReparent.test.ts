@@ -12,11 +12,11 @@ import {
 import {
   commitZoneSlotMembership,
   resolveZoneDropPlacement,
-} from "./zoneReparent";
+} from "./zoneReparent.js";
 import {
   followSlotSnapPointsAfterResize,
   snapZonesToSlotPoints,
-} from "./zoneMoveEditor";
+} from "./zoneMoveEditor.js";
 
 const PARALLEL_SLOT: ZoneSlotDef = {
   key: "parallel",

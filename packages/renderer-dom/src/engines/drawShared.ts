@@ -1,4 +1,4 @@
-import type { Rect, RendererDrawInput } from "../types";
+import type { Rect, RendererDrawInput } from "../types.js";
 
 /**
  * 저수준 DOM 그리기 헬퍼들. drawEngine(라이브러리 코어)과 defaultZoneRenderer

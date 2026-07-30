@@ -19,7 +19,7 @@ import type {
   Rect,
   ResolvePathDisplay,
   ZoneVisualNode,
-} from "../types";
+} from "../types.js";
 
 export const DEFAULT_PATH_NODE_WIDTH = 120;
 export const DEFAULT_PATH_NODE_HEIGHT = 32;

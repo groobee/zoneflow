@@ -7,7 +7,7 @@ import type {
   Rect,
   ZoneComponentLayout,
   DensityLevel,
-} from "../types";
+} from "../types.js";
 
 const ZONE_PADDING_X = 12;
 const ZONE_PADDING_Y = 10;

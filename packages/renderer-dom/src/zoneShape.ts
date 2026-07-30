@@ -1,5 +1,5 @@
 import type { Zone } from "@zoneflow/core";
-import type { DensityLevel } from "./types";
+import type { DensityLevel } from "./types.js";
 
 /**
  * Context passed to every per-zone resolver so they can vary the result by

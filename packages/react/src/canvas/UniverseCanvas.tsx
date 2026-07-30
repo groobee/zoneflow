@@ -48,12 +48,12 @@ import {
   CAMERA_MAX_ZOOM,
   CAMERA_MIN_ZOOM,
   useCameraControls,
-} from "../controls/useCameraControls";
+} from "../controls/useCameraControls.js";
 import {
   type ZoneMoveEditorConfig,
   ZoneMoveEditorOverlay,
-} from "../editor/ZoneMoveEditorOverlay";
-import {resolvePermissions} from "../editor/editorPermissions";
+} from "../editor/ZoneMoveEditorOverlay.js";
+import {resolvePermissions} from "../editor/editorPermissions.js";
 import {
   type BackgroundComponent,
   type PathSlotComponentMap,
@@ -63,7 +63,7 @@ import {
   type ResolveZoneOverlayComponent,
   SlotPortals,
   type ZoneSlotComponentMap,
-} from "../slots/slotComponents";
+} from "../slots/slotComponents.js";
 
 export type UniverseCanvasProps = {
   model: UniverseModel;

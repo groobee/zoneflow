@@ -23,7 +23,7 @@ import {
   type ResolveZoneShape,
   type ZoneAnchorRenderMode,
 } from "@zoneflow/renderer-dom";
-import type { GridSnapOptions } from "./zoneMoveEditor";
+import type { GridSnapOptions } from "./zoneMoveEditor.js";
 
 export type CanConnectPathParams = {
   mode: "create" | "retarget";

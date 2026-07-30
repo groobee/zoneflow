@@ -4,7 +4,7 @@ import type { RendererFrame } from "@zoneflow/renderer-dom";
 import {
   createPathFromOutputAnchorDrag,
   createPathFromZone,
-} from "./pathCreateEditor";
+} from "./pathCreateEditor.js";
 
 const NODE_W = 120;
 const NODE_H = 32;

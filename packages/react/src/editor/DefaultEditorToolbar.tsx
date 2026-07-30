@@ -5,9 +5,9 @@ import {
   getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
   resolveEditorLocale,
-} from "./strings";
+} from "./strings.js";
 import { resolveEditorTheme, type ZoneflowEditorThemeInput } from "@zoneflow/editor-dom";
-import type { UniverseEditorController } from "./useUniverseEditor";
+import type { UniverseEditorController } from "./useUniverseEditor.js";
 
 const groupStyle: CSSProperties = {
   display: "flex",

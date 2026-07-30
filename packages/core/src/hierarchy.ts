@@ -1,4 +1,4 @@
-import type { UniverseModel, ZoneId } from "./types";
+import type { UniverseModel, ZoneId } from "./types.js";
 
 export function isRootZone(
   model: UniverseModel,

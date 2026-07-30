@@ -1,5 +1,5 @@
 import type { Point } from "@zoneflow/core";
-import type { PathLineShape } from "../types";
+import type { PathLineShape } from "../types.js";
 
 /**
  * 연결선(엣지) 기하의 단일 소스. drawEngine 이 그리는 SVG path 와 에디터의

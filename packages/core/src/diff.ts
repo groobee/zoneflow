@@ -7,7 +7,7 @@ import type {
   Zone,
   ZoneId,
   ZoneLayout,
-} from "./types";
+} from "./types.js";
 
 /**
  * One field-level change: the changed `field` name plus the raw `before` and

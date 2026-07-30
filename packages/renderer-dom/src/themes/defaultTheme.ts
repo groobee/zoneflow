@@ -1,5 +1,5 @@
-import type { ZoneflowTheme, ZoneflowThemeInput } from "../theme";
-import { ZONE_CLIP_SHADOW } from "../engines/drawShared";
+import type { ZoneflowTheme, ZoneflowThemeInput } from "../theme.js";
+import { ZONE_CLIP_SHADOW } from "../engines/drawShared.js";
 
 /**
  * 기본 테마 (모든 필수 값 포함)

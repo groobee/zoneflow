@@ -1,5 +1,5 @@
-import type { UniverseModel, Path, Zone, ZoneId } from "./types";
-import { getPaths } from "./lookup";
+import type { UniverseModel, Path, Zone, ZoneId } from "./types.js";
+import { getPaths } from "./lookup.js";
 
 export function resolvePathTarget(
   model: UniverseModel,

@@ -1,5 +1,5 @@
-import type { UniverseModel, ZoneId } from "./types";
-import { getParentZone, getZone } from "./lookup";
+import type { UniverseModel, ZoneId } from "./types.js";
+import { getParentZone, getZone } from "./lookup.js";
 
 export type UnwrapZoneResult = {
   model: UniverseModel;

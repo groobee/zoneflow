@@ -8,14 +8,14 @@ import type {
   DebugLayer,
   RendererDrawInput,
   Rect,
-} from "../types";
+} from "../types.js";
 import {
   appendEdgeFlowStyle,
   resolveCollapsedEdgeStroke,
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
-} from "./edgeFlow";
-import { defaultTheme } from "../themes/defaultTheme";
+} from "./edgeFlow.js";
+import { defaultTheme } from "../themes/defaultTheme.js";
 
 export type DebugDrawInput = RendererDrawInput & {
   layers?: DebugLayer[];
