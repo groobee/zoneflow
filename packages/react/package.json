@@ -1,6 +1,6 @@
 {
   "name": "@zoneflow/react",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "license": "MIT",
   "description": "React renderer and editor components for Zoneflow.",
   "type": "module",
