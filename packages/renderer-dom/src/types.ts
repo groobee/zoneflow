@@ -666,6 +666,13 @@ export type RendererFrame = {
 
 export type GraphLayoutEngine = {
   compute(input: RenderPipelineInput): GraphLayoutResult;
+  /**
+   * compute() 가 `camera`·`viewportInfo` 를 읽지 않는다는 엔진의 선언. true 면
+   * 렌더러가 나머지 입력의 참조 동일성으로 결과를 캐시해, 카메라만 바뀐 프레임
+   * 에서 재계산을 건너뛴다. 미선언이면 매 프레임 재계산한다 — 카메라를 읽는
+   * 엔진이 캐시에 걸리면 레이아웃이 굳어버리므로 옵트인이 기본값이다.
+   */
+  readonly cameraIndependent?: boolean;
 };
 
 export type DensityEngine = {
@@ -673,6 +680,12 @@ export type DensityEngine = {
     base: RenderPipelineInput;
     graphLayout: GraphLayoutResult;
   }): DensityResult;
+  /**
+   * compute() 가 카메라 중 `zoom` 만 읽고 `x`/`y`·`viewportInfo` 는 읽지 않는다는
+   * 선언. true 면 줌이 그대로인 팬 프레임에서 재계산을 건너뛴다. 판정 근거는
+   * {@link GraphLayoutEngine.cameraIndependent} 와 같다.
+   */
+  readonly zoomOnly?: boolean;
 };
 
 export type VisibilityEngine = {

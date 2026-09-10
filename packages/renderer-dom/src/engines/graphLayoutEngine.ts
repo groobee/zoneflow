@@ -416,6 +416,9 @@ function createEdgeVisuals(params: {
 }
 
 export const defaultGraphLayoutEngine: GraphLayoutEngine = {
+  // compute() 가 읽는 입력은 model·layoutModel·resolvePathDisplay 뿐이다.
+  cameraIndependent: true,
+
   compute(input): GraphLayoutResult {
     const { model, layoutModel } = input;
 

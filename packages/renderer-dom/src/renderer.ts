@@ -9,8 +9,10 @@ import type {
   WorldViewportRect,
   ZoneflowRenderer,
 } from "./types.js";
+import type { ZoneflowTheme } from "./theme.js";
 import { resolveTheme } from "./themes/defaultTheme.js";
 import { runRenderPipeline } from "./pipeline.js";
+import { createPipelineFrontCache } from "./pipelineCache.js";
 
 import { defaultGraphLayoutEngine } from "./engines/graphLayoutEngine.js";
 import { defaultDensityEngine } from "./engines/densityEngine.js";
@@ -96,6 +98,21 @@ function resolveViewportInfo(
 
 export function createRenderer(): ZoneflowRenderer {
   let host: HTMLElement | null = null;
+  const frontCache = createPipelineFrontCache();
+  let cachedThemeInput: RendererInput["theme"] | undefined;
+  let cachedResolvedTheme: ZoneflowTheme | null = null;
+
+  function resolveThemeCached(theme: RendererInput["theme"]): ZoneflowTheme {
+    // resolveTheme 은 매번 새 객체를 만든다 — 참조가 바뀌면 프레임 간 캐시 키가
+    // 전부 빗나가므로 입력 참조가 같으면 결과 참조도 유지한다.
+    if (cachedResolvedTheme && cachedThemeInput === theme) {
+      return cachedResolvedTheme;
+    }
+    const resolved = resolveTheme(theme);
+    cachedThemeInput = theme;
+    cachedResolvedTheme = resolved;
+    return resolved;
+  }
 
   return {
     mount(container) {
@@ -141,7 +158,7 @@ export function createRenderer(): ZoneflowRenderer {
         debug,
       } = input;
 
-      const mergedTheme = resolveTheme(theme);
+      const mergedTheme = resolveThemeCached(theme);
       const viewportInfo = resolveViewportInfo(host, camera, input);
 
       const pipeline = runRenderPipeline(
@@ -155,8 +172,16 @@ export function createRenderer(): ZoneflowRenderer {
           resolvePathDisplay,
         },
         {
-          graphLayoutEngine,
-          densityEngine,
+          // 앞 두 단계는 카메라 의존도가 낮아 프레임 간 재사용이 가능하다 —
+          // 엔진이 그렇다고 선언한 경우에만 걸린다(computeGraphLayout/computeDensity).
+          graphLayoutEngine: {
+            compute: (pipelineInput) =>
+              frontCache.computeGraphLayout(graphLayoutEngine, pipelineInput),
+          },
+          densityEngine: {
+            compute: ({ base, graphLayout }) =>
+              frontCache.computeDensity(densityEngine, base, graphLayout),
+          },
           visibilityEngine,
           componentLayoutEngine,
         }
@@ -230,6 +255,9 @@ export function createRenderer(): ZoneflowRenderer {
         host.innerHTML = "";
       }
       host = null;
+      frontCache.reset();
+      cachedThemeInput = undefined;
+      cachedResolvedTheme = null;
     },
   };
 }

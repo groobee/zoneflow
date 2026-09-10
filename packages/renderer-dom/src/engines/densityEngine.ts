@@ -25,6 +25,9 @@ function getPathDensity(
 }
 
 export const defaultDensityEngine: DensityEngine = {
+  // 카메라에서 zoom 만 읽는다 — 존 크기 × zoom 이 임계값 어디에 걸리는가가 전부다.
+  zoomOnly: true,
+
   compute(input) {
     const { graphLayout, base } = input;
     const zoom = base.camera.zoom;
