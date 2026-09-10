@@ -32,6 +32,10 @@ import {
   type PlaygroundThemePresetId,
 } from "./theme/playgroundThemes";
 import type { WeatherBackgroundId } from "./components/renderers/customBackground";
+import {
+  nextPlaygroundPathLineShape,
+  type PlaygroundPathLineShape,
+} from "./palette/pathLineShape";
 
 /**
  * Zoneflow Playground (Sample App)
@@ -122,8 +126,10 @@ export default function App() {
     cols: number[];
     rows: number[];
   }>({ cols: [16, 5], rows: [14, 3] });
-  // 패스 연결선 모양 — 곡선(기본) ↔ 직선(resolvePathStyle 의 lineShape 주입 데모).
-  const [straightPaths, setStraightPaths] = useState(false);
+  // 패스 연결선 모양 — resolvePathStyle 의 lineShape 주입 데모. 곡선(기본) →
+  // 전방직선(전방은 직선·역방향은 곡선) → 직선(무조건 직선) 순으로 순환한다.
+  const [pathLineShape, setPathLineShape] =
+    useState<PlaygroundPathLineShape>("curved");
   const [editPermissionMode, setEditPermissionMode] =
     useState<EditPermissionMode>("full");
   const [themePresetId, setThemePresetId] = useState<PlaygroundThemePresetId>(
@@ -306,8 +312,10 @@ export default function App() {
         onToggleCellSnap={() => setCellSnapOn((v) => !v)}
         cellPattern={cellPattern}
         onCellPatternChange={setCellPattern}
-        straightPaths={straightPaths}
-        onToggleStraightPaths={() => setStraightPaths((v) => !v)}
+        pathLineShape={pathLineShape}
+        onCyclePathLineShape={() =>
+          setPathLineShape((prev) => nextPlaygroundPathLineShape(prev))
+        }
       />
       <LeftPanel isEditMode={isEditMode} themePreset={themePreset} />
 
@@ -328,7 +336,7 @@ export default function App() {
         onPathSelectionChange={setSelectedPathIds}
         cellSnapOn={cellSnapOn}
         cellPattern={cellPattern}
-        straightPaths={straightPaths}
+        pathLineShape={pathLineShape}
       />
 
       <RightPanel

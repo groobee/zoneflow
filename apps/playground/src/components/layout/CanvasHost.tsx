@@ -63,6 +63,7 @@ import {
 import { PlaygroundPathEditor } from "../editor/PlaygroundPathEditor";
 import type { PlaygroundThemePreset } from "../../theme/playgroundThemes";
 import type { CleanupPreviewData } from "../../cleanupPreview";
+import type { PlaygroundPathLineShape } from "../../palette/pathLineShape";
 
 /**
  * Special zones are drawn by shape, decided entirely here by the consumer.
@@ -241,8 +242,8 @@ type Props = {
   /** 셀 스냅(상단 툴바에서 제어) — on/off + 트랙 패턴(그리드 칸 수, 짝수=셀·홀수=거터). */
   cellSnapOn: boolean;
   cellPattern: { cols: number[]; rows: number[] };
-  /** 패스 연결선을 직선으로(resolvePathStyle 의 lineShape:"straight" 데모). */
-  straightPaths: boolean;
+  /** 패스 연결선 모양(resolvePathStyle 의 lineShape 주입 데모). */
+  pathLineShape: PlaygroundPathLineShape;
 };
 
 export function CanvasHost({
@@ -262,7 +263,7 @@ export function CanvasHost({
   onPathSelectionChange,
   cellSnapOn,
   cellPattern,
-  straightPaths,
+  pathLineShape,
 }: Props) {
   // density 기준을 바꾸려면 renderer theme 의 density 만 partial 로 덮어쓰면 됨.
   const rendererTheme: ZoneflowThemeInput = densityOverride
@@ -305,13 +306,13 @@ export function CanvasHost({
     [cleanupPreview]
   );
 
-  // 직선 패스 토글 시, 활성 resolvePathStyle 결과에 lineShape:"straight" 를 덧씌운다
-  // (점선 등 기존 스타일은 유지). 곡선이 기본이므로 꺼져 있으면 원래 리졸버 그대로.
+  // 연결선 모양 토글 시, 활성 resolvePathStyle 결과에 lineShape 를 덧씌운다
+  // (점선 등 기존 스타일은 유지). 곡선이 기본이므로 curved 면 원래 리졸버 그대로.
   const effectivePathStyle = useMemo<ResolvePathStyle>(() => {
     const base = cleanupResolvers?.resolvePathStyle ?? resolvePathStyle;
-    if (!straightPaths) return base;
-    return (path) => ({ ...(base(path) ?? undefined), lineShape: "straight" });
-  }, [cleanupResolvers, straightPaths]);
+    if (pathLineShape === "curved") return base;
+    return (path) => ({ ...(base(path) ?? undefined), lineShape: pathLineShape });
+  }, [cleanupResolvers, pathLineShape]);
 
   const editorCanvasRef = useRef<UniverseEditorCanvasHandle | null>(null);
   const handleJumpToZone = (zoneId: string) => {
