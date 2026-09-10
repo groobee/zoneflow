@@ -262,11 +262,20 @@ export type ResolvePathLineColor = (path: Path) => string | null | undefined;
 export type PathLineStyle = "solid" | "dashed" | "dotted";
 
 /**
- * Connector line geometry: `"curved"` (default) is a bezier that bends and
- * routes around when endpoints are close/overlapping; `"straight"` is a direct
- * source→target segment.
+ * Connector line geometry.
+ *
+ * - `"curved"` (default) — bezier that bends, and routes around a lane when the
+ *   target sits behind the source or there is no room to run forward.
+ * - `"straight"` — one direct source→target segment, ignoring anchor direction.
+ * - `"forwardStraight"` — straight where the run is forward, curved where it is
+ *   not: the short perpendicular lead out of the outlet and into the inlet is
+ *   kept (so the line still reads as attached to the anchor slab) and only the
+ *   span between them is straightened. Backward runs keep the `"curved"` lane
+ *   detour unchanged. With no vertical step the curved form is already exactly
+ *   straight, so this differs from `"curved"` only where the endpoints are
+ *   offset across the flow.
  */
-export type PathLineShape = "curved" | "straight";
+export type PathLineShape = "curved" | "straight" | "forwardStraight";
 
 export type PathStyleOverride = {
   /**
@@ -287,8 +296,9 @@ export type PathStyleOverride = {
    */
   lineStyle?: PathLineStyle;
   /**
-   * Connector line geometry — `"curved"` (default) or `"straight"`. Affects
-   * only the drawn connector path; anchor points and hit-testing are unchanged.
+   * Connector line geometry — see {@link PathLineShape}. Anchor points are
+   * unchanged, but the connector's own hit-testing follows this: the editor
+   * samples the same geometry it draws, so line clicks match the visible shape.
    */
   lineShape?: PathLineShape;
 };

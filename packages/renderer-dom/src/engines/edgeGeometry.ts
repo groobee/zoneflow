@@ -12,9 +12,17 @@ export type EdgeGeometrySegment =
   | { kind: "cubic"; c1: Point; c2: Point; to: Point };
 
 /**
- * source→target 연결선의 세그먼트 목록(시작점 제외). lineShape "straight" 는
- * 단일 직선, "curved"(기본)는 drawEngine 의 기존 규칙 그대로 — 가까우면 직선,
- * 역방향/근접이면 우회 레인, 그 외 리드선 + 큐빅.
+ * source→target 연결선의 세그먼트 목록(시작점 제외).
+ *
+ * - `"straight"` — 단일 직선(앵커 방향 무시).
+ * - `"curved"`(기본) — 가까우면 직선, 역방향/공간 부족이면 우회 레인, 그 외
+ *   리드선 + 큐빅.
+ * - `"forwardStraight"` — 앞 두 분기는 `"curved"` 와 같고, 전방 주행에서만
+ *   큐빅을 직선으로 바꾼다(리드선은 유지).
+ *
+ * 🔴 단차(교차축 오프셋)가 0 이면 `"curved"` 의 큐빅은 제어점이 같은 축에 놓여
+ * 이미 정확한 직선이다 — 그래서 두 모양은 **단차가 있을 때만** 갈린다. 전환
+ * 임계값을 두지 않는 근거가 이것이다(실측: 단차 2px → 이탈 0.6px 이하).
  */
 export function getEdgeSegments(params: {
   source: Point;
@@ -71,6 +79,16 @@ export function getEdgeSegments(params: {
         c2: { x: targetBendX, y: target.y },
         to: { x: targetApproachX, y: target.y },
       },
+      { kind: "line", to: target },
+    ];
+  }
+
+  // 여기부터는 앞으로 달릴 공간이 있는 전방 주행이다. 리드선 둘은 어느 모양이든
+  // 유지한다 — 앵커 슬래브에 수직으로 붙는 진입감이 여기서 나온다.
+  if (lineShape === "forwardStraight") {
+    return [
+      { kind: "line", to: { x: leadSourceX, y: source.y } },
+      { kind: "line", to: { x: targetApproachX, y: target.y } },
       { kind: "line", to: target },
     ];
   }
