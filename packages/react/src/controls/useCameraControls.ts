@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { CameraState } from "@zoneflow/renderer-dom";
+import { createFrameCoalescer } from "./frameCoalescer.js";
 
 type UseCameraControlsParams = {
   hostRef: RefObject<HTMLElement | null>;
@@ -112,6 +113,27 @@ export function useCameraControls({
     const host = hostRef.current;
     if (!host) return;
 
+    // 카메라 갱신 하나가 곧 캔버스 전체 redraw 다 — 포인터 이동은 프레임당
+    // 한 번으로 합친다. 팬/핀치는 제스처 시작값 기준 절대 계산이라 중간
+    // 이벤트를 버려도 최종 카메라가 같다(휠은 prev 누산이라 합치지 않는다).
+    const cameraFrame = createFrameCoalescer<
+      (prev: CameraState) => CameraState
+    >((updater) =>
+      setCamera((prev: CameraState) => {
+        const next = updater(prev);
+        // cameraRef 는 평소 렌더 후 effect 로 따라오는데, 제스처 경계(pointerdown ·
+        // 손가락 수 변화)는 그 전에 이 값을 기준점으로 읽는다 — 커밋 시점에 맞춰둔다.
+        cameraRef.current = next;
+        return next;
+      })
+    );
+
+    const flushPendingCamera = () => cameraFrame.flush();
+    const schedulePointerCamera = (
+      updater: (prev: CameraState) => CameraState
+    ) => cameraFrame.schedule(updater);
+    const cancelPendingCamera = () => cameraFrame.cancel();
+
     const updateIdleCursor = () => {
       if (panStateRef.current.isPanning) {
         host.style.cursor = "grabbing";
@@ -189,6 +211,10 @@ export function useCameraControls({
     };
 
     const handleWheel = (event: WheelEvent) => {
+      // 휠은 prev 누산이라 합치지 않는다. 다만 팬 중에 휠이 오면 미적용분을 먼저
+      // 흘려보내야 누산 기준이 뒤로 밀리지 않는다.
+      flushPendingCamera();
+
       const rect = host.getBoundingClientRect();
       const pointerX = event.clientX - rect.left;
       const pointerY = event.clientY - rect.top;
@@ -221,6 +247,10 @@ export function useCameraControls({
     };
 
     const handlePointerDown = (event: PointerEvent) => {
+      // 새 제스처의 기준점(startCameraX/startZoom)은 cameraRef 에서 읽는데, 그건
+      // 커밋된 카메라만 담는다 — 미적용분을 먼저 흘려보내야 기준점이 안 밀린다.
+      flushPendingCamera();
+
       activePointersRef.current.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
@@ -286,7 +316,7 @@ export function useCameraControls({
         const localMidX = currentMid.x - rect.left;
         const localMidY = currentMid.y - rect.top;
 
-        setCamera(() => {
+        schedulePointerCamera(() => {
           const zoomedCamera = zoomCameraAt({
             prev: {
               x: gesture.startCameraX,
@@ -320,7 +350,7 @@ export function useCameraControls({
       const deltaX = event.clientX - panState.startClientX;
       const deltaY = event.clientY - panState.startClientY;
 
-      setCamera((prev: CameraState) => ({
+      schedulePointerCamera((prev: CameraState) => ({
         ...prev,
         x: panState.startCameraX + deltaX,
         y: panState.startCameraY + deltaY,
@@ -328,6 +358,10 @@ export function useCameraControls({
     };
 
     const handlePointerEndLike = (event: PointerEvent) => {
+      // 제스처의 마지막 이동이 아직 프레임을 못 만났을 수 있다 — 버리면 최종
+      // 위치가 한 프레임 어긋난 채로 굳는다.
+      flushPendingCamera();
+
       activePointersRef.current.delete(event.pointerId);
 
       if (event.pointerType === "touch") {
@@ -373,6 +407,7 @@ export function useCameraControls({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
 
+      cancelPendingCamera();
       activePointersRef.current.clear();
       stopPointerPan();
       stopTouchGesture();
