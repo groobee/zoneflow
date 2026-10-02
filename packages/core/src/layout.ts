@@ -596,6 +596,7 @@ export function computeAutoLayoutForZoneTree(
   options: {
     paddingX?: number;
     paddingY?: number;
+    /** @deprecated No longer used — children are laid out in local coordinates. */
     verticalGap?: number;
     defaultWidth?: number;
     defaultHeight?: number;
@@ -604,7 +605,6 @@ export function computeAutoLayoutForZoneTree(
   const {
     paddingX = 32,
     paddingY = 24,
-    verticalGap = 24,
     defaultWidth = 160,
     defaultHeight = 100,
   } = options;
@@ -633,8 +633,9 @@ export function computeAutoLayoutForZoneTree(
     };
   }
 
-  const minChildX = Math.min(...childLayouts.map((layout) => layout.x));
-  const minChildY = Math.min(...childLayouts.map((layout) => layout.y));
+  // Child layouts are in this zone's local coordinates (origin = its
+  // top-left), so the zone only has to reach past the furthest child edge —
+  // its own x/y are untouched and a re-run on the result is stable.
   const maxChildX = Math.max(
     ...childLayouts.map((layout) => layout.x + (layout.width ?? defaultWidth))
   );
@@ -643,13 +644,10 @@ export function computeAutoLayoutForZoneTree(
   );
 
   return {
-    x: ownLayout?.x ?? minChildX - paddingX,
-    y: ownLayout?.y ?? minChildY - (ownHeight + verticalGap / 2),
-    width: Math.max(maxChildX - minChildX + paddingX * 2, ownWidth),
-    height: Math.max(
-      ownHeight + verticalGap + (maxChildY - minChildY) + paddingY * 2,
-      ownHeight
-    ),
+    x: ownLayout?.x ?? 0,
+    y: ownLayout?.y ?? 0,
+    width: Math.max(maxChildX + paddingX, ownWidth),
+    height: Math.max(maxChildY + paddingY, ownHeight),
     anchors: cloneAnchors(ownLayout?.anchors),
   };
 }

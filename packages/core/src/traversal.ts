@@ -5,13 +5,25 @@ export function walkZonesDepthFirst(
   zoneId: ZoneId,
   visit: (zone: Zone) => void
 ): void {
+  walkZonesDepthFirstOnce(model, zoneId, visit, new Set());
+}
+
+// Each zone is visited once, so a malformed model with a child cycle (which
+// validateUniverseModel reports) cannot recurse forever.
+function walkZonesDepthFirstOnce(
+  model: UniverseModel,
+  zoneId: ZoneId,
+  visit: (zone: Zone) => void,
+  seen: Set<ZoneId>
+): void {
   const zone = model.zonesById[zoneId];
-  if (!zone) return;
+  if (!zone || seen.has(zoneId)) return;
+  seen.add(zoneId);
 
   visit(zone);
 
   for (const childId of zone.childZoneIds) {
-    walkZonesDepthFirst(model, childId, visit);
+    walkZonesDepthFirstOnce(model, childId, visit, seen);
   }
 }
 

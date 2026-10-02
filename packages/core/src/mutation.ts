@@ -9,6 +9,9 @@ import type {
   PathId,
   ZoneRef,
 } from "./types.js";
+import { isDescendantZone } from "./hierarchy.js";
+import { findPathSourceZoneId } from "./lookup.js";
+import { getEffectiveZoneSlot } from "./zoneCapabilities.js";
 
 export type CreateZoneInput = {
   id: ZoneId;
@@ -137,6 +140,15 @@ export function moveZone(
 
   const prevParentZoneId = zone.parentZoneId;
   if (prevParentZoneId === nextParentZoneId) return model;
+  // Moving a zone under itself or one of its descendants would cut that
+  // subtree off from the roots as a parent cycle.
+  if (
+    nextParentZoneId !== null &&
+    (nextParentZoneId === zoneId ||
+      isDescendantZone(model, zoneId, nextParentZoneId))
+  ) {
+    return model;
+  }
 
   let nextModel = model;
 
@@ -189,11 +201,6 @@ export function moveZone(
     ? nextModel.zonesById[nextParentZoneId]
     : undefined;
   const movedZone = nextModel.zonesById[zoneId];
-  const keepsSlotKey = Boolean(
-    movedZone.slotKey &&
-      nextParent?.zoneType === "container" &&
-      nextParent.slots?.some((slot) => slot.key === movedZone.slotKey)
-  );
 
   return {
     ...nextModel,
@@ -202,7 +209,7 @@ export function moveZone(
       [zoneId]: {
         ...movedZone,
         parentZoneId: nextParentZoneId,
-        slotKey: keepsSlotKey ? movedZone.slotKey : undefined,
+        slotKey: getEffectiveZoneSlot(movedZone, nextParent)?.key,
       },
     },
   };
@@ -213,13 +220,15 @@ export function collectSubtreeZoneIds(
   zoneId: ZoneId
 ): ZoneId[] {
   const result: ZoneId[] = [];
+  const seen = new Set<ZoneId>();
   const stack: ZoneId[] = [zoneId];
 
   while (stack.length > 0) {
     const currentId = stack.pop()!;
     const current = model.zonesById[currentId];
-    if (!current) continue;
+    if (!current || seen.has(currentId)) continue;
 
+    seen.add(currentId);
     result.push(currentId);
     stack.push(...current.childZoneIds);
   }
@@ -234,7 +243,7 @@ export function removeZone(
   const zone = model.zonesById[zoneId];
   if (!zone) return model;
 
-  const zoneIdsToDelete = collectSubtreeZoneIds(model, zoneId);
+  const zoneIdsToDelete = new Set(collectSubtreeZoneIds(model, zoneId));
   const nextZonesById = { ...model.zonesById };
 
   for (const id of zoneIdsToDelete) {
@@ -242,7 +251,7 @@ export function removeZone(
   }
 
   const nextRootZoneIds = model.rootZoneIds.filter(
-    (id) => !zoneIdsToDelete.includes(id)
+    (id) => !zoneIdsToDelete.has(id)
   );
 
   if (zone.parentZoneId && nextZonesById[zone.parentZoneId]) {
@@ -254,11 +263,16 @@ export function removeZone(
     };
   }
 
-  return {
-    ...model,
-    rootZoneIds: nextRootZoneIds,
-    zonesById: nextZonesById,
-  };
+  // Paths elsewhere that pointed into the removed subtree become dangling
+  // instead of referencing zones that no longer exist.
+  return detachPathsTargetingZones(
+    {
+      ...model,
+      rootZoneIds: nextRootZoneIds,
+      zonesById: nextZonesById,
+    },
+    zoneIdsToDelete
+  );
 }
 
 export function addPath(
@@ -268,7 +282,9 @@ export function addPath(
 ): UniverseModel {
   const zone = model.zonesById[zoneId];
   if (!zone) return model;
-  if (zone.pathsById[input.id]) return model;
+  // Path ids are unique across the whole model — layouts and lookups such as
+  // findPathSourceZoneId key on the id alone.
+  if (findPathSourceZoneId(model, input.id)) return model;
 
   const newPath: Path = {
     id: input.id,
@@ -299,7 +315,7 @@ export function updatePath(
   model: UniverseModel,
   zoneId: ZoneId,
   pathId: PathId,
-  patch: Partial<Path>
+  patch: Partial<Omit<Path, "id">>
 ): UniverseModel {
   const zone = model.zonesById[zoneId];
   if (!zone) return model;
@@ -412,6 +428,17 @@ export function detachPathsTargetingZone(
   model: UniverseModel,
   zoneId: ZoneId
 ): UniverseModel {
+  return detachPathsTargetingZones(model, new Set([zoneId]));
+}
+
+/**
+ * {@link detachPathsTargetingZone} for a set of zones at once.
+ * @internal
+ */
+export function detachPathsTargetingZones(
+  model: UniverseModel,
+  zoneIds: ReadonlySet<ZoneId>
+): UniverseModel {
   let nextModel = model;
 
   for (const zone of Object.values(model.zonesById)) {
@@ -419,7 +446,7 @@ export function detachPathsTargetingZone(
       if (
         path.target &&
         path.target.universeId === model.universeId &&
-        path.target.zoneId === zoneId
+        zoneIds.has(path.target.zoneId)
       ) {
         nextModel = updatePath(nextModel, zone.id, path.id, { target: null });
       }
@@ -439,8 +466,9 @@ export function reorderPaths(
 
   const sameLength = zone.pathIds.length === nextPathIds.length;
   const allExist = nextPathIds.every((id) => Boolean(zone.pathsById[id]));
+  const noDuplicates = new Set(nextPathIds).size === nextPathIds.length;
 
-  if (!sameLength || !allExist) return model;
+  if (!sameLength || !allExist || !noDuplicates) return model;
 
   return {
     ...model,

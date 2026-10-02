@@ -6,6 +6,7 @@ import type {
 } from "./types.js";
 import { createPathId, createZoneId } from "./ids.js";
 import { flattenSubtree } from "./traversal.js";
+import { getEffectiveZoneSlot } from "./zoneCapabilities.js";
 
 export type ExternalTargetPolicy =
   | "preserve"
@@ -22,6 +23,8 @@ export type ImportZoneSubtreeResult = {
   model: UniverseModel;
   importedRootZoneId: ZoneId;
   zoneIdMap: Record<ZoneId, ZoneId>;
+  /** 원본 path ID → 새 path ID. 패스 레이아웃(routeOffset 등) 이관용. */
+  pathIdMap: Record<string, string>;
 };
 
 export function importZoneSubtree(
@@ -37,11 +40,17 @@ export function importZoneSubtree(
   } = options;
 
   const sourceRootZone = sourceModel.zonesById[sourceRootZoneId];
-  if (!sourceRootZone) {
+  const nextParent =
+    nextParentZoneId !== null
+      ? targetModel.zonesById[nextParentZoneId]
+      : undefined;
+  // 원본이 없거나 붙일 부모가 없으면 no-op (고아 zone 을 만들지 않는다)
+  if (!sourceRootZone || (nextParentZoneId !== null && !nextParent)) {
     return {
       model: targetModel,
       importedRootZoneId: sourceRootZoneId,
       zoneIdMap: {},
+      pathIdMap: {},
     };
   }
 
@@ -141,10 +150,11 @@ export function importZoneSubtree(
 
   const importedRootZoneId = zoneIdMap[sourceRootZoneId];
 
-  // 4) 가져온 루트 zone 이름/부모 수정
+  // 4) 가져온 루트 zone 이름/부모 수정 (새 부모가 선언하지 않은 슬롯 키는 뗀다)
   importedZonesById[importedRootZoneId] = {
     ...importedZonesById[importedRootZoneId],
     parentZoneId: nextParentZoneId,
+    slotKey: getEffectiveZoneSlot(sourceRootZone, nextParent)?.key,
     name: rename(sourceRootZone.name),
   };
 
@@ -160,12 +170,10 @@ export function importZoneSubtree(
     nextRootZoneIds.push(importedRootZoneId);
   } else {
     const parent = nextZonesById[nextParentZoneId];
-    if (parent) {
-      nextZonesById[nextParentZoneId] = {
-        ...parent,
-        childZoneIds: [...parent.childZoneIds, importedRootZoneId],
-      };
-    }
+    nextZonesById[nextParentZoneId] = {
+      ...parent,
+      childZoneIds: [...parent.childZoneIds, importedRootZoneId],
+    };
   }
 
   return {
@@ -176,6 +184,7 @@ export function importZoneSubtree(
     },
     importedRootZoneId,
     zoneIdMap,
+    pathIdMap,
   };
 }
 
@@ -193,6 +202,8 @@ export type ImportZoneSubgraphResult = {
   importedRootZoneIds: ZoneId[];
   /** 원본 zone ID → 새 zone ID. 레이아웃/후처리 매핑용. */
   zoneIdMap: Record<ZoneId, ZoneId>;
+  /** 원본 path ID → 새 path ID. 패스 레이아웃(routeOffset 등) 이관용. */
+  pathIdMap: Record<string, string>;
 };
 
 /**
@@ -233,8 +244,18 @@ export function importZoneSubgraph(
   };
   for (const zoneId of sourceZoneIds) collect(zoneId);
 
-  if (sourceZones.length === 0) {
-    return { model: targetModel, importedRootZoneIds: [], zoneIdMap: {} };
+  const nextParent =
+    nextParentZoneId !== null
+      ? targetModel.zonesById[nextParentZoneId]
+      : undefined;
+  // 가져올 것이 없거나 붙일 부모가 없으면 no-op (고아 zone 을 만들지 않는다)
+  if (sourceZones.length === 0 || (nextParentZoneId !== null && !nextParent)) {
+    return {
+      model: targetModel,
+      importedRootZoneIds: [],
+      zoneIdMap: {},
+      pathIdMap: {},
+    };
   }
 
   // 2) Zone/Path ID 재발급
@@ -315,6 +336,10 @@ export function importZoneSubgraph(
       id: nextZoneId,
       name: rename(sourceZone.name),
       parentZoneId: remappedParent ?? nextParentZoneId,
+      // 묶음 루트는 새 부모에 붙으므로 그 부모가 선언하지 않은 슬롯 키는 뗀다
+      slotKey: isRoot
+        ? getEffectiveZoneSlot(sourceZone, nextParent)?.key
+        : sourceZone.slotKey,
       childZoneIds: nextChildZoneIds,
       pathIds: nextPathIds,
       pathsById: nextPathsById,
@@ -332,12 +357,10 @@ export function importZoneSubgraph(
     nextRootZoneIds = [...nextRootZoneIds, ...importedRootZoneIds];
   } else {
     const parent = nextZonesById[nextParentZoneId];
-    if (parent) {
-      nextZonesById[nextParentZoneId] = {
-        ...parent,
-        childZoneIds: [...parent.childZoneIds, ...importedRootZoneIds],
-      };
-    }
+    nextZonesById[nextParentZoneId] = {
+      ...parent,
+      childZoneIds: [...parent.childZoneIds, ...importedRootZoneIds],
+    };
   }
 
   return {
@@ -348,5 +371,6 @@ export function importZoneSubgraph(
     },
     importedRootZoneIds,
     zoneIdMap,
+    pathIdMap,
   };
 }

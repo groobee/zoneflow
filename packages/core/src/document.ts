@@ -31,6 +31,32 @@ function assertUniverseShape(
   }
 }
 
+// Container shapes validateUniverseModel walks — checked first so a malformed
+// document fails with a readable error instead of a TypeError mid-validation.
+function validateModelShape(model: UniverseModel): string[] {
+  if (!Array.isArray(model.rootZoneIds)) {
+    return [`model.rootZoneIds must be an array`];
+  }
+  if (!isRecord(model.zonesById)) {
+    return [`model.zonesById must be an object`];
+  }
+
+  const errors: string[] = [];
+  for (const [zoneId, zone] of Object.entries(model.zonesById)) {
+    if (
+      !isRecord(zone) ||
+      !Array.isArray(zone.childZoneIds) ||
+      !Array.isArray(zone.pathIds) ||
+      !isRecord(zone.pathsById)
+    ) {
+      errors.push(
+        `model.zonesById["${zoneId}"] must be a zone with childZoneIds, pathIds and pathsById`
+      );
+    }
+  }
+  return errors;
+}
+
 function validateLayoutModel(layoutModel: UniverseLayoutModel): string[] {
   const errors: string[] = [];
 
@@ -106,13 +132,15 @@ export function readZoneflowDocument(input: unknown): ZoneflowDocument {
     );
   }
 
-  const modelErrors = validateUniverseModel(model);
+  const shapeErrors = validateModelShape(model);
+  const modelErrors =
+    shapeErrors.length > 0 ? shapeErrors : validateUniverseModel(model);
   const layoutErrors = validateLayoutModel(layoutModel);
   const errors = [...modelErrors, ...layoutErrors];
 
   if (errors.length > 0) {
     throw new Error(
-      `Invalid zoneflow document:\\n- ${errors.join("\\n- ")}`
+      `Invalid zoneflow document:\n- ${errors.join("\n- ")}`
     );
   }
 

@@ -12,10 +12,14 @@ export function getAncestorZoneIds(
   zoneId: ZoneId
 ): ZoneId[] {
   const result: ZoneId[] = [];
+  // A malformed model may hold a parent cycle (validateUniverseModel reports
+  // it) — stop at the first repeat instead of walking forever.
+  const seen = new Set<ZoneId>([zoneId]);
 
   let current = model.zonesById[zoneId];
 
-  while (current?.parentZoneId) {
+  while (current?.parentZoneId && !seen.has(current.parentZoneId)) {
+    seen.add(current.parentZoneId);
     result.push(current.parentZoneId);
     current = model.zonesById[current.parentZoneId];
   }

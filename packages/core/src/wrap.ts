@@ -113,9 +113,11 @@ export function wrapZonesWithNewParent(
     const zone = nextZonesById[zoneId];
     if (!zone) continue;
 
+    // 새 wrapper 는 슬롯을 선언하지 않으므로 기존 도킹 키는 떨어진다
     nextZonesById[zoneId] = {
       ...zone,
       parentZoneId: newZoneId,
+      slotKey: undefined,
     };
   }
 

@@ -28,6 +28,8 @@ export type ZoneFieldChange =
       | "outputDisabled"
       | "fixedWidth"
       | "fixedHeight"
+      | "minWidth"
+      | "minHeight"
       | "slots"
       | "slotKey"
       | "action"
@@ -38,6 +40,12 @@ export type ZoneFieldChange =
       field: "pathOrder";
       before: PathId[];
       after: PathId[];
+    }
+  | {
+      /** Relative order of the child zones kept on both sides changed. */
+      field: "childOrder";
+      before: ZoneId[];
+      after: ZoneId[];
     };
 
 export type PathFieldChange =
@@ -205,6 +213,20 @@ function diffZoneFields(before: Zone, after: Zone): ZoneFieldChange[] {
       after: after.fixedHeight,
     });
   }
+  if ((before.minWidth ?? null) !== (after.minWidth ?? null)) {
+    changes.push({
+      field: "minWidth",
+      before: before.minWidth,
+      after: after.minWidth,
+    });
+  }
+  if ((before.minHeight ?? null) !== (after.minHeight ?? null)) {
+    changes.push({
+      field: "minHeight",
+      before: before.minHeight,
+      after: after.minHeight,
+    });
+  }
   // Empty slot arrays count as absent, matching how readers treat them.
   if (
     !deepEqual(
@@ -238,6 +260,13 @@ function diffZoneFields(before: Zone, after: Zone): ZoneFieldChange[] {
       field: "pathOrder",
       before: [...before.pathIds],
       after: [...after.pathIds],
+    });
+  }
+  if (sharedOrderChanged(before.childZoneIds, after.childZoneIds)) {
+    changes.push({
+      field: "childOrder",
+      before: [...before.childZoneIds],
+      after: [...after.childZoneIds],
     });
   }
 
@@ -313,9 +342,10 @@ function collectPathsById(model: UniverseModel): Map<PathId, PathWithOwner> {
  * - `undefined` and `false` are one state for the optional zone flags, and
  *   `undefined`/`null`/`{}` are one state for `meta` — noise-free against
  *   models that round-tripped through JSON.
- * - `childZoneIds` is never compared: reparenting is already reported as a
- *   `parentZoneId` change on the child. Path/root *reorders* are reported
- *   (`pathOrder`/`rootOrder`) because order is meaningful when rendering.
+ * - `childZoneIds` membership is not compared: reparenting is already
+ *   reported as a `parentZoneId` change on the child. Path/child/root
+ *   *reorders* are reported (`pathOrder`/`childOrder`/`rootOrder`) because
+ *   order is meaningful when rendering.
  * - Layout (positions/sizes in `UniverseLayoutModel`) is out of scope; diff
  *   the layout model separately if placement changes matter to you.
  */
@@ -429,7 +459,7 @@ export function diffUniverseModels(
 
 export type ZoneLayoutFieldChange = FieldChangeEntry<
   ZoneLayout,
-  "x" | "y" | "width" | "height" | "zOrder" | "anchors"
+  "x" | "y" | "width" | "height" | "zOrder" | "anchors" | "slotLayoutsByKey"
 >;
 
 export type PathLayoutFieldChange = FieldChangeEntry<
@@ -493,6 +523,18 @@ function diffZoneLayoutFields(
       field: "anchors",
       before: before.anchors,
       after: after.anchors,
+    });
+  }
+  if (
+    !deepEqual(
+      normalizeEmptyObject(before.slotLayoutsByKey),
+      normalizeEmptyObject(after.slotLayoutsByKey)
+    )
+  ) {
+    changes.push({
+      field: "slotLayoutsByKey",
+      before: before.slotLayoutsByKey,
+      after: after.slotLayoutsByKey,
     });
   }
 
