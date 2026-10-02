@@ -1,0 +1,47 @@
+name: CI
+
+# 태그 배포(publish-npmjs.yml)와 별개로, 일반 push·PR 마다 같은 게이트를 돌린다.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 앱(apps/*)까지 빌드해 공개 API 변경이 예제를 깨뜨리는지도 본다.
+      - name: Build
+        run: pnpm -r build
+
+      - name: Type check
+        run: pnpm -r type-check
+
+      - name: Test
+        run: pnpm -r --filter "./packages/*" test
