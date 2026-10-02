@@ -97,9 +97,13 @@ import {
   getSelectionToolbarCountLabel,
   getTargetMetaStateLabel,
   getZoneflowEditorStrings,
-  resolveEditorLocale,
   type SelectionCommandKey,
 } from "./strings.js";
+import {
+  useEditorLocale,
+  useIsomorphicLayoutEffect,
+  useLatestRef,
+} from "../internal/hooks.js";
 import {
   resolveEditorTheme,
   type ZoneflowEditorTheme,
@@ -679,6 +683,8 @@ type DragState = {
   origin: MoveEditorDragOrigin;
   startClientX: number;
   startClientY: number;
+  /** Camera at pointerdown — see {@link resolveGestureScreenDelta}. */
+  startCamera: CameraState;
   hasMoved: boolean;
 };
 
@@ -687,6 +693,7 @@ type ResizeState = {
   origin: ZoneResizeOrigin;
   startClientX: number;
   startClientY: number;
+  startCamera: CameraState;
   lockWidth?: boolean;
   lockHeight?: boolean;
   minWidth?: number;
@@ -700,6 +707,7 @@ type PathResizeState = {
   origin: PathResizeOrigin;
   startClientX: number;
   startClientY: number;
+  startCamera: CameraState;
   minWidth?: number;
   maxWidth?: number;
   minHeight?: number;
@@ -919,6 +927,30 @@ function resolvePathLabelEventPayload(params: {
   };
 }
 
+// Keys typed into these must never reach the editor's Delete/Backspace
+// shortcut, even when a selection exists on the canvas.
+const TEXT_ENTRY_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[role='textbox']",
+  "[role='searchbox']",
+  "[role='combobox']",
+  "[role='listbox']",
+  "[role='spinbutton']",
+].join(",");
+
+function isTextEntryKeyTarget(event: KeyboardEvent): boolean {
+  // composedPath()[0] sees through shadow roots, where event.target is retargeted to the host.
+  const origin = event.composedPath?.()[0] ?? event.target;
+  return (
+    origin instanceof Element &&
+    (origin.closest(TEXT_ENTRY_SELECTOR) !== null ||
+      (origin instanceof HTMLElement && origin.isContentEditable))
+  );
+}
+
 function toCanvasScreenPoint(
   host: HTMLDivElement | null,
   clientX: number,
@@ -928,6 +960,36 @@ function toCanvasScreenPoint(
   return {
     x: clientX - (bounds?.left ?? 0),
     y: clientY - (bounds?.top ?? 0),
+  };
+}
+
+/**
+ * Pointer travel since the gesture started, as a screen delta at the CURRENT
+ * camera — the form the editor-dom `*ByScreenDelta` helpers expect (they
+ * divide by the current zoom). The start point is pinned in world space, so a
+ * wheel zoom/pan mid-drag keeps the target under the cursor instead of
+ * drifting. With an unchanged camera this is the raw client delta.
+ */
+function resolveGestureScreenDelta(params: {
+  host: HTMLDivElement | null;
+  startClientX: number;
+  startClientY: number;
+  startCamera: CameraState;
+  clientX: number;
+  clientY: number;
+  camera: CameraState;
+}) {
+  const { host, startCamera, camera } = params;
+  const start = toCanvasScreenPoint(host, params.startClientX, params.startClientY);
+  const current = toCanvasScreenPoint(host, params.clientX, params.clientY);
+  const startWorldX = (start.x - startCamera.x) / startCamera.zoom;
+  const startWorldY = (start.y - startCamera.y) / startCamera.zoom;
+  const currentWorldX = (current.x - camera.x) / camera.zoom;
+  const currentWorldY = (current.y - camera.y) / camera.zoom;
+
+  return {
+    deltaX: (currentWorldX - startWorldX) * camera.zoom,
+    deltaY: (currentWorldY - startWorldY) * camera.zoom,
   };
 }
 
@@ -1175,8 +1237,10 @@ function evaluateRejectedZoneDrops(params: {
   layoutModel: UniverseLayoutModel;
   zoneIds: ZoneId[];
   canDropZone: CanDropZone | undefined;
+  /** Mirrors the `reparentZone` permission — see resolveZoneDropPlacement. */
+  allowReparent: boolean;
 }): RejectedZoneDrop[] {
-  const { model, layoutModel, zoneIds, canDropZone } = params;
+  const { model, layoutModel, zoneIds, canDropZone, allowReparent } = params;
   if (!canDropZone) return [];
 
   const rejected: RejectedZoneDrop[] = [];
@@ -1184,7 +1248,12 @@ function evaluateRejectedZoneDrops(params: {
     const zone = model.zonesById[zoneId];
     if (!zone) continue;
 
-    const placement = resolveZoneDropPlacement({ model, layoutModel, zoneId });
+    const placement = resolveZoneDropPlacement({
+      model,
+      layoutModel,
+      zoneId,
+      allowReparent,
+    });
     if (!placement) continue;
 
     const targetParentZone = placement.targetParentZoneId
@@ -1750,7 +1819,7 @@ export function ZoneMoveEditorOverlay(props: {
     }),
     [resolvedEditorTheme]
   );
-  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorLocale = useEditorLocale();
   const editorStrings = useMemo(
     () => getZoneflowEditorStrings(editorLocale),
     [editorLocale]
@@ -1803,7 +1872,6 @@ export function ZoneMoveEditorOverlay(props: {
   const notifiedPathSelectionRef = useRef<PathId[]>([]);
   const longPressRef = useRef<LongPressState | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
-  const deleteUndoTimerRef = useRef<number | null>(null);
   const activeTransactionRef = useRef<EditorTransactionMeta | null>(null);
   const suppressedPathLabelClickRef = useRef<{
     targetKey: string | null;
@@ -1843,7 +1911,10 @@ export function ZoneMoveEditorOverlay(props: {
     onExclusionStateChange,
   });
 
-  useEffect(() => {
+  // Synced every commit in a layout effect — handlers read it, and a passive
+  // effect landing after a fast pointerup would hand stopDragging the layout
+  // from one move earlier (and it also covered `permissions` only by luck).
+  useIsomorphicLayoutEffect(() => {
     latestRef.current = {
       model,
       layoutModel,
@@ -1874,24 +1945,12 @@ export function ZoneMoveEditorOverlay(props: {
       resolvePathStyle,
       onExclusionStateChange,
     };
-  }, [
-    model,
-    layoutModel,
-    camera,
-    frame,
-    editor,
-    resolveZoneShape,
-    resolvePathStyle,
-    onExclusionStateChange,
-  ]);
+  });
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     selectedZoneIdsRef.current = selectedZoneIds;
-  }, [selectedZoneIds]);
-
-  useEffect(() => {
     selectedPathIdsRef.current = selectedPathIds;
-  }, [selectedPathIds]);
+  });
 
   // state 배열의 identity 가 아니라 내용이 바뀔 때만 외부에 알린다 —
   // 같은 선택을 유지한 채 새 배열로 set 되는 경로(모델 prune, 재클릭 등)가 많다.
@@ -1927,6 +1986,7 @@ export function ZoneMoveEditorOverlay(props: {
 
   useEffect(() => {
     if (editor?.enabled) return;
+    cancelLongPress();
     cancelTransaction();
     dragRef.current = null;
     resizeRef.current = null;
@@ -1957,15 +2017,6 @@ export function ZoneMoveEditorOverlay(props: {
   }, [editor?.enabled, onExclusionStateChange]);
 
   useEffect(() => {
-    return () => {
-      if (deleteUndoTimerRef.current !== null) {
-        window.clearTimeout(deleteUndoTimerRef.current);
-      }
-      cancelTransaction();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!editingZoneId) return;
     if (model.zonesById[editingZoneId]) return;
     setEditingZoneId(null);
@@ -1981,20 +2032,81 @@ export function ZoneMoveEditorOverlay(props: {
   useEffect(() => {
     if (!deleteUndoState) return;
     if (editor?.history?.canUndo ?? false) return;
-    clearDeleteUndoTimer();
     setDeleteUndoState(null);
   }, [deleteUndoState, editor?.history?.canUndo]);
 
+  // The toast's Undo is a plain history undo, so it is only right while the
+  // delete is still the latest step. The first render after the delete pins
+  // the resulting model/layout; any later change (another edit, a drag, a
+  // Cmd+Z) retires the toast. The timer lives in the effect so a hidden or
+  // unmounted overlay cannot strand it.
+  const deleteUndoSnapshotRef = useRef<{
+    model: UniverseModel;
+    layoutModel: UniverseLayoutModel;
+  } | null>(null);
   useEffect(() => {
-    setSelectedZoneIds((current) =>
-      current.filter((zoneId) => Boolean(model.zonesById[zoneId]))
-    );
+    if (!deleteUndoState) {
+      deleteUndoSnapshotRef.current = null;
+      return;
+    }
+    const pinned = deleteUndoSnapshotRef.current;
+    if (!pinned) {
+      deleteUndoSnapshotRef.current = { model, layoutModel };
+      return;
+    }
+    if (pinned.model !== model || pinned.layoutModel !== layoutModel) {
+      setDeleteUndoState(null);
+    }
+  }, [deleteUndoState, model, layoutModel]);
+
+  // Selection keys, the armed target and a pending confirm can outlive their
+  // target (deleted by the consumer, removed by an undo) — drop them so a
+  // later Delete key never acts on something that is no longer there.
+  useEffect(() => {
+    const zoneExists = (zoneId: ZoneId) => Boolean(model.zonesById[zoneId]);
+    const pathExists = (pathId: PathId) =>
+      findPathSourceZoneId(model, pathId) !== undefined;
+    const keyExists = (key: string | null) => {
+      if (!key) return true;
+      if (key.startsWith("zone:")) return zoneExists(key.slice(5));
+      if (key.startsWith("path:")) return pathExists(key.slice(5));
+      return true;
+    };
+
+    setSelectedTargetKey((current) => (keyExists(current) ? current : null));
+    setDeleteArmedTargetKey((current) => (keyExists(current) ? current : null));
+    setDeleteConfirmState((current) => {
+      if (!current) return current;
+      if (current.kind === "target") {
+        return keyExists(current.target.key) ? current : null;
+      }
+      if (current.kind === "zone-selection") {
+        const zoneIds = current.zoneIds.filter(zoneExists);
+        if (zoneIds.length === current.zoneIds.length) return current;
+        return zoneIds.length > 0 ? { ...current, zoneIds } : null;
+      }
+      const pathIds = current.pathIds.filter(pathExists);
+      if (pathIds.length === current.pathIds.length) return current;
+      return pathIds.length > 0 ? { ...current, pathIds } : null;
+    });
+  }, [model]);
+
+  // Keep the same array when nothing was pruned — a fresh array is a state
+  // change, and the frame changes on every camera move.
+  useEffect(() => {
+    setSelectedZoneIds((current) => {
+      const next = current.filter((zoneId) => Boolean(model.zonesById[zoneId]));
+      return next.length === current.length ? current : next;
+    });
   }, [model]);
 
   useEffect(() => {
-    setSelectedPathIds((current) =>
-      current.filter((pathId) => Boolean(frame?.pipeline.graphLayout.pathsById[pathId]))
-    );
+    setSelectedPathIds((current) => {
+      const next = current.filter((pathId) =>
+        Boolean(frame?.pipeline.graphLayout.pathsById[pathId])
+      );
+      return next.length === current.length ? current : next;
+    });
   }, [frame]);
 
   const isPathLabelClickSuppressed = (targetKey: string) => {
@@ -2006,6 +2118,18 @@ export function ZoneMoveEditorOverlay(props: {
   const deleteLongPressMs =
     editor?.deleteInteraction?.longPressMs ?? DELETE_LONG_PRESS_MS;
   const deleteUndoMs = editor?.deleteInteraction?.undoMs ?? DELETE_UNDO_MS;
+
+  // Auto-dismiss — in an effect so cleanup (unmount, Activity hide) always
+  // clears it together with the toast's lifetime.
+  useEffect(() => {
+    if (!deleteUndoState) return;
+    const timer = window.setTimeout(() => {
+      setDeleteUndoState((current) =>
+        current === deleteUndoState ? null : current
+      );
+    }, deleteUndoMs);
+    return () => window.clearTimeout(timer);
+  }, [deleteUndoState, deleteUndoMs]);
   const shouldConfirmDelete = editor?.deleteInteraction?.confirm ?? true;
   const overlayControlsEnabled = editor?.overlayControls?.enabled ?? false;
   const overlayControls = editor?.overlayControls;
@@ -2061,22 +2185,9 @@ export function ZoneMoveEditorOverlay(props: {
     setHoveredTargetKey(target.key);
   };
 
-  const clearDeleteUndoTimer = () => {
-    if (deleteUndoTimerRef.current !== null) {
-      window.clearTimeout(deleteUndoTimerRef.current);
-      deleteUndoTimerRef.current = null;
-    }
-  };
-
   const pushDeleteUndoState = (next: DeleteUndoState) => {
-    clearDeleteUndoTimer();
+    deleteUndoSnapshotRef.current = null;
     setDeleteUndoState(next);
-    deleteUndoTimerRef.current = window.setTimeout(() => {
-      deleteUndoTimerRef.current = null;
-      setDeleteUndoState((current) =>
-        current?.targetKey === next.targetKey ? null : current
-      );
-    }, deleteUndoMs);
   };
 
   const commitDeleteTarget = (target: MoveEditorTarget) => {
@@ -2247,7 +2358,104 @@ export function ZoneMoveEditorOverlay(props: {
         });
       };
 
+    const hasActiveGesture = () =>
+      Boolean(
+        longPressRef.current ||
+          dragRef.current ||
+          resizeRef.current ||
+          pathResizeRef.current ||
+          pathCreateRef.current ||
+          pathRetargetRef.current ||
+          marqueeSelectionRef.current
+      );
+
+    const resetGestureState = () => {
+      dragRef.current = null;
+      resizeRef.current = null;
+      pathResizeRef.current = null;
+      pathCreateRef.current = null;
+      pathRetargetRef.current = null;
+      marqueeSelectionRef.current = null;
+      setDraggingTarget(null);
+      setDraggingZoneGroupIds([]);
+      setDraggingPathGroupIds([]);
+      setIsResizing(false);
+      setCreatingPath(null);
+      setPathCreateTargetZoneId(null);
+      setRetargetingPath(null);
+      setRetargetPathTargetZoneId(null);
+      setMarqueeSelection(null);
+      setHoveredTargetKey(null);
+      latestRef.current.onExclusionStateChange?.(undefined);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    // pointercancel · unmount: abandon the gesture — put back what it moved,
+    // drop its transaction, and never commit a reparent, path or resize.
+    const cancelGestures = () => {
+      const drag = dragRef.current;
+      const resize = resizeRef.current;
+      const pathResize = pathResizeRef.current;
+      const hadGesture = hasActiveGesture();
+      cancelLongPress();
+
+      const onLayoutModelChange = latestRef.current.onLayoutModelChange;
+      if (onLayoutModelChange) {
+        // Restore before cancelling: inside the transaction the restore is not
+        // a history step of its own.
+        if (drag?.hasMoved) {
+          onLayoutModelChange(
+            moveEditorTargetByScreenDelta({
+              layoutModel: latestRef.current.layoutModel,
+              camera: latestRef.current.camera,
+              origin: drag.origin,
+              deltaX: 0,
+              deltaY: 0,
+            })
+          );
+        } else if (resize) {
+          onLayoutModelChange(
+            resizeZoneByScreenDelta({
+              layoutModel: latestRef.current.layoutModel,
+              camera: latestRef.current.camera,
+              origin: resize.origin,
+              deltaX: 0,
+              deltaY: 0,
+              lockWidth: resize.lockWidth,
+              lockHeight: resize.lockHeight,
+              minWidth: resize.minWidth,
+              minHeight: resize.minHeight,
+              maxWidth: resize.maxWidth,
+              maxHeight: resize.maxHeight,
+            })
+          );
+        } else if (pathResize) {
+          onLayoutModelChange(
+            resizePathNodeByScreenDelta({
+              layoutModel: latestRef.current.layoutModel,
+              camera: latestRef.current.camera,
+              origin: pathResize.origin,
+              deltaX: 0,
+              deltaY: 0,
+              minWidth: pathResize.minWidth,
+              minHeight: pathResize.minHeight,
+              maxWidth: pathResize.maxWidth,
+              maxHeight: pathResize.maxHeight,
+            })
+          );
+        }
+      }
+
+      cancelTransaction();
+      if (hadGesture) resetGestureState();
+    };
+
     const stopDragging = (event?: PointerEvent) => {
+      // pointerup fires for every click on the page — with no gesture of ours
+      // in flight there is nothing to finish (and body styles the consumer
+      // set must not be reset).
+      if (!hasActiveGesture()) return;
       cancelLongPress();
 
       const drag = dragRef.current;
@@ -2291,6 +2499,7 @@ export function ZoneMoveEditorOverlay(props: {
           layoutModel: latestRef.current.layoutModel,
           zoneIds: draggedZoneIds,
           canDropZone: latestRef.current.canDropZone,
+          allowReparent: latestRef.current.permissions.reparentZone,
         });
 
         if (rejected.length > 0) {
@@ -2714,26 +2923,7 @@ export function ZoneMoveEditorOverlay(props: {
       }
 
       commitTransaction();
-
-      dragRef.current = null;
-      resizeRef.current = null;
-      pathResizeRef.current = null;
-      pathCreateRef.current = null;
-      pathRetargetRef.current = null;
-      marqueeSelectionRef.current = null;
-      setDraggingTarget(null);
-      setDraggingZoneGroupIds([]);
-      setDraggingPathGroupIds([]);
-      setIsResizing(false);
-      setCreatingPath(null);
-      setPathCreateTargetZoneId(null);
-      setRetargetingPath(null);
-      setRetargetPathTargetZoneId(null);
-      setMarqueeSelection(null);
-      setHoveredTargetKey(null);
-      latestRef.current.onExclusionStateChange?.(undefined);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
+      resetGestureState();
 
       if (pathCreateRequest) {
         latestRef.current.onPathCreateRequest?.(pathCreateRequest);
@@ -2771,8 +2961,15 @@ export function ZoneMoveEditorOverlay(props: {
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: resize.origin,
-          deltaX: event.clientX - resize.startClientX,
-          deltaY: event.clientY - resize.startClientY,
+          ...resolveGestureScreenDelta({
+            host: overlayRef.current,
+            startClientX: resize.startClientX,
+            startClientY: resize.startClientY,
+            startCamera: resize.startCamera,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            camera: latestRef.current.camera,
+          }),
           // 리사이즈 시작 시점에 캡처한 제약(resolveZoneResize ∪ 모델 필드).
           // undefined min → 코어의 기본 최소치, undefined max → 상한 없음.
           lockWidth: resize.lockWidth,
@@ -2824,8 +3021,15 @@ export function ZoneMoveEditorOverlay(props: {
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: pathResize.origin,
-          deltaX: event.clientX - pathResize.startClientX,
-          deltaY: event.clientY - pathResize.startClientY,
+          ...resolveGestureScreenDelta({
+            host: overlayRef.current,
+            startClientX: pathResize.startClientX,
+            startClientY: pathResize.startClientY,
+            startCamera: pathResize.startCamera,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            camera: latestRef.current.camera,
+          }),
           minWidth: pathResize.minWidth,
           minHeight: pathResize.minHeight,
           maxWidth: pathResize.maxWidth,
@@ -2881,12 +3085,20 @@ export function ZoneMoveEditorOverlay(props: {
           document.body.style.userSelect = "none";
         }
 
+        const dragDelta = resolveGestureScreenDelta({
+          host: overlayRef.current,
+          startClientX: drag.startClientX,
+          startClientY: drag.startClientY,
+          startCamera: drag.startCamera,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          camera: latestRef.current.camera,
+        });
         let nextLayoutModel = moveEditorTargetByScreenDelta({
           layoutModel: latestRef.current.layoutModel,
           camera: latestRef.current.camera,
           origin: drag.origin,
-          deltaX: event.clientX - drag.startClientX,
-          deltaY: event.clientY - drag.startClientY,
+          ...dragDelta,
           gridSnap: latestRef.current.gridSnap,
           objectSnap: latestRef.current.objectSnap,
         });
@@ -2903,6 +3115,7 @@ export function ZoneMoveEditorOverlay(props: {
         const cellSnap = latestRef.current.cellSnap;
         if (cellSnap?.enabled && movedZoneIds.length > 0) {
           nextLayoutModel = snapZonesToCells({
+            model: latestRef.current.model,
             layoutModel: nextLayoutModel,
             zoneIds: movedZoneIds,
             cells: cellSnap,
@@ -2946,6 +3159,8 @@ export function ZoneMoveEditorOverlay(props: {
             model: latestRef.current.model,
             layoutModel: nextLayoutModel,
             zoneIds: movedZoneIds,
+            // 권한상 드롭이 부모/레인을 못 바꾸면 지금 레인 안에서만 스냅한다.
+            allowReparent: latestRef.current.permissions.reparentZone,
           });
         }
 
@@ -2953,8 +3168,7 @@ export function ZoneMoveEditorOverlay(props: {
           const snappedGuides = resolveMoveEditorObjectSnapGuides({
             camera: latestRef.current.camera,
             origin: drag.origin,
-            deltaX: event.clientX - drag.startClientX,
-            deltaY: event.clientY - drag.startClientY,
+            ...dragDelta,
             gridSnap: latestRef.current.gridSnap,
             objectSnap: latestRef.current.objectSnap,
           });
@@ -3078,13 +3292,13 @@ export function ZoneMoveEditorOverlay(props: {
       passive: false,
     });
     window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
+    window.addEventListener("pointercancel", cancelGestures);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopDragging);
-      window.removeEventListener("pointercancel", stopDragging);
-      stopDragging();
+      window.removeEventListener("pointercancel", cancelGestures);
+      cancelGestures();
     };
   }, []);
 
@@ -3103,7 +3317,7 @@ export function ZoneMoveEditorOverlay(props: {
         resolvePathStyle,
       },
     });
-  }, [camera, editor, frame, model, resolvePathStyle]);
+  }, [camera, editor, frame, layoutModel, model, resolvePathStyle]);
 
   const selectedZoneTargets = useMemo(
     () =>
@@ -3253,6 +3467,14 @@ export function ZoneMoveEditorOverlay(props: {
         : null,
     [selectedTargetKey, targets]
   );
+  // selectedTargetKey also follows targets that are not shown as selected (an
+  // opened editor, a freshly created path). Keyboard/HUD delete falls back to
+  // it only while it is armed by a long-press — never delete something the
+  // canvas does not show as selected; the selection ids cover the rest.
+  const fallbackDeleteTarget =
+    selectedTarget && deleteArmedTargetKey === selectedTarget.key
+      ? selectedTarget
+      : null;
 
   // canDropZone 거부 목록 — hover 단계 시각 피드백(불가 마커 + drop target
   // 하이라이트 억제). drop 시 판정은 stopDragging 이 같은 헬퍼로 다시 계산한다.
@@ -3271,6 +3493,7 @@ export function ZoneMoveEditorOverlay(props: {
       layoutModel,
       zoneIds: zoneIdsToEvaluate,
       canDropZone: editor.canDropZone,
+      allowReparent: permissions.reparentZone,
     });
   }, [
     draggingTarget,
@@ -3279,10 +3502,16 @@ export function ZoneMoveEditorOverlay(props: {
     layoutModel,
     model,
     editor?.canDropZone,
+    permissions.reparentZone,
   ]);
 
   const dropTargetZoneIds = useMemo(() => {
-    if (isResizing || draggingTarget?.kind !== "zone") {
+    // 부모를 바꿀 수 없는 권한이면 "여기에 들어감" 하이라이트도 없다.
+    if (
+      isResizing ||
+      draggingTarget?.kind !== "zone" ||
+      !permissions.reparentZone
+    ) {
       return [];
     }
 
@@ -3320,6 +3549,7 @@ export function ZoneMoveEditorOverlay(props: {
     isResizing,
     layoutModel,
     model,
+    permissions.reparentZone,
     rejectedZoneDrops,
   ]);
 
@@ -3539,6 +3769,7 @@ export function ZoneMoveEditorOverlay(props: {
 
   const requestDeleteCurrentSelection = () => {
     if (deleteConfirmState) return;
+    const fallbackTarget = fallbackDeleteTarget;
 
     if (selectedZoneIds.length > 1) {
       if (!permissions.deleteZone) return;
@@ -3588,56 +3819,59 @@ export function ZoneMoveEditorOverlay(props: {
       return;
     }
 
-    if (!selectedTarget) return;
+    if (!fallbackTarget) return;
     if (
-      selectedTarget.kind === "zone"
+      fallbackTarget.kind === "zone"
         ? !permissions.deleteZone
         : !permissions.deletePath
     )
       return;
     if (shouldConfirmDelete) {
-      setDeleteConfirmState({ kind: "target", target: selectedTarget });
+      setDeleteConfirmState({ kind: "target", target: fallbackTarget });
     } else {
-      commitDeleteTarget(selectedTarget);
+      commitDeleteTarget(fallbackTarget);
     }
   };
 
+  // Read through a ref so the window listener is attached once, not re-bound
+  // on every render (the handler closes over this render's selection).
+  const deleteShortcutRef = useLatestRef((event: KeyboardEvent) => {
+    if (event.repeat || event.defaultPrevented || event.isComposing) return;
+    if (event.key !== "Delete" && event.key !== "Backspace") return;
+    if (isTextEntryKeyTarget(event)) return;
+
+    // The listener is on window: act only while focus is on the page body
+    // or inside this canvas — not while the user works in some other panel.
+    const active = document.activeElement;
+    const canvasRoot = overlayRef.current?.parentElement ?? overlayRef.current;
+    const focusInEditor =
+      !active ||
+      active === document.body ||
+      active === document.documentElement ||
+      (canvasRoot?.contains(active) ?? false);
+    if (!focusInEditor) return;
+
+    const canDeleteZones =
+      permissions.deleteZone &&
+      (selectedZoneIds.length > 0 || fallbackDeleteTarget?.kind === "zone");
+    const canDeletePaths =
+      permissions.deletePath &&
+      (selectedPathIds.length > 0 || fallbackDeleteTarget?.kind === "path");
+
+    // Nothing this editor may delete — leave the key to the page.
+    if (!canDeleteZones && !canDeletePaths) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    requestDeleteCurrentSelection();
+  });
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) return;
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-
-      const target = event.target as HTMLElement | null;
-      const isEditableTarget =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
-
-      if (isEditableTarget) return;
-
-      const hasSelection =
-        selectedZoneIds.length > 0 ||
-        selectedPathIds.length > 0 ||
-        selectedTarget !== null;
-
-      if (!hasSelection) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      requestDeleteCurrentSelection();
-    };
-
+    const handleKeyDown = (event: KeyboardEvent) =>
+      deleteShortcutRef.current(event);
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    deleteConfirmState,
-    requestDeleteCurrentSelection,
-    selectedPathIds,
-    selectedTarget,
-    selectedZoneIds,
-  ]);
+  }, [deleteShortcutRef]);
 
   if (!editor?.enabled || !frame) return null;
 
@@ -3675,9 +3909,9 @@ export function ZoneMoveEditorOverlay(props: {
   const canDeleteSelection =
     !deleteConfirmState &&
     ((permissions.deleteZone &&
-      (selectedZoneIds.length > 0 || selectedTarget?.kind === "zone")) ||
+      (selectedZoneIds.length > 0 || fallbackDeleteTarget?.kind === "zone")) ||
       (permissions.deletePath &&
-        (selectedPathIds.length > 0 || selectedTarget?.kind === "path")));
+        (selectedPathIds.length > 0 || fallbackDeleteTarget?.kind === "path")));
 
   const editingZone = editingZoneId ? model.zonesById[editingZoneId] : undefined;
   const editingPathSourceZone = editingPathState
@@ -5434,6 +5668,7 @@ export function ZoneMoveEditorOverlay(props: {
                     origin,
                     startClientX: event.clientX,
                     startClientY: event.clientY,
+                    startCamera: latestRef.current.camera,
                     hasMoved: false,
                   };
                 }
@@ -5690,6 +5925,7 @@ export function ZoneMoveEditorOverlay(props: {
                       origin,
                       startClientX: event.clientX,
                       startClientY: event.clientY,
+                      startCamera: latestRef.current.camera,
                       lockWidth: zoneLockWidth,
                       lockHeight: zoneLockHeight,
                       minWidth: zoneResize?.minWidth ?? zone?.minWidth,
@@ -5765,6 +6001,7 @@ export function ZoneMoveEditorOverlay(props: {
                       origin,
                       startClientX: event.clientX,
                       startClientY: event.clientY,
+                      startCamera: latestRef.current.camera,
                       minWidth: pathLabelResize?.minWidth,
                       maxWidth: pathLabelResize?.maxWidth,
                       minHeight: pathLabelResize?.minHeight,
@@ -6092,7 +6329,6 @@ export function ZoneMoveEditorOverlay(props: {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              clearDeleteUndoTimer();
               editor.history?.onUndo?.();
               setDeleteUndoState(null);
             }}

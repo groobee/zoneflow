@@ -20,8 +20,8 @@ import {
   getGridSnapToggleLabel,
   getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
-  resolveEditorLocale,
 } from "./strings.js";
+import { useEditorLocale } from "../internal/hooks.js";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay.js";
 import { resolveEditorTheme } from "@zoneflow/editor-dom";
 import type { UniverseEditorController } from "./useUniverseEditor.js";
@@ -159,8 +159,11 @@ export const UniverseEditorCanvas = forwardRef<
   const { editor, editorConfig, grid, ...canvasProps } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
+  const handleFrameChange = useCallback((nextFrame: RendererFrame | null) => {
+    frameRef.current = nextFrame;
+  }, []);
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
-  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorLocale = useEditorLocale();
   const editorStrings = useMemo(
     () => getZoneflowEditorStrings(editorLocale),
     [editorLocale]
@@ -347,9 +350,7 @@ export const UniverseEditorCanvas = forwardRef<
         }}
         cameraState={camera}
         onCameraChange={setCamera}
-        onFrameChange={(nextFrame) => {
-          frameRef.current = nextFrame;
-        }}
+        onFrameChange={handleFrameChange}
         zoneMoveEditor={zoneMoveEditor}
       />
       {viewerOverlayControlsEnabled ? (

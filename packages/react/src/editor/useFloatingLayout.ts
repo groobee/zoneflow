@@ -5,6 +5,7 @@ import {
   type FloatingLayoutOptions,
   type FloatingVelocities,
 } from "@zoneflow/editor-dom";
+import { useLatestRef } from "../internal/hooks.js";
 
 /** Total kinetic energy below which the layout is considered settled. */
 const SETTLE_ENERGY = 0.05;
@@ -54,31 +55,42 @@ export function useFloatingLayout(params: UseFloatingLayoutParams): void {
     options,
   } = params;
 
-  const modelRef = useRef(model);
+  // Keep callback/option refs fresh without restarting the loop (synced at
+  // commit, never from a render that may be discarded).
+  const modelRef = useLatestRef(model);
+  const onChangeRef = useLatestRef(onLayoutModelChange);
+  const pinnedRef = useLatestRef(pinnedZoneIds);
+  const optionsRef = useLatestRef(options);
   const workingLayoutRef = useRef(layoutModel);
   const velocitiesRef = useRef<FloatingVelocities>({});
-  const onChangeRef = useRef(onLayoutModelChange);
-  const pinnedRef = useRef<ReadonlySet<ZoneId> | undefined>(pinnedZoneIds);
-  const optionsRef = useRef<FloatingLayoutOptions | undefined>(options);
+  // Every layout this loop emitted. A slow frame can commit an older echo
+  // after newer steps ran — recognising all of them (not just the latest)
+  // keeps such a late echo from reading as an outside edit and rewinding.
+  const emittedLayoutsRef = useRef(new WeakSet<UniverseLayoutModel>());
+  const lastModelRef = useRef(model);
 
   const activeRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const settleFramesRef = useRef(0);
   const lastStepTimeRef = useRef(0);
 
-  // Keep callback/option refs fresh without restarting the loop.
-  onChangeRef.current = onLayoutModelChange;
-  pinnedRef.current = pinnedZoneIds;
-  optionsRef.current = options;
-  modelRef.current = model;
-
   // Sync external layout/model changes into the working copy. Our own per-frame
-  // writes echo back as the identical object reference, so we ignore those and
-  // only react to genuine outside edits (resync + wake the loop).
+  // writes echo back as layouts we emitted, so we ignore those and only react
+  // to genuine outside edits (resync + wake the loop). A model-only change
+  // (zones added/removed) keeps the working layout but still wakes the loop.
   useEffect(() => {
-    if (layoutModel === workingLayoutRef.current) return;
-    workingLayoutRef.current = layoutModel;
-    velocitiesRef.current = {};
+    const modelChanged = model !== lastModelRef.current;
+    lastModelRef.current = model;
+    const isEcho =
+      layoutModel === workingLayoutRef.current ||
+      emittedLayoutsRef.current.has(layoutModel);
+
+    if (!isEcho) {
+      workingLayoutRef.current = layoutModel;
+      velocitiesRef.current = {};
+    } else if (!modelChanged) {
+      return;
+    }
     settleFramesRef.current = 0;
     if (activeRef.current && rafRef.current === null) {
       rafRef.current = requestAnimationFrame(tick);
@@ -107,6 +119,7 @@ export function useFloatingLayout(params: UseFloatingLayoutParams): void {
 
     velocitiesRef.current = result.velocities;
     workingLayoutRef.current = result.layoutModel;
+    emittedLayoutsRef.current.add(result.layoutModel);
     onChangeRef.current(result.layoutModel);
 
     if (result.energy < SETTLE_ENERGY) {

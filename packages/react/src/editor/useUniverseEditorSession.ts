@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useIsomorphicLayoutEffect } from "../internal/hooks.js";
 import type { Dispatch, SetStateAction } from "react";
 import {
   resizeZoneLayout,
@@ -50,6 +51,18 @@ function isSameSnapshot(a: UniverseSnapshot, b: UniverseSnapshot): boolean {
   return a.model === b.model && a.layoutModel === b.layoutModel;
 }
 
+// The draft is a detached copy so consumer-side mutation of the committed
+// objects cannot leak into it. Values structuredClone rejects (functions or
+// class instances in `meta`) fall back to sharing — every zoneflow mutation
+// is immutable, so sharing is safe.
+function cloneForDraft<T>(value: T): T {
+  try {
+    return structuredClone(value);
+  } catch {
+    return value;
+  }
+}
+
 export function useUniverseEditorSession(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
@@ -71,8 +84,14 @@ export function useUniverseEditorSession(params: {
   );
 
   const presentSnapshot = draftSnapshot ?? committedSnapshot;
+  // presentRef / historyRef / isEditingRef are written synchronously by every
+  // handler that changes them, so a handler that runs before React re-renders
+  // (startEdit(); updateDraftModel(x) in one click, or two patches from
+  // separate pointer events) already sees the new value. Effects never write
+  // them back from a render — a late effect would rewind a newer value.
   const presentRef = useRef<UniverseSnapshot>(presentSnapshot);
   const historyRef = useRef<HistoryState>(history);
+  const isEditingRef = useRef(draftSnapshot !== null);
   const pendingBaselineRef = useRef<UniverseSnapshot | null>(null);
   const pendingFlushScheduledRef = useRef(false);
   const activeTransactionRef = useRef<{
@@ -80,21 +99,15 @@ export function useUniverseEditorSession(params: {
     baseline: UniverseSnapshot;
   } | null>(null);
 
-  useEffect(() => {
-    presentRef.current = presentSnapshot;
-  }, [presentSnapshot]);
-
-  useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
-
-  useEffect(() => {
-    if (draftSnapshot) return;
+  // Outside edit mode the present snapshot follows the app's committed props.
+  useIsomorphicLayoutEffect(() => {
+    if (isEditingRef.current) return;
     presentRef.current = committedSnapshot;
-  }, [committedSnapshot, draftSnapshot]);
+  }, [committedSnapshot]);
 
   const replaceDraftSnapshot = useCallback((nextSnapshot: UniverseSnapshot) => {
     presentRef.current = nextSnapshot;
+    isEditingRef.current = true;
     setDraftSnapshot(nextSnapshot);
   }, []);
 
@@ -147,7 +160,7 @@ export function useUniverseEditorSession(params: {
       model?: UniverseModel;
       layoutModel?: UniverseLayoutModel;
     }) => {
-      if (!draftSnapshot && !activeTransactionRef.current) {
+      if (!isEditingRef.current && !activeTransactionRef.current) {
         return;
       }
 
@@ -165,7 +178,7 @@ export function useUniverseEditorSession(params: {
         scheduleImmediateHistory(current);
       }
     },
-    [draftSnapshot, replaceDraftSnapshot, scheduleImmediateHistory]
+    [replaceDraftSnapshot, scheduleImmediateHistory]
   );
 
   const resetSessionState = useCallback(
@@ -175,6 +188,7 @@ export function useUniverseEditorSession(params: {
       setActiveTransaction(null);
       setHistory(EMPTY_HISTORY);
       historyRef.current = EMPTY_HISTORY;
+      isEditingRef.current = false;
       setDraftSnapshot(null);
       presentRef.current = nextCommitted ?? committedSnapshot;
     },
@@ -189,15 +203,15 @@ export function useUniverseEditorSession(params: {
     historyRef.current = EMPTY_HISTORY;
 
     const nextSnapshot: UniverseSnapshot = {
-      model: structuredClone(model),
-      layoutModel: structuredClone(layoutModel),
+      model: cloneForDraft(model),
+      layoutModel: cloneForDraft(layoutModel),
     };
 
     replaceDraftSnapshot(nextSnapshot);
   }, [clearPendingHistory, layoutModel, model, replaceDraftSnapshot]);
 
   const applyEdit = useCallback(() => {
-    if (!draftSnapshot) return;
+    if (!isEditingRef.current) return;
 
     flushPendingHistory();
 
@@ -213,7 +227,6 @@ export function useUniverseEditorSession(params: {
     resetSessionState(snapshot);
   }, [
     commitHistoryBaseline,
-    draftSnapshot,
     flushPendingHistory,
     resetSessionState,
     setLayoutModel,
@@ -230,7 +243,7 @@ export function useUniverseEditorSession(params: {
 
   const beginTransaction = useCallback(
     (transaction: EditorTransactionMeta) => {
-      if (!draftSnapshot) return;
+      if (!isEditingRef.current) return;
       flushPendingHistory();
       if (activeTransactionRef.current) return;
 
@@ -240,7 +253,7 @@ export function useUniverseEditorSession(params: {
       };
       setActiveTransaction(transaction);
     },
-    [draftSnapshot, flushPendingHistory]
+    [flushPendingHistory]
   );
 
   const commitTransaction = useCallback(
@@ -307,7 +320,7 @@ export function useUniverseEditorSession(params: {
         height: nextHeight,
       });
 
-      if (draftSnapshot) {
+      if (isEditingRef.current) {
         // Group as one undo step alongside the rest of the edit session.
         const meta: EditorTransactionMeta = {
           kind: "resize-zone",
@@ -328,20 +341,14 @@ export function useUniverseEditorSession(params: {
         );
       }
     },
-    [
-      beginTransaction,
-      commitTransaction,
-      draftSnapshot,
-      setLayoutModel,
-      updateDraftSnapshot,
-    ]
+    [beginTransaction, commitTransaction, setLayoutModel, updateDraftSnapshot]
   );
 
   const canUndo = draftSnapshot !== null && history.past.length > 0;
   const canRedo = draftSnapshot !== null && history.future.length > 0;
 
   const undo = useCallback(() => {
-    if (!draftSnapshot) return;
+    if (!isEditingRef.current) return;
     if (activeTransactionRef.current) return;
 
     flushPendingHistory();
@@ -359,10 +366,10 @@ export function useUniverseEditorSession(params: {
     historyRef.current = nextHistory;
     setHistory(nextHistory);
     replaceDraftSnapshot(previous);
-  }, [draftSnapshot, flushPendingHistory, replaceDraftSnapshot]);
+  }, [flushPendingHistory, replaceDraftSnapshot]);
 
   const redo = useCallback(() => {
-    if (!draftSnapshot) return;
+    if (!isEditingRef.current) return;
     if (activeTransactionRef.current) return;
 
     flushPendingHistory();
@@ -380,10 +387,12 @@ export function useUniverseEditorSession(params: {
     historyRef.current = nextHistory;
     setHistory(nextHistory);
     replaceDraftSnapshot(next);
-  }, [draftSnapshot, flushPendingHistory, replaceDraftSnapshot]);
+  }, [flushPendingHistory, replaceDraftSnapshot]);
+
+  const isEditMode = draftSnapshot !== null;
 
   useEffect(() => {
-    if (!draftSnapshot) return;
+    if (!isEditMode) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
@@ -408,10 +417,20 @@ export function useUniverseEditorSession(params: {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [draftSnapshot, redo, undo]);
+  }, [isEditMode, redo, undo]);
+
+  const updateDraftModel = useCallback(
+    (nextModel: UniverseModel) => updateDraftSnapshot({ model: nextModel }),
+    [updateDraftSnapshot]
+  );
+  const updateDraftLayoutModel = useCallback(
+    (nextLayoutModel: UniverseLayoutModel) =>
+      updateDraftSnapshot({ layoutModel: nextLayoutModel }),
+    [updateDraftSnapshot]
+  );
 
   return {
-    isEditMode: draftSnapshot !== null,
+    isEditMode,
     model: presentSnapshot.model,
     layoutModel: presentSnapshot.layoutModel,
     activeTransaction,
@@ -421,10 +440,8 @@ export function useUniverseEditorSession(params: {
     applyEdit,
     cancelEdit,
     resetForSampleChange,
-    updateDraftModel: (nextModel: UniverseModel) =>
-      updateDraftSnapshot({ model: nextModel }),
-    updateDraftLayoutModel: (nextLayoutModel: UniverseLayoutModel) =>
-      updateDraftSnapshot({ layoutModel: nextLayoutModel }),
+    updateDraftModel,
+    updateDraftLayoutModel,
     beginTransaction,
     commitTransaction,
     cancelTransaction,

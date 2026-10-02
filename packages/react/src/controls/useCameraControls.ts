@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { CameraState } from "@zoneflow/renderer-dom";
+import { useIsomorphicLayoutEffect } from "../internal/hooks.js";
 import { createFrameCoalescer } from "./frameCoalescer.js";
 
 type UseCameraControlsParams = {
@@ -40,6 +41,37 @@ function midpointBetween(
   };
 }
 
+// Space activates these (button press, checkbox toggle, …) or types into them,
+// so Space-to-pan must leave the key alone while one of them has focus.
+const SPACE_CONSUMING_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "a[href]",
+  "summary",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='combobox']",
+  "[role='menuitem']",
+  "[role='option']",
+  "[role='radio']",
+  "[role='switch']",
+  "[role='tab']",
+  "[role='textbox']",
+].join(",");
+
+function isSpaceConsumingTarget(event: KeyboardEvent): boolean {
+  // composedPath()[0] sees through shadow roots, where event.target is retargeted to the host.
+  const origin = event.composedPath?.()[0] ?? event.target;
+  return (
+    origin instanceof Element &&
+    (origin.closest(SPACE_CONSUMING_SELECTOR) !== null ||
+      (origin instanceof HTMLElement && origin.isContentEditable))
+  );
+}
+
 function zoomCameraAt(params: {
   prev: CameraState;
   nextZoom: number;
@@ -66,6 +98,7 @@ export function useCameraControls({
                                   }: UseCameraControlsParams) {
   const cameraRef = useRef(camera);
   const isSpacePressedRef = useRef(false);
+  const isPointerOverHostRef = useRef(false);
 
   const panStateRef = useRef<{
     isPanning: boolean;
@@ -105,9 +138,12 @@ export function useCameraControls({
     startZoom: 1,
   });
 
-  useEffect(() => {
+  // Layout effect: a passive one could land after the next gesture event and
+  // rewind a camera that event already advanced (pan/pinch read their start
+  // point from this ref).
+  useIsomorphicLayoutEffect(() => {
     cameraRef.current = camera;
-  }, [camera]);
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -116,17 +152,18 @@ export function useCameraControls({
     // 카메라 갱신 하나가 곧 캔버스 전체 redraw 다 — 포인터 이동은 프레임당
     // 한 번으로 합친다. 팬/핀치는 제스처 시작값 기준 절대 계산이라 중간
     // 이벤트를 버려도 최종 카메라가 같다(휠은 prev 누산이라 합치지 않는다).
-    const cameraFrame = createFrameCoalescer<
-      (prev: CameraState) => CameraState
-    >((updater) =>
+    // cameraRef 는 평소 렌더 후 layout effect 로 따라오는데, 제스처 경계(pointerdown ·
+    // 손가락 수 변화)는 그 전에 이 값을 기준점으로 읽는다 — 적용 시점에 맞춰둔다.
+    const applyCamera = (updater: (prev: CameraState) => CameraState) =>
       setCamera((prev: CameraState) => {
         const next = updater(prev);
-        // cameraRef 는 평소 렌더 후 effect 로 따라오는데, 제스처 경계(pointerdown ·
-        // 손가락 수 변화)는 그 전에 이 값을 기준점으로 읽는다 — 커밋 시점에 맞춰둔다.
         cameraRef.current = next;
         return next;
-      })
-    );
+      });
+
+    const cameraFrame = createFrameCoalescer<
+      (prev: CameraState) => CameraState
+    >(applyCamera);
 
     const flushPendingCamera = () => cameraFrame.flush();
     const schedulePointerCamera = (
@@ -185,29 +222,43 @@ export function useCameraControls({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space") return;
+      if (event.defaultPrevented || isSpaceConsumingTarget(event)) return;
 
-      const target = event.target as HTMLElement | null;
-      const isEditableTarget =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
+      // The listener is on window — only claim Space (and block page scroll)
+      // while the canvas is the thing being interacted with.
+      const focusInHost =
+        document.activeElement !== null &&
+        host.contains(document.activeElement);
+      if (!isPointerOverHostRef.current && !focusInHost) return;
 
-      if (isEditableTarget) return;
-
+      event.preventDefault();
       if (!isSpacePressedRef.current) {
         isSpacePressedRef.current = true;
-        event.preventDefault();
         updateIdleCursor();
       }
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== "Space") return;
-
+    const releaseSpace = () => {
+      if (!isSpacePressedRef.current) return;
       isSpacePressedRef.current = false;
       updateIdleCursor();
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return;
+      releaseSpace();
+    };
+
+    // A keyup that happens in another window/tab never reaches us.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") releaseSpace();
+    };
+
+    const handlePointerEnter = () => {
+      isPointerOverHostRef.current = true;
+    };
+    const handlePointerLeave = () => {
+      isPointerOverHostRef.current = false;
     };
 
     const handleWheel = (event: WheelEvent) => {
@@ -222,7 +273,7 @@ export function useCameraControls({
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
 
-        setCamera((prev: CameraState) => {
+        applyCamera((prev: CameraState) => {
           const nextZoom =
             event.deltaY < 0 ? prev.zoom * ZOOM_STEP : prev.zoom / ZOOM_STEP;
 
@@ -239,7 +290,7 @@ export function useCameraControls({
 
       event.preventDefault();
 
-      setCamera((prev: CameraState) => ({
+      applyCamera((prev: CameraState) => ({
         ...prev,
         x: prev.x - event.deltaX,
         y: prev.y - event.deltaY,
@@ -397,6 +448,10 @@ export function useCameraControls({
     window.addEventListener("pointercancel", handlePointerEndLike);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", releaseSpace);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    host.addEventListener("pointerenter", handlePointerEnter);
+    host.addEventListener("pointerleave", handlePointerLeave);
 
     return () => {
       host.removeEventListener("wheel", handleWheel);
@@ -406,6 +461,10 @@ export function useCameraControls({
       window.removeEventListener("pointercancel", handlePointerEndLike);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", releaseSpace);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      host.removeEventListener("pointerenter", handlePointerEnter);
+      host.removeEventListener("pointerleave", handlePointerLeave);
 
       cancelPendingCamera();
       activePointersRef.current.clear();

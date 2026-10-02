@@ -4,8 +4,8 @@ import {
   getGridToggleLabel,
   getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
-  resolveEditorLocale,
 } from "./strings.js";
+import { useEditorLocale } from "../internal/hooks.js";
 import { resolveEditorTheme, type ZoneflowEditorThemeInput } from "@zoneflow/editor-dom";
 import type { UniverseEditorController } from "./useUniverseEditor.js";
 
@@ -26,7 +26,7 @@ export type DefaultEditorToolbarProps = {
 
 export function DefaultEditorToolbar(props: DefaultEditorToolbarProps) {
   const { editor, leading, trailing, style, theme } = props;
-  const editorLocale = useMemo(resolveEditorLocale, []);
+  const editorLocale = useEditorLocale();
   const editorStrings = useMemo(
     () => getZoneflowEditorStrings(editorLocale),
     [editorLocale]

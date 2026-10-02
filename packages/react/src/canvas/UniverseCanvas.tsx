@@ -55,6 +55,11 @@ import {
 } from "../editor/ZoneMoveEditorOverlay.js";
 import {resolvePermissions} from "../editor/editorPermissions.js";
 import {
+  useIsomorphicLayoutEffect,
+  useJsonStable,
+  useLatestRef,
+} from "../internal/hooks.js";
+import {
   type BackgroundComponent,
   type PathSlotComponentMap,
   type ResolvePathRenderComponent,
@@ -213,7 +218,8 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
   }: UniverseCanvasProps, handleRef) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef(createRenderer());
+  // Created once (lazy initializer) — not on every render as `useRef(createRenderer())` did.
+  const [renderer] = useState(createRenderer);
   const [internalCamera, setInternalCamera] = useState<CameraState>(DEFAULT_CAMERA);
   const [frame, setFrame] = useState<RendererFrame | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
@@ -229,19 +235,38 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     pathOverlays: [],
     background: null,
   });
+  // Plain-data props often arrive as inline literals; compare them by value.
+  const stableGrid = useJsonStable(grid);
+  const stableViewport = useJsonStable(viewport);
+  const stableDebug = useJsonStable(debug);
   const camera = cameraState ?? internalCamera;
   const cameraRef = useRef(camera);
-  const isControlledCameraRef = useRef(cameraState !== undefined);
-  const onCameraChangeRef = useRef(onCameraChange);
-  useEffect(() => {
+  const isControlledCameraRef = useLatestRef(cameraState !== undefined);
+  const onCameraChangeRef = useLatestRef(onCameraChange);
+  const onFrameChangeRef = useLatestRef(onFrameChange);
+  const interactionHandlersRef = useLatestRef(interactionHandlers);
+  // setCamera advances cameraRef ahead of React; every commit then re-syncs it
+  // to the camera actually rendered. A layout effect (not passive) so a late
+  // effect from an older commit cannot rewind a value a newer wheel/pan event
+  // already wrote, and so a controlled parent that clamps or ignores a change
+  // pulls the ref back on its next render.
+  useIsomorphicLayoutEffect(() => {
     cameraRef.current = camera;
-  }, [camera]);
-  useEffect(() => {
-    isControlledCameraRef.current = cameraState !== undefined;
-  }, [cameraState]);
-  useEffect(() => {
-    onCameraChangeRef.current = onCameraChange;
-  }, [onCameraChange]);
+  });
+
+  // Stable proxy: the draw engine binds these on every redraw, so reading the
+  // latest handlers through a ref keeps inline handler props from forcing one.
+  const stableInteractionHandlers = useMemo<RendererInteractionHandlers>(
+    () => ({
+      onZoneClick: (zoneId) =>
+        interactionHandlersRef.current?.onZoneClick?.(zoneId),
+      onPathClick: (pathId) =>
+        interactionHandlersRef.current?.onPathClick?.(pathId),
+      onBackgroundClick: () =>
+        interactionHandlersRef.current?.onBackgroundClick?.(),
+    }),
+    [interactionHandlersRef]
+  );
 
   const setCamera = useCallback((
     nextCamera: CameraState | ((prev: CameraState) => CameraState)
@@ -258,7 +283,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     }
 
     onCameraChangeRef.current?.(resolved);
-  }, []);
+  }, [isControlledCameraRef, onCameraChangeRef]);
 
   const externalDropEnabled =
     zoneMoveEditor?.enabled &&
@@ -366,15 +391,19 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
 
   useImperativeHandle(handleRef, () => ({ focusZone }), [focusZone]);
 
-  useEffect(() => {
+  // Mount and draw in layout effects: the draw replaces the host's DOM, and
+  // SlotPortals re-attaches React content to the new hosts in the render
+  // that setMounts triggers. Done before paint, no frame shows the bare DOM
+  // without its portaled zone/path components.
+  useIsomorphicLayoutEffect(() => {
     if (!ref.current) return;
 
-    rendererRef.current.mount(ref.current);
+    renderer.mount(ref.current);
 
     return () => {
-      rendererRef.current.destroy();
+      renderer.destroy();
     };
-  }, []);
+  }, [renderer]);
 
   // 렌더러는 update 시점에 host.clientWidth/Height 로 world viewport 를 계산해
   // 화면 밖 zone/path 노드를 컬링한다. props 가 전혀 안 바뀌는 정적 viewer 는
@@ -435,14 +464,14 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     setExclusionState(undefined);
   }, [zoneMoveEditor?.enabled]);
 
-  useEffect(() => {
-    const frame = rendererRef.current.update({
+  useIsomorphicLayoutEffect(() => {
+    const frame = renderer.update({
       model,
       layoutModel,
       theme,
       textScale,
       camera,
-      viewport,
+      viewport: stableViewport,
 
       graphLayoutEngine,
       densityEngine,
@@ -465,10 +494,10 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       resolvePathStyle,
       resolvePathDisplay,
       backgroundRenderer: effectiveBackgroundRenderer,
-      gridOptions: grid,
-      interactionHandlers,
+      gridOptions: stableGrid,
+      interactionHandlers: stableInteractionHandlers,
       exclusionState,
-      debug,
+      debug: stableDebug,
     });
 
     frameRef.current = frame ?? null;
@@ -482,15 +511,16 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       pathOverlays: [],
       background: null,
     });
-    onFrameChange?.(frame ?? null);
+    onFrameChangeRef.current?.(frame ?? null);
   }, [
+    renderer,
     model,
     layoutModel,
     theme,
     textScale,
     camera,
-    viewport,
-    grid,
+    stableViewport,
+    stableGrid,
     graphLayoutEngine,
     densityEngine,
     visibilityEngine,
@@ -511,15 +541,10 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     resolvePathStyle,
     resolvePathDisplay,
     effectiveBackgroundRenderer,
-    zoneComponents,
-    pathComponents,
-    background,
-    interactionHandlers,
+    stableInteractionHandlers,
     exclusionState,
-    debug,
-    cameraState,
-    onCameraChange,
-    onFrameChange,
+    stableDebug,
+    onFrameChangeRef,
     hostSizeVersion,
   ]);
 
