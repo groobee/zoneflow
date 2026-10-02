@@ -78,7 +78,13 @@ export type MoveEditorDragOrigin =
       originY: number;
       width: number;
       height: number;
+      /**
+       * Snap guides in the origin's own coordinate space (parent-local for a
+       * nested zone) — already shifted by {@link objectSnapGuideOffset}.
+       */
       objectSnapGuides?: ObjectSnapGuides;
+      /** World position minus origin position — add it to map a guide back to world. */
+      objectSnapGuideOffset?: Point;
     }
   | {
       kind: "zone-group";
@@ -89,7 +95,10 @@ export type MoveEditorDragOrigin =
       kind: "path";
       pathId: PathId;
       origin: PathMoveOriginSnapshot;
+      /** Guides in the snapshot's coordinate space (route-offset or component-layout). */
       objectSnapGuides?: ObjectSnapGuides;
+      /** World position minus origin position — add it to map a guide back to world. */
+      objectSnapGuideOffset?: Point;
     }
   | {
       kind: "path-group";

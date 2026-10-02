@@ -82,6 +82,7 @@ describe("resolveEditorTheme — dialog follows the theme", () => {
     expect(floatingToolbar.background).toBe("rgba(8, 47, 73, 0.92)");
     expect(floatingToolbar.zoneLabelText).toBe("#ecfeff");
     expect(floatingToolbar.dangerButtonBackground).toBe("rgba(127, 29, 29, 0.8)");
+    expect(floatingToolbar.buttonDisabledText).not.toBe(floatingToolbar.buttonText);
     // not the static default any more
     expect(floatingToolbar.background).not.toBe("rgba(15, 23, 42, 0.94)");
   });

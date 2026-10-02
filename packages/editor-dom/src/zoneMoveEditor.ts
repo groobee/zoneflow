@@ -107,12 +107,20 @@ function collectDescendantZoneIds(model: UniverseModel, zoneId: ZoneId): Set<Zon
   return descendants;
 }
 
+/**
+ * Snap guides from every other visible zone/path rect. Frame rects are world
+ * coordinates, while a drag moves the target in its own space (parent-local
+ * for a nested zone, route-offset for a path label) — `offset` (world minus
+ * origin position, constant over the drag) shifts the guides into that space
+ * so the comparison is like-for-like.
+ */
 function resolveObjectSnapGuides(params: {
   model: UniverseModel;
   frame?: RendererFrame;
   target: MoveEditorTarget;
+  offset: Point;
 }) {
-  const { model, frame, target } = params;
+  const { model, frame, target, offset } = params;
   if (!frame) return undefined;
 
   const excludedZoneIds =
@@ -137,8 +145,18 @@ function resolveObjectSnapGuides(params: {
   }
 
   return candidateRects.length > 0
-    ? collectRectObjectSnapGuides(candidateRects)
+    ? collectRectObjectSnapGuides(
+        candidateRects.map((rect) => ({
+          ...rect,
+          x: rect.x - offset.x,
+          y: rect.y - offset.y,
+        }))
+      )
     : undefined;
+}
+
+function addGuideOffset(guide: number | undefined, offset: number | undefined) {
+  return guide === undefined ? undefined : guide + (offset ?? 0);
 }
 
 function resolveResizedAnchor(params: {
@@ -307,6 +325,11 @@ export function resolveMoveEditorDragOrigin(params: {
       getZoneLayout(layoutModel, target.zoneId);
     const width = zoneRect?.width ?? 0;
     const height = zoneRect?.height ?? 0;
+    // Frame rect is world; the layout x/y is parent-local for nested zones.
+    const worldRect = frame?.pipeline.graphLayout.zonesById[target.zoneId]?.rect;
+    const offset = worldRect
+      ? { x: worldRect.x - zoneLayout.x, y: worldRect.y - zoneLayout.y }
+      : ROOT_WORLD_ORIGIN;
 
     return {
       kind: "zone",
@@ -319,23 +342,33 @@ export function resolveMoveEditorDragOrigin(params: {
         model,
         frame,
         target,
+        offset,
       }),
+      objectSnapGuideOffset: offset,
     };
   }
+
+  const pathOrigin = resolvePathMoveOriginSnapshot({
+    frame,
+    layoutModel,
+    pathId: target.pathId,
+  });
+  const pathWorldRect = frame?.pipeline.graphLayout.pathsById[target.pathId]?.rect;
+  const pathOffset = pathWorldRect
+    ? { x: pathWorldRect.x - pathOrigin.x, y: pathWorldRect.y - pathOrigin.y }
+    : ROOT_WORLD_ORIGIN;
 
   return {
     kind: "path",
     pathId: target.pathId,
-    origin: resolvePathMoveOriginSnapshot({
-      frame,
-      layoutModel,
-      pathId: target.pathId,
-    }),
+    origin: pathOrigin,
     objectSnapGuides: resolveObjectSnapGuides({
       model,
       frame,
       target,
+      offset: pathOffset,
     }),
+    objectSnapGuideOffset: pathOffset,
   };
 }
 
@@ -536,8 +569,15 @@ export function snapZonesToSlotPoints(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   zoneIds: ZoneId[];
+  /**
+   * `false` when the drop cannot change membership (e.g. the `reparentZone`
+   * permission is off): a zone then only snaps inside the lane it is already
+   * docked in, so it never looks seated in a parent or lane it will not join.
+   * Default `true`.
+   */
+  allowReparent?: boolean;
 }): UniverseLayoutModel {
-  const { model, zoneIds } = params;
+  const { model, zoneIds, allowReparent = true } = params;
   let layoutModel = params.layoutModel;
   const draggedZoneIds = new Set(zoneIds);
   // 이번 호출에서 배정한 포인트(월드 좌표)도 점유로 취급 — 그룹 드래그 중복 방지.
@@ -581,6 +621,7 @@ export function snapZonesToSlotPoints(params: {
       ? model.zonesById[candidateParentZoneId]
       : undefined;
     if (!candidate || !zoneDeclaresSlots(candidate)) continue;
+    if (!allowReparent && candidate.id !== zone.parentZoneId) continue;
 
     const candidateLayout = getZoneLayout(layoutModel, candidate.id);
     if (!candidateLayout) continue;
@@ -606,6 +647,7 @@ export function snapZonesToSlotPoints(params: {
         localCenter.y >= region.y &&
         localCenter.y <= region.y + region.height
       ) {
+        if (!allowReparent && region.key !== zone.slotKey) break;
         snapPoints = region.snapPoints;
         break;
       }
@@ -801,8 +843,13 @@ export function snapZonesToCells(params: {
   layoutModel: UniverseLayoutModel;
   zoneIds: ZoneId[];
   cells: CellSnapOptions;
+  /**
+   * Pass the model so nested zones snap on the WORLD grid (their layout x/y is
+   * parent-local). Without it every zone is treated as a root zone.
+   */
+  model?: UniverseModel;
 }): UniverseLayoutModel {
-  const { zoneIds, cells } = params;
+  const { zoneIds, cells, model } = params;
   let layoutModel = params.layoutModel;
   const { columns, rows, originX = 0, originY = 0 } = cells;
   if (!columns?.length || !rows?.length) return layoutModel;
@@ -811,14 +858,21 @@ export function snapZonesToCells(params: {
     const layout = getZoneLayout(layoutModel, zoneId);
     if (!layout || layout.width == null || layout.height == null) continue;
 
-    const centerX = layout.x + layout.width / 2;
-    const centerY = layout.y + layout.height / 2;
+    const parentZoneId = model?.zonesById[zoneId]?.parentZoneId;
+    const parentOrigin =
+      model && parentZoneId
+        ? resolveWorldZoneOrigin({ model, layoutModel, zoneId: parentZoneId })
+        : ROOT_WORLD_ORIGIN;
+    const centerX = parentOrigin.x + layout.x + layout.width / 2;
+    const centerY = parentOrigin.y + layout.y + layout.height / 2;
     const x =
       snapToNearestCellCenterInPattern(centerX, columns, originX) -
-      layout.width / 2;
+      layout.width / 2 -
+      parentOrigin.x;
     const y =
       snapToNearestCellCenterInPattern(centerY, rows, originY) -
-      layout.height / 2;
+      layout.height / 2 -
+      parentOrigin.y;
 
     if (x !== layout.x || y !== layout.y) {
       layoutModel = updateZoneLayout(layoutModel, zoneId, { x, y });
@@ -926,9 +980,10 @@ export function resolveMoveEditorObjectSnapGuides(params: {
       objectSnap,
     });
 
+    // Guides are stored in the origin's space; callers draw them in world.
     return {
-      guideX: snapped.guideX,
-      guideY: snapped.guideY,
+      guideX: addGuideOffset(snapped.guideX, origin.objectSnapGuideOffset?.x),
+      guideY: addGuideOffset(snapped.guideY, origin.objectSnapGuideOffset?.y),
     };
   }
 
@@ -952,8 +1007,8 @@ export function resolveMoveEditorObjectSnapGuides(params: {
     });
 
     return {
-      guideX: snapped.guideX,
-      guideY: snapped.guideY,
+      guideX: addGuideOffset(snapped.guideX, origin.objectSnapGuideOffset?.x),
+      guideY: addGuideOffset(snapped.guideY, origin.objectSnapGuideOffset?.y),
     };
   }
 

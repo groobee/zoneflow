@@ -13,5 +13,7 @@
     "declaration": true
   },
   "include": ["src"],
+  // 테스트는 게시 dist 에 들어가지 않는다(다른 패키지와 동일).
+  "exclude": ["src/**/*.test.ts"],
   "references": [{ "path": "../core" }, { "path": "../renderer-dom" }]
 }

@@ -506,7 +506,8 @@ function deriveFloatingToolbarFromHud(hud: HudTone): FloatingToolbarTone {
     buttonBackground: hud.buttonBackground,
     buttonBorder: hud.buttonBorder,
     buttonText: hud.buttonText,
-    buttonDisabledText: hud.buttonText,
+    // Same hue at reduced strength — disabled buttons must still read as disabled.
+    buttonDisabledText: `color-mix(in srgb, ${hud.buttonText} 48%, transparent)`,
     dangerButtonBackground: hud.buttonDangerBackground,
     dangerButtonBorder: hud.buttonDangerBorder,
     dangerButtonText: hud.buttonDangerText,

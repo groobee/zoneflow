@@ -174,12 +174,18 @@ export function resolveZoneDropPlacement(params: {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
   zoneId: ZoneId;
+  /**
+   * `false` when the drop cannot reparent (e.g. the `reparentZone` permission
+   * is off): the zone stays with its current parent and slot, so that is what
+   * the placement reports. Default `true`.
+   */
+  allowReparent?: boolean;
 }): {
   targetParentZoneId: ZoneId | null;
   slotKey: string | null;
   worldPoint: Point;
 } | null {
-  const { model, layoutModel, zoneId } = params;
+  const { model, layoutModel, zoneId, allowReparent = true } = params;
 
   const resolved = resolveZoneReparentCandidate({
     model,
@@ -192,6 +198,14 @@ export function resolveZoneDropPlacement(params: {
     x: resolved.worldRect.x + resolved.worldRect.width / 2,
     y: resolved.worldRect.y + resolved.worldRect.height / 2,
   };
+
+  if (!allowReparent) {
+    return {
+      targetParentZoneId: resolved.currentParentZoneId,
+      slotKey: model.zonesById[zoneId]?.slotKey ?? null,
+      worldPoint,
+    };
+  }
 
   const targetParentZoneId = resolved.candidateParentZoneId;
   let slotKey: string | null = null;

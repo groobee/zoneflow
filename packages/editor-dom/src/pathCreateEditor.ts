@@ -1,6 +1,7 @@
 import {
   addPath,
   createPathId,
+  getEffectiveZoneSlot,
   isDescendantZone,
   isZoneInputEnabled,
   isZoneOutputEnabled,
@@ -63,6 +64,28 @@ function getParentZone(
   zone: Pick<Zone, "parentZoneId">
 ): Zone | undefined {
   return zone.parentZoneId ? model.zonesById[zone.parentZoneId] : undefined;
+}
+
+/**
+ * Whether a path from `sourceZoneId` may land on `targetZone` — the one rule
+ * hover, create and retarget share. A source's ancestor is an exit (the path
+ * joins the ancestor's outlet from inside), so the ancestor's own
+ * `inputDisabled` does not block it; a slot's `childInput: "disabled"` still
+ * does, since validateUniverseModel rejects any path into such a zone.
+ */
+function canPathTargetZone(
+  model: UniverseModel,
+  targetZone: Zone,
+  sourceZoneId: ZoneId | undefined
+): boolean {
+  const parent = getParentZone(model, targetZone);
+  if (sourceZoneId && isDescendantZone(model, targetZone.id, sourceZoneId)) {
+    return (
+      getEffectiveZoneSlot(targetZone, parent)?.effects?.childInput !==
+      "disabled"
+    );
+  }
+  return isZoneInputEnabled(targetZone, parent);
 }
 
 const DEFAULT_PATH_NODE_WIDTH = 120;
@@ -256,13 +279,7 @@ export function resolveInputAnchorTargetZoneId(params: {
       ? isDescendantZone(model, zoneVisual.zoneId, sourceZoneId)
       : false;
 
-    if (
-      !isAncestorOfSource &&
-      !isZoneInputEnabled(
-        zoneVisual.zone,
-        getParentZone(model, zoneVisual.zone)
-      )
-    ) {
+    if (!canPathTargetZone(model, zoneVisual.zone, sourceZoneId)) {
       continue;
     }
 
@@ -357,7 +374,7 @@ export function retargetPathFromOutputAnchorDrag(params: {
     const targetZone = model.zonesById[resolvedTargetZoneId];
     if (
       !targetZone ||
-      !isZoneInputEnabled(targetZone, getParentZone(model, targetZone))
+      !canPathTargetZone(model, targetZone, sourceZoneId)
     ) {
       return undefined;
     }
@@ -438,7 +455,7 @@ export function createPathFromZone(params: {
     const targetZone = model.zonesById[resolvedTargetZoneId];
     if (
       !targetZone ||
-      !isZoneInputEnabled(targetZone, getParentZone(model, targetZone))
+      !canPathTargetZone(model, targetZone, sourceZoneId)
     ) {
       return undefined;
     }
