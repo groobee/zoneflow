@@ -181,7 +181,10 @@ function createModularGridLayer(params: {
   // 기본: 그리드 점선 / 셀선 실선. 색·두께·종류는 외부 주입(grid/cell)으로 덮어쓰고,
   // 색은 gridOptions 미지정 시 테마 토큰(theme.grid) → 라이브러리 기본색 순으로 폴백.
   const fineColor =
-    options.color ?? theme.grid?.line ?? "rgba(148, 163, 184, 0.28)";
+    m.grid?.color ??
+    options.color ??
+    theme.grid?.line ??
+    "rgba(148, 163, 184, 0.28)";
   const fineWidth = m.grid?.width ?? 1;
   const fineDash = resolveModularGridDash(
     m.grid?.style ?? "dashed",
@@ -725,10 +728,13 @@ function drawEdges(params: {
 }) {
   const { svg, input } = params;
   const edgeFlowMotion = resolveEdgeFlowMotion(input.theme);
+  // 키프레임/클래스 규칙은 문서 전역이라, 모션 값을 이름에 넣어 테마가 다른
+  // 캔버스끼리 서로의 애니메이션을 덮어쓰지 않게 한다.
+  const edgeFlowClass = `${EDGE_FLOW_CLASS}-${edgeFlowMotion.id}`;
   appendEdgeFlowStyle({
     svg,
-    animationName: "zoneflow-edge-flow",
-    className: EDGE_FLOW_CLASS,
+    animationName: edgeFlowClass,
+    className: edgeFlowClass,
     motion: edgeFlowMotion,
   });
   // CSS rules are document-global even from an SVG <style>, so this also
@@ -830,7 +836,7 @@ function drawEdges(params: {
       flowGlow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
       flowGlow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flowGlow.setAttribute("opacity", String(opacity * 0.18));
-      flowGlow.setAttribute("class", EDGE_FLOW_CLASS);
+      flowGlow.setAttribute("class", `${EDGE_FLOW_CLASS} ${edgeFlowClass}`);
       edgeOwner.appendChild(flowGlow);
 
       const flow = createSvgElement("path");
@@ -846,7 +852,7 @@ function drawEdges(params: {
       flow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
       flow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flow.setAttribute("opacity", String(opacity * 0.94));
-      flow.setAttribute("class", EDGE_FLOW_CLASS);
+      flow.setAttribute("class", `${EDGE_FLOW_CLASS} ${edgeFlowClass}`);
       edgeOwner.appendChild(flow);
     }
   }
@@ -878,9 +884,8 @@ function drawZoneAnchors(params: {
     (zone.zone.zoneType === "action"
       ? input.theme.surface.anchor.actionAccent
       : input.theme.surface.anchor.containerAccent);
-  const anchorGlowColor = zoneColor
-    ? `color-mix(in srgb, ${zoneColor} 12%, transparent)`
-    : anchorAccentColor.replace("0.96", "0.12");
+  // 액센트가 hex·rgb·named 어느 표기든 12% 글로우가 되도록 color-mix 로 섞는다.
+  const anchorGlowColor = `color-mix(in srgb, ${anchorAccentColor} 12%, transparent)`;
   const parentZone = zone.zone.parentZoneId
     ? input.model.zonesById[zone.zone.parentZoneId]
     : undefined;
@@ -1130,6 +1135,10 @@ export const domDrawEngine: DrawEngine = {
       transform: worldTransform,
       transformOrigin: "0 0",
       willChange: "transform",
+      // 씬 전체를 덮는 래퍼라 기본값(auto)이면 빈 영역 클릭을 가로채
+      // viewportRoot 의 onBackgroundClick 이 발화하지 않는다. 존/패스 요소는
+      // 각자 pointer-events:auto 를 명시한다.
+      pointerEvents: "none",
     });
 
     edgeSvg.setAttribute("width", String(sceneBounds.width));
@@ -1199,9 +1208,15 @@ export const domDrawEngine: DrawEngine = {
 
     viewportRoot.appendChild(worldBgRoot);
     if (input.gridOptions?.enabled) {
+      // 그리드는 viewportRoot(left/top = effective) 안에 그려지므로 월드 변환과
+      // 같은 원점 보정을 해야 셀 경계가 월드 좌표(cellSnap)와 맞는다.
       const gridLayer = createGridLayer({
         options: input.gridOptions,
-        camera,
+        camera: {
+          ...camera,
+          x: camera.x - viewportInfo.effective.x,
+          y: camera.y - viewportInfo.effective.y,
+        },
         theme: input.theme,
       });
       if (gridLayer) viewportRoot.appendChild(gridLayer);

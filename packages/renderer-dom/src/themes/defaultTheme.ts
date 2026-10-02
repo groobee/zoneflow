@@ -119,6 +119,17 @@ export const defaultTheme: ZoneflowTheme = {
   },
 };
 
+// 스프레드 병합은 명시적 undefined(예: `{ background: props.bg }`)로 기본값을
+// 지워 버린다 — undefined 값 키를 걸러 "미지정 = 기본값"을 보장한다.
+function definedOnly<T extends object>(value: T | undefined): Partial<T> {
+  if (!value) return {};
+  const result: Partial<T> = {};
+  for (const key of Object.keys(value) as (keyof T)[]) {
+    if (value[key] !== undefined) result[key] = value[key];
+  }
+  return result;
+}
+
 /**
  * Partial theme을 받아서 완전한 theme으로 보정
  */
@@ -129,63 +140,63 @@ export function resolveTheme(
 
   return {
     ...defaultTheme,
-    ...theme,
+    ...definedOnly(theme),
     surface: {
       chrome: {
         ...defaultTheme.surface.chrome,
-        ...theme.surface?.chrome,
+        ...definedOnly(theme.surface?.chrome),
       },
       zone: {
         ...defaultTheme.surface.zone,
-        ...theme.surface?.zone,
+        ...definedOnly(theme.surface?.zone),
       },
       path: {
         ...defaultTheme.surface.path,
-        ...theme.surface?.path,
+        ...definedOnly(theme.surface?.path),
       },
       anchor: {
         ...defaultTheme.surface.anchor,
-        ...theme.surface?.anchor,
+        ...definedOnly(theme.surface?.anchor),
       },
     },
     status: {
       info: {
         ...defaultTheme.status.info,
-        ...theme.status?.info,
+        ...definedOnly(theme.status?.info),
       },
       warning: {
         ...defaultTheme.status.warning,
-        ...theme.status?.warning,
+        ...definedOnly(theme.status?.warning),
       },
     },
     edgeFlow: {
       ...defaultTheme.edgeFlow,
-      ...theme.edgeFlow,
+      ...definedOnly(theme.edgeFlow),
     },
     typography: {
       fontFamily:
         theme.typography?.fontFamily ?? defaultTheme.typography.fontFamily,
       zoneFontSize: {
         ...defaultTheme.typography.zoneFontSize,
-        ...theme.typography?.zoneFontSize,
+        ...definedOnly(theme.typography?.zoneFontSize),
       },
       pathFontSize: {
         ...defaultTheme.typography.pathFontSize,
-        ...theme.typography?.pathFontSize,
+        ...definedOnly(theme.typography?.pathFontSize),
       },
     },
     grid: {
       ...defaultTheme.grid,
-      ...theme.grid,
+      ...definedOnly(theme.grid),
     },
     density: {
       zone: {
         ...defaultTheme.density.zone,
-        ...theme.density?.zone,
+        ...definedOnly(theme.density?.zone),
       },
       path: {
         ...defaultTheme.density.path,
-        ...theme.density?.path,
+        ...definedOnly(theme.density?.path),
       },
     },
   };

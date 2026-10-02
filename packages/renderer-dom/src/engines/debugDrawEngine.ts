@@ -6,6 +6,8 @@ import {
 import type {
   CameraState,
   DebugLayer,
+  RenderPipelineResult,
+  RenderViewportInfo,
   RendererDrawInput,
   Rect,
 } from "../types.js";
@@ -15,6 +17,7 @@ import {
   resolveDrawableEdgeSegments,
   resolveEdgeFlowMotion,
 } from "./edgeFlow.js";
+import { edgeSegmentsToPathD, getEdgeSegments } from "./edgeGeometry.js";
 import { defaultTheme } from "../themes/defaultTheme.js";
 
 export type DebugDrawInput = RendererDrawInput & {
@@ -23,10 +26,10 @@ export type DebugDrawInput = RendererDrawInput & {
 
 type DrawFn = (
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState,
   viewport: Rect,
-  theme?: RendererDrawInput["theme"]
+  input: DebugDrawInput
 ) => void;
 
 const ANCHOR_SIZE = 8;
@@ -54,7 +57,7 @@ function createSvgElement<K extends keyof SVGElementTagNameMap>(
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
-function sortZoneVisualsForRender(pipeline: any) {
+function sortZoneVisualsForRender(pipeline: RenderPipelineResult) {
   function getDepth(zoneId: string) {
     let depth = 0;
     let current = pipeline.graphLayout.zonesById[zoneId]?.zone;
@@ -68,13 +71,13 @@ function sortZoneVisualsForRender(pipeline: any) {
   }
 
   return Object.values(pipeline.graphLayout.zonesById)
-    .map((zone: any, index: number) => ({
+    .map((zone, index) => ({
       zone,
       index,
       depth: getDepth(zone.zoneId),
     }))
-    .sort((a: any, b: any) => a.depth - b.depth || a.index - b.index)
-    .map((entry: any) => entry.zone);
+    .sort((a, b) => a.depth - b.depth || a.index - b.index)
+    .map((entry) => entry.zone);
 }
 
 function getEdgeColor(params: {
@@ -84,58 +87,6 @@ function getEdgeColor(params: {
   return params.kind === "zone-to-path"
     ? params.theme.pathEdge
     : params.theme.pathInboundEdge;
-}
-
-function getBezierCurvePathD(params: {
-  source: { x: number; y: number };
-  target: { x: number; y: number };
-}) {
-  const { source, target } = params;
-  const distanceX = Math.abs(target.x - source.x);
-  const distanceY = Math.abs(target.y - source.y);
-
-  if (distanceX <= 72 && distanceY <= 48) {
-    return `M ${source.x} ${source.y} L ${target.x} ${target.y}`;
-  }
-
-  const sourceLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.18, 18), 42);
-  const leadSourceX = source.x + sourceLead;
-  const targetLead = Math.min(Math.max(Math.abs(target.x - source.x) * 0.16, 18), 42);
-  const targetApproachX = target.x - targetLead;
-  const shouldRouteAround = targetApproachX - leadSourceX < 36;
-
-  if (shouldRouteAround) {
-    const bridgeDistance = Math.abs(leadSourceX - targetApproachX);
-    const midX = (leadSourceX + targetApproachX) / 2;
-    const sourceBendX =
-      leadSourceX + Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const targetBendX =
-      targetApproachX - Math.min(Math.max(bridgeDistance * 0.22, 28), 72);
-    const verticalGap = Math.abs(target.y - source.y);
-    const verticalDirection = target.y >= source.y ? 1 : -1;
-    const laneOffset = Math.min(
-      Math.max(Math.abs(target.x - source.x) * 0.22 + 48, 56),
-      144
-    );
-    const laneY =
-      (source.y + target.y) / 2 +
-      (verticalGap < 36 ? verticalDirection * laneOffset : 0);
-
-    return [
-      `M ${source.x} ${source.y}`,
-      `L ${leadSourceX} ${source.y}`,
-      `C ${sourceBendX} ${source.y}, ${sourceBendX} ${laneY}, ${midX} ${laneY}`,
-      `C ${targetBendX} ${laneY}, ${targetBendX} ${target.y}, ${targetApproachX} ${target.y}`,
-      `L ${target.x} ${target.y}`,
-    ].join(" ");
-  }
-
-  const dx = targetApproachX - leadSourceX;
-  const handle = Math.min(Math.max(Math.abs(dx) * 0.45, 28), 104);
-  const control1X = leadSourceX + handle;
-  const control2X = targetApproachX - handle;
-
-  return `M ${source.x} ${source.y} L ${leadSourceX} ${source.y} C ${control1X} ${source.y}, ${control2X} ${target.y}, ${targetApproachX} ${target.y} L ${target.x} ${target.y}`;
 }
 
 function filterPipelineForExclusion(input: DebugDrawInput) {
@@ -238,7 +189,7 @@ export const debugDrawEngine = {
         pipeline,
         camera,
         pipeline.viewportInfo.world,
-        input.theme
+        input
       );
     });
 
@@ -336,16 +287,16 @@ function drawAnchor(
 
 function drawGraphLayout(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState
 ) {
   const { graphLayout } = pipeline;
 
-  sortZoneVisualsForRender(pipeline).forEach((zone: any) => {
+  sortZoneVisualsForRender(pipeline).forEach((zone) => {
     drawBox(root, zone.rect, "blue", zone.zone.name, camera);
   });
 
-  Object.values(graphLayout.pathsById).forEach((path: any) => {
+  Object.values(graphLayout.pathsById).forEach((path) => {
     if (path.rect) {
       drawBox(root, path.rect, "green", path.path.name, camera);
     }
@@ -354,17 +305,17 @@ function drawGraphLayout(
 
 function drawDensity(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState
 ) {
   const { graphLayout, density } = pipeline;
 
-  Object.values(graphLayout.zonesById).forEach((zone: any) => {
+  Object.values(graphLayout.zonesById).forEach((zone) => {
     const level = density.zoneDensityById[zone.zoneId];
     drawBox(root, zone.rect, "purple", level, camera);
   });
 
-  Object.values(graphLayout.pathsById).forEach((path: any) => {
+  Object.values(graphLayout.pathsById).forEach((path) => {
     if (!path.rect) return;
     const level = density.pathDensityById[path.pathId];
     drawBox(root, path.rect, "magenta", level, camera);
@@ -373,12 +324,12 @@ function drawDensity(
 
 function drawVisibility(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState
 ) {
   const { graphLayout, visibility } = pipeline;
 
-  Object.values(graphLayout.zonesById).forEach((zone: any) => {
+  Object.values(graphLayout.zonesById).forEach((zone) => {
     const v = visibility.zoneVisibilityById[zone.zoneId];
     if (!v) return;
 
@@ -398,7 +349,7 @@ function drawVisibility(
     drawBox(root, zone.rect, color, label, camera);
   });
 
-  Object.values(graphLayout.pathsById).forEach((path: any) => {
+  Object.values(graphLayout.pathsById).forEach((path) => {
     if (!path.rect) return;
 
     const v = visibility.pathVisibilityById[path.pathId];
@@ -423,32 +374,33 @@ function drawVisibility(
 
 function drawComponentLayout(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState
 ) {
   const { componentLayout } = pipeline;
 
-  Object.values(componentLayout.zonesById).forEach((zone: any) => {
-    Object.entries(zone.slots).forEach(([name, rect]: any) => {
-      drawBox(root, rect, "red", name, camera);
+  Object.values(componentLayout.zonesById).forEach((zone) => {
+    Object.entries(zone.slots).forEach(([name, rect]) => {
+      if (rect) drawBox(root, rect, "red", name, camera);
     });
   });
 
-  Object.values(componentLayout.pathsById ?? {}).forEach((path: any) => {
-    Object.entries(path.slots).forEach(([name, rect]: any) => {
-      drawBox(root, rect, "brown", `path:${name}`, camera);
+  Object.values(componentLayout.pathsById ?? {}).forEach((path) => {
+    Object.entries(path.slots).forEach(([name, rect]) => {
+      if (rect) drawBox(root, rect, "brown", `path:${name}`, camera);
     });
   });
 }
 
 function drawEdges(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   _camera: CameraState,
   _viewport: Rect,
-  theme?: RendererDrawInput["theme"]
+  input: DebugDrawInput
 ) {
-  const { edgesByPathId } = pipeline.graphLayout;
+  const { theme } = input;
+  const { edgesByPathId, pathsById } = pipeline.graphLayout;
   const svg = createSvgElement("svg");
   svg.style.position = "absolute";
   svg.style.left = "0";
@@ -458,15 +410,16 @@ function drawEdges(
   svg.style.overflow = "visible";
   svg.style.pointerEvents = "none";
   const edgeFlowMotion = resolveEdgeFlowMotion(theme ?? defaultTheme);
+  const edgeFlowClass = `${EDGE_FLOW_CLASS}-${edgeFlowMotion.id}`;
   appendEdgeFlowStyle({
     svg,
-    animationName: "zoneflow-debug-edge-flow",
-    className: EDGE_FLOW_CLASS,
+    animationName: edgeFlowClass,
+    className: edgeFlowClass,
     motion: edgeFlowMotion,
   });
   const effectiveTheme = theme ?? defaultTheme;
 
-  Object.entries(edgesByPathId).forEach(([pathId, edges]: any) => {
+  Object.entries(edgesByPathId).forEach(([pathId, edges]) => {
     const visibility = pipeline.visibility?.pathVisibilityById?.[pathId];
     const drawableEdges = resolveDrawableEdgeSegments({
       pathId,
@@ -482,10 +435,19 @@ function drawEdges(
             kind: edge.kind,
             theme: effectiveTheme,
           });
-      const pathD = getBezierCurvePathD({
-        source: edge.source,
-        target: edge.target,
-      });
+      // drawEngine 과 같은 기하 소스 — 소비자 lineShape 를 디버그 뷰도 따른다.
+      const pathVisual = pathsById[pathId];
+      const lineShape = pathVisual
+        ? input.resolvePathStyle?.(pathVisual.path)?.lineShape
+        : undefined;
+      const pathD = edgeSegmentsToPathD(
+        edge.source,
+        getEdgeSegments({
+          source: edge.source,
+          target: edge.target,
+          lineShape,
+        })
+      );
 
       path.setAttribute("d", pathD);
       path.setAttribute("fill", "none");
@@ -513,7 +475,7 @@ function drawEdges(
       flowGlow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
       flowGlow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
       flowGlow.setAttribute("opacity", "0.18");
-      flowGlow.setAttribute("class", EDGE_FLOW_CLASS);
+      flowGlow.setAttribute("class", `${EDGE_FLOW_CLASS} ${edgeFlowClass}`);
       svg.appendChild(flowGlow);
 
       const flow = createSvgElement("path");
@@ -528,7 +490,7 @@ function drawEdges(
       flow.setAttribute("stroke-linejoin", "round");
       flow.setAttribute("stroke-dasharray", edgeFlowMotion.dashArray);
       flow.setAttribute("stroke-dashoffset", edgeFlowMotion.dashOffset);
-      flow.setAttribute("class", EDGE_FLOW_CLASS);
+      flow.setAttribute("class", `${EDGE_FLOW_CLASS} ${edgeFlowClass}`);
       flow.setAttribute("opacity", "0.94");
 
       svg.appendChild(flow);
@@ -540,12 +502,12 @@ function drawEdges(
 
 function drawAnchors(
   root: HTMLElement,
-  pipeline: any,
+  pipeline: RenderPipelineResult,
   camera: CameraState
 ) {
   const { graphLayout } = pipeline;
 
-  Object.values(graphLayout.zonesById).forEach((zone: any) => {
+  Object.values(graphLayout.zonesById).forEach((zone) => {
     const inlet = zone.anchors?.inlet?.point;
     const outlet = zone.anchors?.outlet?.point;
     const parentZone = zone.zone?.parentZoneId
@@ -560,7 +522,7 @@ function drawAnchors(
     }
   });
 
-  Object.values(graphLayout.pathsById).forEach((path: any) => {
+  Object.values(graphLayout.pathsById).forEach((path) => {
     if (path.inlet) {
       drawAnchor(root, path.inlet, "#16a34a", `${path.pathId}:in`, camera);
     }
@@ -572,14 +534,14 @@ function drawAnchors(
 
 function drawViewport(
   root: HTMLElement,
-  _pipeline: any,
+  _pipeline: RenderPipelineResult,
   camera: CameraState,
   viewport: Rect
 ) {
   drawBox(root, viewport, "#22c55e", "viewport", camera);
 }
 
-function drawHostViewport(root: HTMLElement, viewportInfo: any) {
+function drawHostViewport(root: HTMLElement, viewportInfo: RenderViewportInfo) {
   const box = document.createElement("div");
 
   const { effective, host } = viewportInfo;

@@ -197,6 +197,7 @@ export function createRenderer(): ZoneflowRenderer {
           theme: mergedTheme,
           textScale,
           pipeline,
+          resolvePathStyle,
           exclusionState,
           layers: debug.layers ?? ["graph-layout", "edges", "anchors"],
         });

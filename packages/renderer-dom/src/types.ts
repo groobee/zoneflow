@@ -339,6 +339,9 @@ export type PathDisplayContext = {
  *   툴바/삭제가 동작한다. 라벨 이동·리사이즈·재연결 핸들만 대상이 아니다.
  * - 렌더마다 패스별로 호출되므로 동기적이고 가벼워야 하며, throw 는
  *   `undefined` 로 처리.
+ * - 결과는 그래프 레이아웃 단계에 반영돼 카메라만 바뀐 프레임에서는 재사용된다
+ *   (재호출되지 않는다). 같은 패스에 대한 반환값이 바뀌면 **함수 참조도 바꿀 것**
+ *   — ref/스토어를 읽는 고정 참조 리졸버는 다음 모델·테마 변경 전까지 낡은 값을 쓴다.
  */
 export type ResolvePathDisplay = (
   path: Path,
@@ -743,6 +746,10 @@ export type RendererDebugOptions = {
 export type RendererInput = {
   model: UniverseModel;
   layoutModel: UniverseLayoutModel;
+  /**
+   * 참조 단위로 해석·캐시된다 — 같은 객체를 제자리에서 고치면 반영되지 않으니
+   * 바꿀 때는 새 객체를 넘길 것(model/layoutModel 과 같은 불변 규약).
+   */
   theme?: ZoneflowThemeInput;
   textScale?: TextScaleLevel;
   camera?: CameraState;

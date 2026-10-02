@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveTheme } from "./themes/defaultTheme.js";
 import { ZONE_CLIP_SHADOW } from "./engines/drawShared.js";
+import { resolveEdgeFlowMotion } from "./engines/edgeFlow.js";
 
 describe("resolveTheme — typography tokens", () => {
   it("defaults to the library font stack and slot sizes", () => {
@@ -95,5 +96,36 @@ describe("resolveTheme — deep-partial surface input", () => {
       resolveTheme().surface.zone.shadow
     );
     expect(theme.surface.path).toEqual(resolveTheme().surface.path);
+  });
+});
+
+describe("resolveTheme — explicit undefined keeps defaults", () => {
+  it("treats undefined-valued keys as unset at every level", () => {
+    const defaults = resolveTheme();
+    const theme = resolveTheme({
+      background: undefined,
+      density: { zone: { far: undefined } },
+      typography: { zoneFontSize: { title: undefined } },
+      edgeFlow: { durationMs: undefined },
+    });
+
+    expect(theme.background).toBe(defaults.background);
+    expect(theme.density.zone.far).toBe(defaults.density.zone.far);
+    expect(theme.typography.zoneFontSize.title).toBe(
+      defaults.typography.zoneFontSize.title
+    );
+    expect(theme.edgeFlow.durationMs).toBe(defaults.edgeFlow.durationMs);
+  });
+});
+
+describe("resolveEdgeFlowMotion — per-value animation id", () => {
+  it("gives different motions different CSS-safe ids", () => {
+    const a = resolveEdgeFlowMotion(resolveTheme());
+    const b = resolveEdgeFlowMotion(
+      resolveTheme({ edgeFlow: { durationMs: 5000.5 } })
+    );
+
+    expect(a.id).not.toBe(b.id);
+    expect(b.id).toMatch(/^[\w-]+$/);
   });
 });

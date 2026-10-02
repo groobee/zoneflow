@@ -2,6 +2,8 @@ import type { EdgeVisual, PathVisibility } from "../types.js";
 import type { ZoneflowTheme } from "../theme.js";
 
 export type EdgeFlowMotion = {
+  /** CSS 식별자로 쓸 수 있는 모션 값 지문 — 키프레임 이름을 값별로 분리한다. */
+  id: string;
   durationMs: number;
   segmentLength: number;
   gapLength: number;
@@ -21,6 +23,7 @@ export function resolveEdgeFlowMotion(theme: ZoneflowTheme): EdgeFlowMotion {
   const cycleLength = segmentLength + gapLength;
 
   return {
+    id: `${durationMs}-${segmentLength}-${gapLength}`.replace(/[^\w-]/g, "_"),
     durationMs,
     segmentLength,
     gapLength,
