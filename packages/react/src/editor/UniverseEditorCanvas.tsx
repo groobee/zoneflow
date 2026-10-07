@@ -21,7 +21,8 @@ import {
   getObjectSnapToggleLabel,
   getZoneflowEditorStrings,
 } from "./strings.js";
-import { useEditorLocale } from "../internal/hooks.js";
+import { fitCameraToWorldRect } from "./fitCamera.js";
+import { useEditorLocale, useIsomorphicLayoutEffect, useLatestRef } from "../internal/hooks.js";
 import type { ZoneMoveEditorConfig } from "./ZoneMoveEditorOverlay.js";
 import { resolveEditorTheme } from "@zoneflow/editor-dom";
 import type { UniverseEditorController } from "./useUniverseEditor.js";
@@ -49,13 +50,34 @@ export type UniverseEditorCanvasProps = Omit<
 > & {
   editor: UniverseEditorController;
   editorConfig?: ControlledZoneMoveEditorConfig;
+  /**
+   * 첫 프레임이 그려져 장면 크기를 알 수 있게 되면 한 번 전체가 보이도록 카메라를
+   * 맞춥니다(Fit to view 와 같은 계산). 기본 false — 켜지 않으면 카메라는 (0,0) 100% 로 시작.
+   * 모델이 비어 있는 동안(로딩 중)에는 기다렸다가 처음 내용이 생길 때 한 번만 적용합니다.
+   * 캠페인 전환처럼 모델을 통째로 바꿀 때 다시 맞추려면 `key` 로 캔버스를 재마운트하거나
+   * 핸들의 `fitToView()` 를 호출하세요.
+   */
+  fitOnLoad?: boolean;
+  /**
+   * Fit to view(버튼·`fitToView()`·`fitOnLoad`)가 확대할 수 있는 최대 배율. 기본 1(=100%).
+   * 장면이 뷰포트보다 작을 때 과확대되는 것을 막습니다(축소는 제한하지 않음).
+   * 수동 줌 상한(300%)과는 별개입니다.
+   */
+  fitMaxZoom?: number;
+};
+
+export type UniverseEditorFitToViewOptions = {
+  /** 이번 호출에 한해 `fitMaxZoom` 을 덮어씁니다. */
+  maxZoom?: number;
+  /** 뷰포트 가장자리 여백(px). 기본 64. */
+  padding?: number;
 };
 
 export type UniverseEditorCanvasHandle = {
   /** 특정 zone 이 화면 중앙에 오도록 카메라를 이동. zone 을 못 찾으면 false. */
   focusZone: (zoneId: ZoneId, options?: UniverseCanvasFocusZoneOptions) => boolean;
-  /** 모든 zone/path 가 화면에 들어오도록 카메라를 맞춤. */
-  fitToView: () => void;
+  /** 모든 zone/path 가 화면에 들어오도록 카메라를 맞춤. 배율 상한은 `fitMaxZoom`(기본 100%). */
+  fitToView: (options?: UniverseEditorFitToViewOptions) => void;
 };
 
 const DEFAULT_CAMERA: CameraState = {
@@ -67,7 +89,7 @@ const DEFAULT_CAMERA: CameraState = {
 const ZOOM_STEP = 1.1;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
-const FIT_TO_VIEW_PADDING = 64;
+const DEFAULT_FIT_MAX_ZOOM = 1;
 const VIEWER_OVERLAY_HUD_Z_INDEX = 40;
 
 function clamp(value: number, min: number, max: number) {
@@ -128,41 +150,24 @@ function resolveSceneBounds(frame: RendererFrame | null): Rect | null {
   return getUnionRect([...zoneRects, ...pathRects]);
 }
 
-function fitCameraToWorldRect(params: {
-  rect: Rect;
-  viewportWidth: number;
-  viewportHeight: number;
-  padding?: number;
-}): CameraState {
-  const { rect, viewportWidth, viewportHeight, padding = FIT_TO_VIEW_PADDING } = params;
-  const availableWidth = Math.max(viewportWidth - padding * 2, 1);
-  const availableHeight = Math.max(viewportHeight - padding * 2, 1);
-  const zoom = clamp(
-    Math.min(availableWidth / rect.width, availableHeight / rect.height),
-    MIN_ZOOM,
-    MAX_ZOOM
-  );
-  const contentWidth = rect.width * zoom;
-  const contentHeight = rect.height * zoom;
-
-  return {
-    x: padding + (availableWidth - contentWidth) / 2 - rect.x * zoom,
-    y: padding + (availableHeight - contentHeight) / 2 - rect.y * zoom,
-    zoom,
-  };
-}
-
 export const UniverseEditorCanvas = forwardRef<
   UniverseEditorCanvasHandle,
   UniverseEditorCanvasProps
 >(function UniverseEditorCanvas(props, handleRef) {
-  const { editor, editorConfig, grid, ...canvasProps } = props;
+  const {
+    editor,
+    editorConfig,
+    grid,
+    fitOnLoad = false,
+    fitMaxZoom = DEFAULT_FIT_MAX_ZOOM,
+    ...canvasProps
+  } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<RendererFrame | null>(null);
-  const handleFrameChange = useCallback((nextFrame: RendererFrame | null) => {
-    frameRef.current = nextFrame;
-  }, []);
   const [camera, setCamera] = useState<CameraState>(DEFAULT_CAMERA);
+  const fitMaxZoomRef = useLatestRef(fitMaxZoom);
+  const fitOnLoadRef = useLatestRef(fitOnLoad);
+  const didFitOnLoadRef = useRef(false);
   const editorLocale = useEditorLocale();
   const editorStrings = useMemo(
     () => getZoneflowEditorStrings(editorLocale),
@@ -226,22 +231,48 @@ export const UniverseEditorCanvas = forwardRef<
     );
   }, []);
 
-  const fitToView = useCallback(() => {
-    const rect = hostRef.current?.getBoundingClientRect();
-    const sceneBounds = resolveSceneBounds(frameRef.current);
+  const fitToView = useCallback(
+    (options?: UniverseEditorFitToViewOptions): boolean => {
+      const rect = hostRef.current?.getBoundingClientRect();
+      const sceneBounds = resolveSceneBounds(frameRef.current);
 
-    if (!rect || rect.width <= 0 || rect.height <= 0 || !sceneBounds) {
-      return;
-    }
+      if (!rect || rect.width <= 0 || rect.height <= 0 || !sceneBounds) {
+        return false;
+      }
 
-    setCamera(
-      fitCameraToWorldRect({
-        rect: sceneBounds,
-        viewportWidth: rect.width,
-        viewportHeight: rect.height,
-      })
-    );
-  }, []);
+      setCamera(
+        fitCameraToWorldRect({
+          rect: sceneBounds,
+          viewportWidth: rect.width,
+          viewportHeight: rect.height,
+          padding: options?.padding,
+          maxZoom: options?.maxZoom ?? fitMaxZoomRef.current,
+        })
+      );
+      return true;
+    },
+    [fitMaxZoomRef]
+  );
+
+  // fitOnLoad: 장면이 처음 측정되는 순간(빈 모델·0×0 호스트는 건너뜀)에 한 번만.
+  const tryFitOnLoad = useCallback(() => {
+    if (!fitOnLoadRef.current || didFitOnLoadRef.current) return;
+    if (fitToView()) didFitOnLoadRef.current = true;
+  }, [fitToView, fitOnLoadRef]);
+
+  const handleFrameChange = useCallback(
+    (nextFrame: RendererFrame | null) => {
+      frameRef.current = nextFrame;
+      tryFitOnLoad();
+    },
+    [tryFitOnLoad]
+  );
+
+  // 첫 프레임은 자식(UniverseCanvas)의 layout effect 에서 나오는데, 그 시점엔 이 컴포넌트의
+  // hostRef 가 아직 붙기 전이다 — 마운트 직후 한 번 더 시도한다.
+  useIsomorphicLayoutEffect(() => {
+    tryFitOnLoad();
+  }, [tryFitOnLoad]);
 
   const focusZone = useCallback(
     (zoneId: ZoneId, options?: UniverseCanvasFocusZoneOptions): boolean => {
@@ -272,7 +303,12 @@ export const UniverseEditorCanvas = forwardRef<
 
   useImperativeHandle(
     handleRef,
-    () => ({ focusZone, fitToView }),
+    () => ({
+      focusZone,
+      fitToView: (options?: UniverseEditorFitToViewOptions) => {
+        fitToView(options);
+      },
+    }),
     [focusZone, fitToView]
   );
 
@@ -317,7 +353,7 @@ export const UniverseEditorCanvas = forwardRef<
           onToggleObjectSnap: editor.toggleObjectSnap,
           snapEnabled: editor.gridSnapEnabled,
           onToggleSnap: editor.toggleGridSnap,
-          onFitToView: fitToView,
+          onFitToView: () => fitToView(),
           zoom: camera.zoom,
           onZoomIn: () => zoomAtCenter(ZOOM_STEP),
           onZoomOut: () => zoomAtCenter(1 / ZOOM_STEP),
@@ -374,7 +410,7 @@ export const UniverseEditorCanvas = forwardRef<
           {editorConfig?.overlayControls?.showFitToView !== false ? (
             <button
               type="button"
-              onClick={fitToView}
+              onClick={() => fitToView()}
               style={viewerHudButtonStyle}
             >
               {editorStrings.hud.fitToView}

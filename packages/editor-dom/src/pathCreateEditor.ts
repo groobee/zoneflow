@@ -88,6 +88,27 @@ function canPathTargetZone(
   return isZoneInputEnabled(targetZone, parent);
 }
 
+/**
+ * 연결 드래그(새 패스 생성·재연결) 중 "여기에 놓을 수 있다"고 강조할 후보 존 목록.
+ * 드롭 판정(`resolveInputAnchorTargetZoneId`)과 같은 규칙 — 입력 불가 존·소스 자신·
+ * `canConnect` 거부 존은 제외하고, 소스의 조상 컨테이너는 포함(탈출 합류)한다.
+ */
+export function listConnectCandidateZoneIds(params: {
+  model: UniverseModel;
+  sourceZoneId: ZoneId;
+  canConnect?: (targetZoneId: ZoneId) => boolean;
+}): ZoneId[] {
+  const { model, sourceZoneId, canConnect } = params;
+  const result: ZoneId[] = [];
+  for (const zone of Object.values(model.zonesById) as Zone[]) {
+    if (zone.id === sourceZoneId) continue;
+    if (!canPathTargetZone(model, zone, sourceZoneId)) continue;
+    if (canConnect && !canConnect(zone.id)) continue;
+    result.push(zone.id);
+  }
+  return result;
+}
+
 const DEFAULT_PATH_NODE_WIDTH = 120;
 const DEFAULT_PATH_NODE_HEIGHT = 32;
 const DEFAULT_PATH_NODE_OFFSET_X = 32;

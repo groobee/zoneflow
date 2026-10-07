@@ -61,6 +61,7 @@ import {
   type PathResizeOrigin,
   type ZOrderMode,
   type ZoneResizeOrigin,
+  listConnectCandidateZoneIds,
 } from "@zoneflow/editor-dom";
 import {
   edgeSegmentsToPathD,
@@ -501,6 +502,15 @@ export type ZoneMoveEditorConfig = {
    */
   pathCreateTrigger?: PathCreateTrigger;
   /**
+   * 패스 라벨의 "재연결(→) 핸들" 노출 시점. 이 핸들을 끌어 대상 존에 놓아야 연결된다
+   * (라벨 자체를 존 위로 끌어 놓는 것은 연결이 아니다).
+   * - `"hover"`(기본, 기존 동작): 패스에 마우스를 올리거나 선택했을 때만.
+   * - `"dangling"`: 위 조건 + 타깃이 없는(dangling)·깨진 패스는 항상.
+   * - `"always"`: 모든 패스에 항상.
+   * 핸들을 끄는 건 `permissions.retargetPath` 가 맡는다.
+   */
+  pathConnectHandle?: "hover" | "dangling" | "always";
+  /**
    * "이 존에서 패스를 뽑아낼 수 있는가"의 사전 판정 — `canConnectPath` 의 출발판.
    *
    * - 미지정 시 기본 동작: 모든 존 허용 (기존 동작과 동일).
@@ -765,6 +775,9 @@ type MarqueeSelectionState = {
   currentX: number;
   currentY: number;
   appendToSelection: boolean;
+  /** 빈 영역 드래그 팬 모드 — 마퀴 대신 시작 카메라를 기준으로 카메라를 옮긴다. */
+  panStartCamera?: CameraState;
+  panStarted?: boolean;
 };
 
 type ObjectSnapGuideLineState = {
@@ -1721,6 +1734,10 @@ export function ZoneMoveEditorOverlay(props: {
   /** 렌더러와 같은 연결선 모양 리졸버 — 선 클릭 히트테스트/칩 배치가 같은 곡선을 보게. */
   resolvePathStyle?: ResolvePathStyle;
   onExclusionStateChange?: (next: RendererExclusionState | undefined) => void;
+  /** true 면 빈 영역 드래그가 마퀴 선택 대신 캔버스 팬이 된다(Shift/Ctrl/⌘ 드래그는 마퀴). */
+  panOnBackgroundDrag?: boolean;
+  /** 팬 모드가 카메라를 옮길 때 호출. */
+  onPanCamera?: (nextCamera: CameraState) => void;
 }) {
   const {
     model,
@@ -1733,6 +1750,8 @@ export function ZoneMoveEditorOverlay(props: {
     resolveZoneShape,
     resolvePathStyle,
     onExclusionStateChange,
+    panOnBackgroundDrag,
+    onPanCamera,
   } = props;
   const permissions = useMemo(
     () => resolvePermissions(editor?.permissions),
@@ -1745,6 +1764,7 @@ export function ZoneMoveEditorOverlay(props: {
   // 패스 생성 트리거 — 기본 "drag" (기존 동작 그대로). 클릭 포함 시에만
   // 앵커에 기본 "+" 배지가 그려진다.
   const pathCreateTrigger = editor?.pathCreateTrigger ?? "drag";
+  const pathConnectHandle = editor?.pathConnectHandle ?? "hover";
   const pathCreateDragEnabled = pathCreateTrigger !== "anchorClick";
   const pathCreateClickEnabled = pathCreateTrigger !== "drag";
   const hudButtonStyle = useMemo<CSSProperties>(
@@ -1909,6 +1929,8 @@ export function ZoneMoveEditorOverlay(props: {
     resolveZoneShape,
     resolvePathStyle,
     onExclusionStateChange,
+    panOnBackgroundDrag,
+    onPanCamera,
   });
 
   // Synced every commit in a layout effect — handlers read it, and a passive
@@ -1944,6 +1966,8 @@ export function ZoneMoveEditorOverlay(props: {
       resolveZoneShape,
       resolvePathStyle,
       onExclusionStateChange,
+      panOnBackgroundDrag,
+      onPanCamera,
     };
   });
 
@@ -2790,11 +2814,14 @@ export function ZoneMoveEditorOverlay(props: {
         }
       }
 
-      if (marquee && latestRef.current.frame) {
+      if (marquee?.panStarted) {
+        // 팬이 끝난 제스처 — 선택은 건드리지 않는다.
+      } else if (marquee && latestRef.current.frame) {
         const marqueeRect = normalizeMarqueeRect(marquee);
         const didMarqueeSelect =
-          marqueeRect.width >= DRAG_START_DISTANCE ||
-          marqueeRect.height >= DRAG_START_DISTANCE;
+          !marquee.panStartCamera &&
+          (marqueeRect.width >= DRAG_START_DISTANCE ||
+            marqueeRect.height >= DRAG_START_DISTANCE);
 
         if (didMarqueeSelect) {
           const matchedTargets = getMoveEditorTargets({
@@ -3003,6 +3030,27 @@ export function ZoneMoveEditorOverlay(props: {
             event.clientY
           ).y,
         };
+
+        if (marquee.panStartCamera) {
+          const panStartCamera = marquee.panStartCamera;
+          const dx = nextSelection.currentX - marquee.startX;
+          const dy = nextSelection.currentY - marquee.startY;
+          const panStarted =
+            marquee.panStarted || Math.hypot(dx, dy) >= DRAG_START_DISTANCE;
+          if (panStarted && !marquee.panStarted) {
+            document.body.style.cursor = "grabbing";
+            document.body.style.userSelect = "none";
+          }
+          marqueeSelectionRef.current = { ...nextSelection, panStarted };
+          if (panStarted) {
+            latestRef.current.onPanCamera?.({
+              ...panStartCamera,
+              x: panStartCamera.x + dx,
+              y: panStartCamera.y + dy,
+            });
+          }
+          return;
+        }
 
         marqueeSelectionRef.current = nextSelection;
         setMarqueeSelection(nextSelection);
@@ -3504,6 +3552,51 @@ export function ZoneMoveEditorOverlay(props: {
     editor?.canDropZone,
     permissions.reparentZone,
   ]);
+
+  // 연결 드래그(생성·재연결) 중 놓을 수 있는 후보 존 — 아래에서 인렛(조상이면 아웃렛)
+  // 앵커 위치에 옅은 링으로 그려 "어디에 놓으면 연결되는지"를 보여 준다.
+  const connectDragSource = creatingPath
+    ? { sourceZoneId: creatingPath.sourceZoneId, pathId: undefined }
+    : retargetingPath
+      ? {
+          sourceZoneId: retargetingPath.sourceZoneId,
+          pathId: retargetingPath.pathId,
+        }
+      : null;
+  const connectDragSourceZoneId = connectDragSource?.sourceZoneId;
+  const connectDragPathId = connectDragSource?.pathId;
+  const connectCandidateZoneIds = useMemo<ZoneId[]>(() => {
+    if (!connectDragSourceZoneId) return [];
+    const canConnectPath = editor?.canConnectPath;
+    const sourceZone = model.zonesById[connectDragSourceZoneId];
+    if (!sourceZone) return [];
+    return listConnectCandidateZoneIds({
+      model,
+      sourceZoneId: connectDragSourceZoneId,
+      canConnect: canConnectPath
+        ? (targetZoneId) => {
+            const targetZone = model.zonesById[targetZoneId];
+            if (!targetZone) return false;
+            try {
+              return canConnectPath({
+                mode: connectDragPathId ? "retarget" : "create",
+                sourceZoneId: connectDragSourceZoneId,
+                targetZoneId,
+                sourceZone,
+                targetZone,
+                model,
+                pathId: connectDragPathId,
+                path: connectDragPathId
+                  ? sourceZone.pathsById[connectDragPathId]
+                  : undefined,
+              });
+            } catch {
+              return false;
+            }
+          }
+        : undefined,
+    });
+  }, [model, connectDragSourceZoneId, connectDragPathId, editor?.canConnectPath]);
 
   const dropTargetZoneIds = useMemo(() => {
     // 부모를 바꿀 수 없는 권한이면 "여기에 들어감" 하이라이트도 없다.
@@ -4171,6 +4264,23 @@ export function ZoneMoveEditorOverlay(props: {
             appendToSelection:
               event.shiftKey || event.metaKey || event.ctrlKey,
           };
+
+          if (
+            latestRef.current.panOnBackgroundDrag &&
+            latestRef.current.onPanCamera &&
+            !nextSelection.appendToSelection
+          ) {
+            // 팬 모드 — 임계 미만이면 아래 pointerup 이 클릭(선택 해제/패스 선택)으로 처리한다.
+            marqueeSelectionRef.current = {
+              ...nextSelection,
+              panStartCamera: latestRef.current.camera,
+              panStarted: false,
+            };
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+            return;
+          }
 
           marqueeSelectionRef.current = nextSelection;
           setMarqueeSelection(nextSelection);
@@ -5128,6 +5238,47 @@ export function ZoneMoveEditorOverlay(props: {
           />
         ) : null}
 
+        {connectCandidateZoneIds.map((zoneId) => {
+          // 지금 커서가 가리키는 대상은 아래의 강한 하이라이트가 맡는다.
+          if (
+            zoneId === pathCreateTargetZoneId ||
+            zoneId === retargetPathTargetZoneId
+          ) {
+            return null;
+          }
+          const rect = resolveZoneAnchorScreenRect({
+            frame,
+            camera,
+            zoneId,
+            kind:
+              connectDragSourceZoneId &&
+              isDescendantZone(model, zoneId, connectDragSourceZoneId)
+                ? "outlet"
+                : "inlet",
+            resolveZoneShape,
+          });
+          if (!rect) return null;
+          return (
+            <div
+              key={`connect-candidate-${zoneId}`}
+              data-zoneflow-connect-candidate={zoneId}
+              style={{
+                position: "absolute",
+                left: `${rect.x - 3}px`,
+                top: `${rect.y - 3}px`,
+                width: `${rect.width + 6}px`,
+                height: `${rect.height + 6}px`,
+                boxSizing: "border-box",
+                borderRadius: 999,
+                border: resolvedEditorTheme.overlay.connectTarget.border,
+                borderStyle: "dashed",
+                opacity: 0.7,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        })}
+
         {creatingPath && pathCreateTargetAnchorRect ? (
           <div
             style={{
@@ -5394,7 +5545,15 @@ export function ZoneMoveEditorOverlay(props: {
             !retargetingPath &&
             !isDeleteArmed &&
             !!pathOutputAnchorLocalRect &&
-            (visualState === "hover" || visualState === "selected");
+            (visualState === "hover" ||
+              visualState === "selected" ||
+              pathConnectHandle === "always" ||
+              (pathConnectHandle === "dangling" &&
+                !!pathVisual &&
+                !(
+                  pathVisual.targetZoneId &&
+                  model.zonesById[pathVisual.targetZoneId]
+                )));
           // outlet 앵커 "패스 생성" 배지(기본 "+") — 클릭 트리거가 켜져 있거나
           // 커스텀 앵커 콘텐츠가 주입된 경우에만, hover/선택 시 표시.
           // 기본 트리거("drag")에선 기존처럼 투명 히트 영역만 남는다.

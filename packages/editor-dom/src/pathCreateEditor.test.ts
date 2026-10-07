@@ -4,6 +4,7 @@ import type { RendererFrame } from "@zoneflow/renderer-dom";
 import {
   createPathFromOutputAnchorDrag,
   createPathFromZone,
+  listConnectCandidateZoneIds,
 } from "./pathCreateEditor.js";
 
 const NODE_W = 120;
@@ -197,5 +198,23 @@ describe("createPathFromZone — 프로그래매틱(앵커 클릭) 생성", () =
     })!;
 
     expect(result.model.zonesById["outside"]!.pathsById[result.pathId]!.target).toBeNull();
+  });
+});
+
+describe("listConnectCandidateZoneIds", () => {
+  it("소스 자신을 빼고, 조상 컨테이너·다른 존을 후보로 돌려준다", () => {
+    const ids = listConnectCandidateZoneIds({ model, sourceZoneId: "child" });
+    expect(ids).not.toContain("child");
+    expect(ids).toEqual(expect.arrayContaining(["c", "outside"]));
+  });
+
+  it("canConnect 가 거부한 존은 제외한다", () => {
+    const ids = listConnectCandidateZoneIds({
+      model,
+      sourceZoneId: "child",
+      canConnect: (id) => id !== "outside",
+    });
+    expect(ids).not.toContain("outside");
+    expect(ids).toContain("c");
   });
 });

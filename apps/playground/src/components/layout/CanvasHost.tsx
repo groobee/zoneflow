@@ -510,6 +510,8 @@ export function CanvasHost({
       <UniverseEditorCanvas
         ref={editorCanvasRef}
         editor={editor}
+        fitOnLoad
+        panOnBackgroundDrag
         theme={rendererTheme}
         viewport={debug.viewport}
         componentLayoutEngine={customZoneLayoutEngine}
@@ -561,6 +563,7 @@ export function CanvasHost({
           // 패스 생성 트리거 데모 — 드래그(기존)와 앵커 클릭 둘 다. 존 hover 시
           // outlet 앵커에 "+" 배지가 뜨고, 클릭하면 종류 피커 팝오버가 열린다.
           pathCreateTrigger: "both",
+          pathConnectHandle: "dangling",
           onPathCreateRequest: setPathCreateRequest,
           // 존 생성 트리거 데모 — 패스 라벨 output 앵커 클릭 시 존 종류 피커
           // 팝오버를 연다(드래그 재연결은 그대로). onPathCreateRequest 의 패스판 대칭.

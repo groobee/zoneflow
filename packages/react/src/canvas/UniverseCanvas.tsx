@@ -120,6 +120,18 @@ export type UniverseCanvasProps = {
   cameraState?: CameraState;
   onCameraChange?: (nextCamera: CameraState) => void;
   onFrameChange?: (frame: RendererFrame | null) => void;
+  /**
+   * true 면 빈 영역을 왼쪽 버튼으로 드래그해 캔버스를 이동할 수 있습니다(기본 false).
+   * 4px 미만 이동은 클릭으로 남아 배경 클릭·선택 해제가 그대로 동작합니다.
+   * 편집 모드에서는 마퀴(영역) 선택 자리를 대체하며, Shift/Ctrl/⌘ 를 누른 드래그가 마퀴로 남습니다.
+   * 휠·트랙패드 스크롤 이동, Space/Alt/휠버튼 드래그 이동은 이 옵션과 무관하게 항상 동작합니다.
+   */
+  panOnBackgroundDrag?: boolean;
+  /**
+   * 타깃이 없는(dangling)·깨진 패스의 출구 끝에 "열린 끝" 표식(점선 꼬리 + 속 빈 원)을 그립니다.
+   * 라벨이 대상 존 위에 겹쳐 있어도 실제로는 미연결임을 알아볼 수 있습니다. 기본 true.
+   */
+  danglingEndMarker?: boolean;
 
   debug?: RendererDebugOptions;
 };
@@ -214,6 +226,8 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     cameraState,
     onCameraChange,
     onFrameChange,
+    panOnBackgroundDrag = false,
+    danglingEndMarker = true,
     debug,
   }: UniverseCanvasProps, handleRef) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -359,10 +373,12 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       renderPathOverlay(path, context) ? noopRenderer : undefined;
   }, [renderPathOverlay]);
 
+  // 편집 모드의 빈 영역 드래그는 오버레이(마퀴 자리)가 처리한다 — 훅은 뷰어 모드 전용.
   useCameraControls({
     hostRef: viewportRef,
     camera,
     setCamera,
+    panOnBackgroundDrag: panOnBackgroundDrag && !zoneMoveEditor?.enabled,
   });
 
   const focusZone = useCallback(
@@ -497,6 +513,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
       gridOptions: stableGrid,
       interactionHandlers: stableInteractionHandlers,
       exclusionState,
+      danglingEndMarker,
       debug: stableDebug,
     });
 
@@ -543,6 +560,7 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
     effectiveBackgroundRenderer,
     stableInteractionHandlers,
     exclusionState,
+    danglingEndMarker,
     stableDebug,
     onFrameChangeRef,
     hostSizeVersion,
@@ -621,6 +639,8 @@ export const UniverseCanvas = forwardRef<UniverseCanvasHandle, UniverseCanvasPro
         resolveZoneShape={resolveZoneShape}
         resolvePathStyle={resolvePathStyle}
         onExclusionStateChange={setExclusionState}
+        panOnBackgroundDrag={panOnBackgroundDrag}
+        onPanCamera={setCamera}
       />
     </div>
   );

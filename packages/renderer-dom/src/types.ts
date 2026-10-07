@@ -669,6 +669,12 @@ export type RendererDrawInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
+  /**
+   * 타깃이 없는(dangling)·깨진 패스의 출구 끝에 "열린 끝" 표식(점선 꼬리 + 속 빈 원)을
+   * 그린다. 라벨이 대상 존 위에 겹쳐 있어도 실제로는 미연결임을 알아볼 수 있게 한다.
+   * 기본 true — 끄려면 `false`.
+   */
+  danglingEndMarker?: boolean;
 };
 
 export type RendererFrame = {
@@ -779,6 +785,12 @@ export type RendererInput = {
   gridOptions?: GridOptions;
   interactionHandlers?: RendererInteractionHandlers;
   exclusionState?: RendererExclusionState;
+  /**
+   * 타깃이 없는(dangling)·깨진 패스의 출구 끝에 "열린 끝" 표식(점선 꼬리 + 속 빈 원)을
+   * 그린다. 라벨이 대상 존 위에 겹쳐 있어도 실제로는 미연결임을 알아볼 수 있게 한다.
+   * 기본 true — 끄려면 `false`.
+   */
+  danglingEndMarker?: boolean;
 
   debug?: RendererDebugOptions;
 };

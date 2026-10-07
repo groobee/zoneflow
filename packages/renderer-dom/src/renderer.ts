@@ -154,6 +154,7 @@ export function createRenderer(): ZoneflowRenderer {
         gridOptions,
         interactionHandlers,
         exclusionState,
+        danglingEndMarker = true,
 
         debug,
       } = input;
@@ -242,6 +243,7 @@ export function createRenderer(): ZoneflowRenderer {
         gridOptions,
         interactionHandlers,
         exclusionState,
+        danglingEndMarker,
       });
 
       return {

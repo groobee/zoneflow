@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { CameraState } from "@zoneflow/renderer-dom";
-import { useIsomorphicLayoutEffect } from "../internal/hooks.js";
+import { useIsomorphicLayoutEffect, useLatestRef } from "../internal/hooks.js";
 import { createFrameCoalescer } from "./frameCoalescer.js";
 
 type UseCameraControlsParams = {
   hostRef: RefObject<HTMLElement | null>;
   camera: CameraState;
   setCamera: React.Dispatch<React.SetStateAction<CameraState>>;
+  /** 빈 영역 왼쪽 드래그로 팬(뷰어 모드). 임계 미만은 클릭으로 남는다. */
+  panOnBackgroundDrag?: boolean;
 };
 
 export const CAMERA_MIN_ZOOM = 0.25;
@@ -17,6 +19,7 @@ const MIN_ZOOM = CAMERA_MIN_ZOOM;
 const MAX_ZOOM = CAMERA_MAX_ZOOM;
 const ZOOM_STEP = 1.1;
 const TOUCH_PAN_MIN_POINTERS = 2;
+const BACKGROUND_PAN_START_DISTANCE = 4;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -62,6 +65,22 @@ const SPACE_CONSUMING_SELECTOR = [
   "[role='textbox']",
 ].join(",");
 
+// 존/패스/오버레이 요소와 상호작용 요소 위의 누름은 배경이 아니다.
+const NON_BACKGROUND_SELECTOR = [
+  "[data-zoneflow-zone-id]",
+  "[data-zoneflow-path-id]",
+  "[data-zoneflow-zone-overlay]",
+  "[data-zoneflow-path-overlay]",
+  SPACE_CONSUMING_SELECTOR,
+].join(",");
+
+function isBackgroundTarget(event: PointerEvent): boolean {
+  const origin = event.composedPath?.()[0] ?? event.target;
+  return (
+    origin instanceof Element && origin.closest(NON_BACKGROUND_SELECTOR) === null
+  );
+}
+
 function isSpaceConsumingTarget(event: KeyboardEvent): boolean {
   // composedPath()[0] sees through shadow roots, where event.target is retargeted to the host.
   const origin = event.composedPath?.()[0] ?? event.target;
@@ -95,7 +114,9 @@ export function useCameraControls({
                                     hostRef,
                                     camera,
                                     setCamera,
+                                    panOnBackgroundDrag = false,
                                   }: UseCameraControlsParams) {
+  const panOnBackgroundDragRef = useLatestRef(panOnBackgroundDrag);
   const cameraRef = useRef(camera);
   const isSpacePressedRef = useRef(false);
   const isPointerOverHostRef = useRef(false);
@@ -115,6 +136,13 @@ export function useCameraControls({
     startCameraX: 0,
     startCameraY: 0,
   });
+
+  // 배경 누름 후 임계를 넘기기 전까지의 대기 상태 — 임계 미만이면 클릭이 그대로 남는다.
+  const pendingBackgroundPanRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+  } | null>(null);
 
   const activePointersRef = useRef<
     Map<number, { x: number; y: number; pointerType: string }>
@@ -317,7 +345,23 @@ export function useCameraControls({
         event.button === 1 ||
         (event.button === 0 && (event.altKey || isSpacePressedRef.current));
 
-      if (!shouldStartPan) return;
+      if (!shouldStartPan) {
+        if (
+          panOnBackgroundDragRef.current &&
+          event.button === 0 &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          isBackgroundTarget(event)
+        ) {
+          pendingBackgroundPanRef.current = {
+            pointerId: event.pointerId,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+          };
+        }
+        return;
+      }
 
       event.preventDefault();
 
@@ -389,6 +433,33 @@ export function useCameraControls({
         return;
       }
 
+      const pending = pendingBackgroundPanRef.current;
+      if (
+        pending &&
+        pending.pointerId === event.pointerId &&
+        !panStateRef.current.isPanning
+      ) {
+        if (
+          Math.hypot(
+            event.clientX - pending.startClientX,
+            event.clientY - pending.startClientY
+          ) >= BACKGROUND_PAN_START_DISTANCE
+        ) {
+          pendingBackgroundPanRef.current = null;
+          panStateRef.current = {
+            isPanning: true,
+            pointerId: event.pointerId,
+            startClientX: pending.startClientX,
+            startClientY: pending.startClientY,
+            startCameraX: cameraRef.current.x,
+            startCameraY: cameraRef.current.y,
+          };
+          host.style.userSelect = "none";
+          host.style.cursor = "grabbing";
+          host.setPointerCapture?.(event.pointerId);
+        }
+      }
+
       const panState = panStateRef.current;
       if (!panState.isPanning) return;
       if (
@@ -414,6 +485,9 @@ export function useCameraControls({
       flushPendingCamera();
 
       activePointersRef.current.delete(event.pointerId);
+      if (pendingBackgroundPanRef.current?.pointerId === event.pointerId) {
+        pendingBackgroundPanRef.current = null;
+      }
 
       if (event.pointerType === "touch") {
         const touchPointers = [...activePointersRef.current.values()].filter(
@@ -467,6 +541,7 @@ export function useCameraControls({
       host.removeEventListener("pointerleave", handlePointerLeave);
 
       cancelPendingCamera();
+      pendingBackgroundPanRef.current = null;
       activePointersRef.current.clear();
       stopPointerPan();
       stopTouchGesture();

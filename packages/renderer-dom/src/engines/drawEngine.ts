@@ -855,7 +855,67 @@ function drawEdges(params: {
       flow.setAttribute("class", `${EDGE_FLOW_CLASS} ${edgeFlowClass}`);
       edgeOwner.appendChild(flow);
     }
+
+    if (
+      input.danglingEndMarker !== false &&
+      pathVisual?.outlet &&
+      !(
+        pathVisual.targetZoneId &&
+        input.pipeline.graphLayout.zonesById[pathVisual.targetZoneId]
+      )
+    ) {
+      drawDanglingEndMarker({
+        owner: edgeOwner,
+        origin: pathVisual.outlet,
+        stroke:
+          lineColor ?? getEdgeColor({ kind: "path-to-zone", theme: input.theme }),
+        background: input.theme.background,
+        opacity: getOpacity(visibility.emphasis),
+      });
+    }
   }
+}
+
+const DANGLING_END_STUB_LENGTH = 26;
+const DANGLING_END_RING_RADIUS = 5;
+
+// 미연결 출구 표식 — 점선 꼬리 + 속 빈 원. 연결된 끝(존 인렛에 닿는 선)과 모양이 달라
+// 라벨이 존 위에 겹쳐 있어도 "아직 아무 데도 안 이어짐"이 읽힌다.
+function drawDanglingEndMarker(params: {
+  owner: SVGElement;
+  origin: { x: number; y: number };
+  stroke: string;
+  background: string;
+  opacity: number;
+}) {
+  const { owner, origin, stroke, background, opacity } = params;
+  const endX = origin.x + DANGLING_END_STUB_LENGTH;
+
+  const group = createSvgElement("g");
+  group.setAttribute("data-zoneflow-dangling-end", "true");
+  group.setAttribute("opacity", String(opacity * 0.9));
+
+  const stub = createSvgElement("line");
+  stub.setAttribute("x1", String(origin.x));
+  stub.setAttribute("y1", String(origin.y));
+  stub.setAttribute("x2", String(endX));
+  stub.setAttribute("y2", String(origin.y));
+  stub.setAttribute("stroke", stroke);
+  stub.setAttribute("stroke-width", "2");
+  stub.setAttribute("stroke-linecap", "round");
+  stub.setAttribute("stroke-dasharray", "4 4");
+  group.appendChild(stub);
+
+  const ring = createSvgElement("circle");
+  ring.setAttribute("cx", String(endX + DANGLING_END_RING_RADIUS));
+  ring.setAttribute("cy", String(origin.y));
+  ring.setAttribute("r", String(DANGLING_END_RING_RADIUS));
+  ring.setAttribute("fill", background);
+  ring.setAttribute("stroke", stroke);
+  ring.setAttribute("stroke-width", "2");
+  group.appendChild(ring);
+
+  owner.appendChild(group);
 }
 
 // Depth for clipped shapes: box-shadow is cut away by clip-path, so a
