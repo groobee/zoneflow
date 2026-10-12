@@ -97,6 +97,7 @@ import {
   getSelectionCommandLabel,
   getSelectionToolbarCountLabel,
   getTargetMetaStateLabel,
+  getHelpPanelBody,
   getZoneflowEditorStrings,
   type SelectionCommandKey,
 } from "./strings.js";
@@ -4563,7 +4564,7 @@ export function ZoneMoveEditorOverlay(props: {
                   color: resolvedEditorTheme.overlay.helpPanel.mutedText,
                 }}
               >
-                {editorStrings.helpPanel.body}
+                {getHelpPanelBody(editorStrings, Boolean(panOnBackgroundDrag && onPanCamera))}
               </div>
             </div>
           ) : (

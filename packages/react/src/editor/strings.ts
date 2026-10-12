@@ -21,6 +21,10 @@ type EditorStrings = {
     collapse: string;
     expand: string;
     body: string;
+    /** 빈 캔버스 드래그 = 마퀴 선택(기본). */
+    marqueeHint: string;
+    /** panOnBackgroundDrag 켜짐 — 빈 캔버스 드래그 = 화면 이동, Shift/Ctrl/⌘ 드래그 = 마퀴. */
+    marqueeHintPanMode: string;
   };
   hud: {
     undo: string;
@@ -74,7 +78,10 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       collapse: "접기",
       expand: "가이드 열기",
       body:
-        "존을 드래그해서 이동할 수 있습니다. Shift를 누른 채 존이나 패스를 클릭하면 다중 선택이 되고, 떠 있는 툴바에서 정렬과 분배를 실행할 수 있습니다. 오른쪽 앵커를 끌면 조건 패스를 추가할 수 있고, 존 우하단 핸들로 크기를 조정할 수 있습니다. 존은 더블클릭으로 편집하고, 패스 오른쪽 앵커를 끌어 재연결하거나 모서리 핸들로 라벨 크기를 조정할 수 있습니다. 빈 캔버스를 드래그하면 올가미 선택이 됩니다.",
+        "존을 드래그해서 이동할 수 있습니다. Shift를 누른 채 존이나 패스를 클릭하면 다중 선택이 되고, 떠 있는 툴바에서 정렬과 분배를 실행할 수 있습니다. 오른쪽 앵커를 끌면 조건 패스를 추가할 수 있고, 존 우하단 핸들로 크기를 조정할 수 있습니다. 존은 더블클릭으로 편집하고, 패스 오른쪽 앵커를 끌어 재연결하거나 모서리 핸들로 라벨 크기를 조정할 수 있습니다.",
+      marqueeHint: "빈 캔버스를 드래그하면 올가미 선택이 됩니다.",
+      marqueeHintPanMode:
+        "빈 캔버스를 드래그하면 화면이 이동합니다. Shift/Ctrl/⌘ 를 누른 채 드래그하면 올가미 선택이 됩니다.",
     },
     hud: {
       undo: "되돌리기",
@@ -139,7 +146,10 @@ const EDITOR_STRINGS: Record<ZoneflowEditorLocale, EditorStrings> = {
       collapse: "Hide",
       expand: "Show guide",
       body:
-        "Drag zones to move them. Shift-click zones or paths to multi-select, then align or distribute them from the floating toolbar. Drag the right anchor to add a condition path, and use the bottom-right handle to resize zones. Double-click a zone to edit it. Drag the right-side anchor on a path to reconnect it, and use the corner handle to resize the path label box. Drag empty canvas space to marquee-select zones and paths.",
+        "Drag zones to move them. Shift-click zones or paths to multi-select, then align or distribute them from the floating toolbar. Drag the right anchor to add a condition path, and use the bottom-right handle to resize zones. Double-click a zone to edit it. Drag the right-side anchor on a path to reconnect it, and use the corner handle to resize the path label box.",
+      marqueeHint: "Drag empty canvas space to marquee-select zones and paths.",
+      marqueeHintPanMode:
+        "Drag empty canvas space to pan the view. Hold Shift/Ctrl/⌘ while dragging to marquee-select zones and paths.",
     },
     hud: {
       undo: "Undo",
@@ -210,6 +220,14 @@ export function resolveEditorLocale(): ZoneflowEditorLocale {
 
 export function getZoneflowEditorStrings(locale: ZoneflowEditorLocale) {
   return EDITOR_STRINGS[locale];
+}
+
+export function getHelpPanelBody(
+  strings: EditorStrings,
+  panOnBackgroundDrag: boolean
+) {
+  const { body, marqueeHint, marqueeHintPanMode } = strings.helpPanel;
+  return `${body} ${panOnBackgroundDrag ? marqueeHintPanMode : marqueeHint}`;
 }
 
 export function formatDeleteTargetLabel(
